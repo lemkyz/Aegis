@@ -84,7 +84,7 @@ def test_blocking_change_writes_sarif(
     assert run["tool"]["driver"]["name"] == (
         "Aegis Change Security Gate"
     )
-    assert result["ruleId"] == BLOCK_RULE_ID
+    assert result["ruleId"] == "AEGIS-HARDCODED-CREDENTIAL"
     assert result["level"] == "error"
     assert result["locations"][0][
         "physicalLocation"
@@ -125,7 +125,7 @@ def test_review_change_uses_warning_level(
     )
     result = payload["runs"][0]["results"][0]
 
-    assert result["ruleId"] == REVIEW_RULE_ID
+    assert result["ruleId"] == "AEGIS-SHELL-EXECUTION"
     assert result["level"] == "warning"
     assert result["properties"]["decision"] == "review"
 
@@ -216,3 +216,171 @@ def test_pull_request_sarif_uses_commit_diff(
     assert properties["mode"] == "pull_request"
     assert properties["baseRevision"] == base_commit
     assert properties["headRevision"] == head_commit
+
+
+def test_sarif_uses_specific_rule_and_source_region(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    sarif_path = tmp_path / "located.sarif"
+
+    (root / "app.py").write_text(
+        "safe = True\n"
+        'api_key = "production-secret-token"\n',
+        encoding="utf-8",
+    )
+
+    exit_code, _, stderr = run_cli(
+        [
+            "change-gate",
+            "--repository",
+            str(root),
+            "--sarif",
+            str(sarif_path),
+        ]
+    )
+
+    assert exit_code == 2
+    assert stderr == ""
+
+    payload = json.loads(
+        sarif_path.read_text(
+            encoding="utf-8",
+        )
+    )
+
+    run = payload["runs"][0]
+    result = run["results"][0]
+    location = result["locations"][0][
+        "physicalLocation"
+    ]
+
+    assert result["ruleId"] == (
+        "AEGIS-HARDCODED-CREDENTIAL"
+    )
+    assert location["region"]["startLine"] == 2
+    assert location["region"]["startColumn"] == 1
+
+    rule_ids = {
+        rule["id"]
+        for rule in run["tool"]["driver"]["rules"]
+    }
+
+    assert rule_ids == {
+        "AEGIS-HARDCODED-CREDENTIAL"
+    }
+
+
+def test_sarif_fingerprint_survives_line_movement(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    first_path = tmp_path / "first.sarif"
+    second_path = tmp_path / "second.sarif"
+
+    (root / "config.py").write_text(
+        'api_key = "production-secret-token"\n',
+        encoding="utf-8",
+    )
+
+    first_exit, _, first_error = run_cli(
+        [
+            "change-gate",
+            "--repository",
+            str(root),
+            "--sarif",
+            str(first_path),
+        ]
+    )
+
+    assert first_exit == 2
+    assert first_error == ""
+
+    (root / "config.py").write_text(
+        "# configuration\n"
+        "# moved downward\n"
+        'api_key = "production-secret-token"\n',
+        encoding="utf-8",
+    )
+
+    second_exit, _, second_error = run_cli(
+        [
+            "change-gate",
+            "--repository",
+            str(root),
+            "--sarif",
+            str(second_path),
+        ]
+    )
+
+    assert second_exit == 2
+    assert second_error == ""
+
+    first = json.loads(
+        first_path.read_text(
+            encoding="utf-8",
+        )
+    )["runs"][0]["results"][0]
+
+    second = json.loads(
+        second_path.read_text(
+            encoding="utf-8",
+        )
+    )["runs"][0]["results"][0]
+
+    assert first["locations"][0][
+        "physicalLocation"
+    ]["region"]["startLine"] == 1
+
+    assert second["locations"][0][
+        "physicalLocation"
+    ]["region"]["startLine"] == 3
+
+    assert (
+        first["partialFingerprints"][
+            "aegisRulePath/v1"
+        ]
+        == second["partialFingerprints"][
+            "aegisRulePath/v1"
+        ]
+    )
+
+
+def test_generic_non_pattern_result_has_no_region(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    sarif_path = tmp_path / "binary.sarif"
+
+    (root / "artifact.bin").write_bytes(
+        b"\x00\x01\x02"
+    )
+
+    exit_code, _, stderr = run_cli(
+        [
+            "change-gate",
+            "--repository",
+            str(root),
+            "--sarif",
+            str(sarif_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+
+    payload = json.loads(
+        sarif_path.read_text(
+            encoding="utf-8",
+        )
+    )
+
+    result = payload["runs"][0]["results"][0]
+    physical = result["locations"][0][
+        "physicalLocation"
+    ]
+
+    assert result["ruleId"] == (
+        "AEGIS-CHANGE-REVIEW"
+    )
+    assert "region" not in physical

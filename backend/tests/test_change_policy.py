@@ -274,3 +274,71 @@ def test_output_order_is_deterministic() -> None:
         "a.py",
         "z.py",
     ]
+
+
+def test_hardcoded_secret_has_rule_and_location() -> None:
+    result = evaluate(
+        change(
+            path="config.py",
+            patch=(
+                "diff --git a/config.py b/config.py\n"
+                "--- a/config.py\n"
+                "+++ b/config.py\n"
+                "@@ -1,2 +1,3 @@\n"
+                " safe = True\n"
+                '+api_key = "super-secret-value"\n'
+                " enabled = True\n"
+            ),
+            additions=1,
+        )
+    )
+
+    assessment = result.assessments[0]
+
+    assert assessment.rule_id == (
+        "AEGIS-HARDCODED-CREDENTIAL"
+    )
+    assert assessment.start_line == 2
+    assert assessment.start_column == 1
+
+
+def test_shell_execution_has_rule_and_location() -> None:
+    result = evaluate(
+        change(
+            path="runner.py",
+            patch=(
+                "diff --git a/runner.py b/runner.py\n"
+                "--- a/runner.py\n"
+                "+++ b/runner.py\n"
+                "@@ -8,2 +8,3 @@\n"
+                " import subprocess\n"
+                "+subprocess.run(command, shell=True)\n"
+                " return True\n"
+            ),
+            additions=1,
+        )
+    )
+
+    assessment = result.assessments[0]
+
+    assert assessment.rule_id == (
+        "AEGIS-SHELL-EXECUTION"
+    )
+    assert assessment.start_line == 9
+    assert assessment.start_column == 25
+
+
+def test_non_pattern_assessment_has_no_source_location(
+) -> None:
+    result = evaluate(
+        change(
+            path="artifact.bin",
+            binary=True,
+        )
+    )
+
+    assessment = result.assessments[0]
+
+    assert assessment.rule_id is None
+    assert assessment.start_line is None
+    assert assessment.start_column is None

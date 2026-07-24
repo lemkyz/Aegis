@@ -18,6 +18,7 @@ from aegis.schemas.policy import (
 
 @dataclass(frozen=True)
 class _PatternRule:
+    rule_id: str
     expression: re.Pattern[str]
     score: int
     reason: str
@@ -79,6 +80,7 @@ class ChangeAwarePolicyEngine:
 
     _pattern_rules = (
         _PatternRule(
+            rule_id="AEGIS-SHELL-EXECUTION",
             expression=re.compile(
                 r"\bshell\s*=\s*true\b",
                 re.IGNORECASE,
@@ -90,6 +92,7 @@ class ChangeAwarePolicyEngine:
             ),
         ),
         _PatternRule(
+            rule_id="AEGIS-DYNAMIC-EXECUTION",
             expression=re.compile(
                 r"\b(?:os\.system|os\.popen|"
                 r"child_process\.exec(?:sync)?|"
@@ -103,6 +106,7 @@ class ChangeAwarePolicyEngine:
             ),
         ),
         _PatternRule(
+            rule_id="AEGIS-TLS-VERIFICATION-DISABLED",
             expression=re.compile(
                 r"\bverify\s*=\s*false\b|"
                 r"\brejectUnauthorized\s*:\s*false\b|"
@@ -117,6 +121,7 @@ class ChangeAwarePolicyEngine:
             blocking=True,
         ),
         _PatternRule(
+            rule_id="AEGIS-WORLD-WRITABLE-PERMISSIONS",
             expression=re.compile(
                 r"\bchmod\s+(?:-R\s+)?777\b|"
                 r"\bos\.chmod\s*\([^,\n]+,\s*0?777\s*\)",
@@ -129,6 +134,7 @@ class ChangeAwarePolicyEngine:
             ),
         ),
         _PatternRule(
+            rule_id="AEGIS-WILDCARD-CLOUD-PERMISSIONS",
             expression=re.compile(
                 r"Action\s*:\s*['\"]?\*['\"]?|"
                 r"Resource\s*:\s*['\"]?\*['\"]?",
@@ -141,6 +147,7 @@ class ChangeAwarePolicyEngine:
             ),
         ),
         _PatternRule(
+            rule_id="AEGIS-HARDCODED-CREDENTIAL",
             expression=re.compile(
                 r"(?i)(password|api[_-]?key|secret|token)"
                 r"\s*[:=]\s*['\"][^'\"\n]{8,}['\"]"
@@ -262,6 +269,9 @@ class ChangeAwarePolicyEngine:
         score = 0
         reasons: list[str] = []
         forced_block = False
+        matched_rule_id: str | None = None
+        matched_line: int | None = None
+        matched_column: int | None = None
 
         if self._is_sensitive_path(change.path):
             score += 25
@@ -342,11 +352,18 @@ class ChangeAwarePolicyEngine:
         added_lines = self._added_patch_lines(
             change.patch
         )
+        added_patch_lines = (
+            self._added_patch_lines_with_locations(
+                change.patch
+            )
+        )
 
         for rule in self._pattern_rules:
-            if not rule.expression.search(
+            match = rule.expression.search(
                 added_lines
-            ):
+            )
+
+            if match is None:
                 continue
 
             score += rule.score
@@ -355,6 +372,26 @@ class ChangeAwarePolicyEngine:
                 forced_block
                 or rule.blocking
             )
+
+            if matched_rule_id is None:
+                matched_rule_id = rule.rule_id
+
+                for (
+                    line_number,
+                    line_text,
+                ) in added_patch_lines:
+                    line_match = rule.expression.search(
+                        line_text
+                    )
+
+                    if line_match is None:
+                        continue
+
+                    matched_line = line_number
+                    matched_column = (
+                        line_match.start() + 1
+                    )
+                    break
 
         score = min(score, 100)
 
@@ -376,8 +413,59 @@ class ChangeAwarePolicyEngine:
             risk_score=score,
             risk_level=self._risk_level(score),
             decision=decision,
+            rule_id=matched_rule_id,
+            start_line=matched_line,
+            start_column=matched_column,
             reasons=reasons,
         )
+
+    @staticmethod
+    def _added_patch_lines_with_locations(
+        patch: str,
+    ) -> list[tuple[int, str]]:
+        located_lines: list[tuple[int, str]] = []
+        new_line_number: int | None = None
+
+        hunk_pattern = re.compile(
+            r"^@@ -\d+(?:,\d+)? "
+            r"\+(\d+)(?:,\d+)? @@"
+        )
+
+        for line in patch.splitlines():
+            hunk_match = hunk_pattern.match(line)
+
+            if hunk_match is not None:
+                new_line_number = int(
+                    hunk_match.group(1)
+                )
+                continue
+
+            if new_line_number is None:
+                continue
+
+            if line.startswith("+++"):
+                continue
+
+            if line.startswith("+"):
+                located_lines.append(
+                    (
+                        new_line_number,
+                        line[1:],
+                    )
+                )
+                new_line_number += 1
+                continue
+
+            if line.startswith("-"):
+                continue
+
+            if line.startswith("\\ No newline"):
+                continue
+
+            new_line_number += 1
+
+        return located_lines
+
 
     @classmethod
     def _contains_dangerous_pattern(

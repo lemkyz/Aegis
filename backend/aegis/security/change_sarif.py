@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
+import hashlib
 from typing import Any
 from urllib.parse import quote
 
@@ -20,9 +20,88 @@ BLOCK_RULE_ID = "AEGIS-CHANGE-BLOCK"
 REVIEW_RULE_ID = "AEGIS-CHANGE-REVIEW"
 
 
+_RULE_METADATA: dict[str, dict[str, str]] = {
+    BLOCK_RULE_ID: {
+        "name": "AegisChangeBlocked",
+        "description": (
+            "Aegis blocked a security-sensitive "
+            "software change."
+        ),
+        "level": "error",
+        "security_severity": "9.0",
+    },
+    REVIEW_RULE_ID: {
+        "name": "AegisChangeReviewRequired",
+        "description": (
+            "Aegis requires human review for a "
+            "software change."
+        ),
+        "level": "warning",
+        "security_severity": "6.0",
+    },
+    "AEGIS-SHELL-EXECUTION": {
+        "name": "ShellExecution",
+        "description": (
+            "The change enables shell-based process "
+            "execution."
+        ),
+        "level": "warning",
+        "security_severity": "7.0",
+    },
+    "AEGIS-DYNAMIC-EXECUTION": {
+        "name": "DynamicExecution",
+        "description": (
+            "The change introduces a dangerous dynamic "
+            "execution primitive."
+        ),
+        "level": "warning",
+        "security_severity": "7.5",
+    },
+    "AEGIS-TLS-VERIFICATION-DISABLED": {
+        "name": "TlsVerificationDisabled",
+        "description": (
+            "The change disables TLS certificate "
+            "verification."
+        ),
+        "level": "error",
+        "security_severity": "8.5",
+    },
+    "AEGIS-WORLD-WRITABLE-PERMISSIONS": {
+        "name": "WorldWritablePermissions",
+        "description": (
+            "The change introduces globally writable "
+            "permissions."
+        ),
+        "level": "warning",
+        "security_severity": "6.5",
+    },
+    "AEGIS-WILDCARD-CLOUD-PERMISSIONS": {
+        "name": "WildcardCloudPermissions",
+        "description": (
+            "The change introduces wildcard cloud "
+            "permissions."
+        ),
+        "level": "warning",
+        "security_severity": "8.0",
+    },
+    "AEGIS-HARDCODED-CREDENTIAL": {
+        "name": "HardcodedCredential",
+        "description": (
+            "The change appears to introduce a "
+            "hard-coded credential."
+        ),
+        "level": "error",
+        "security_severity": "9.0",
+    },
+}
+
+
 def assessment_rule_id(
     assessment: ChangeFilePolicyAssessment,
 ) -> str:
+    if assessment.rule_id is not None:
+        return assessment.rule_id
+
     if assessment.decision == "block":
         return BLOCK_RULE_ID
 
@@ -74,6 +153,29 @@ def assessment_message(
     )
 
 
+def assessment_fingerprint(
+    assessment: ChangeFilePolicyAssessment,
+) -> str:
+    """
+    Stable across line movement.
+
+    The current policy engine produces at most one assessment
+    for each file. Rule ID plus normalized path therefore forms
+    the stable finding identity without tying it to a line.
+    """
+
+    identity = "\n".join(
+        [
+            assessment_rule_id(assessment),
+            assessment.path.replace("\\", "/"),
+        ]
+    )
+
+    return hashlib.sha256(
+        identity.encode("utf-8")
+    ).hexdigest()
+
+
 def assessment_result(
     assessment: ChangeFilePolicyAssessment,
 ) -> dict[str, Any]:
@@ -87,6 +189,31 @@ def assessment_result(
     if assessment.old_path is not None:
         properties["oldPath"] = assessment.old_path
 
+    physical_location: dict[str, Any] = {
+        "artifactLocation": {
+            "uri": artifact_uri(
+                assessment.path
+            ),
+            "uriBaseId": "%SRCROOT%",
+        }
+    }
+
+    if assessment.start_line is not None:
+        region: dict[str, int] = {
+            "startLine": assessment.start_line,
+        }
+
+        if assessment.start_column is not None:
+            region["startColumn"] = (
+                assessment.start_column
+            )
+
+        physical_location["region"] = region
+
+    fingerprint = assessment_fingerprint(
+        assessment
+    )
+
     return {
         "ruleId": assessment_rule_id(assessment),
         "level": assessment_level(assessment),
@@ -95,91 +222,81 @@ def assessment_result(
         },
         "locations": [
             {
-                "physicalLocation": {
-                    "artifactLocation": {
-                        "uri": artifact_uri(
-                            assessment.path
-                        ),
-                        "uriBaseId": "%SRCROOT%",
-                    }
-                }
+                "physicalLocation": (
+                    physical_location
+                )
             }
         ],
+        "partialFingerprints": {
+            "aegisRulePath/v1": fingerprint,
+            "primaryLocationLineHash": fingerprint,
+        },
         "properties": properties,
     }
 
 
-def sarif_rules() -> list[dict[str, Any]]:
-    return [
+def sarif_rule(
+    rule_id: str,
+) -> dict[str, Any]:
+    metadata = _RULE_METADATA.get(
+        rule_id,
         {
-            "id": BLOCK_RULE_ID,
-            "name": "AegisChangeBlocked",
-            "shortDescription": {
-                "text": (
-                    "Aegis blocked a security-sensitive "
-                    "software change."
-                )
-            },
-            "fullDescription": {
-                "text": (
-                    "The deterministic Aegis change policy "
-                    "found evidence requiring the change "
-                    "to be blocked."
-                )
-            },
-            "defaultConfiguration": {
-                "level": "error",
-            },
-            "properties": {
-                "precision": "high",
-                "security-severity": "9.0",
-                "tags": [
-                    "security",
-                    "aegis",
-                    "change-gate",
-                ],
-            },
+            "name": rule_id,
+            "description": (
+                "Aegis detected an elevated-risk "
+                "software change."
+            ),
+            "level": "warning",
+            "security_severity": "6.0",
         },
-        {
-            "id": REVIEW_RULE_ID,
-            "name": "AegisChangeReviewRequired",
-            "shortDescription": {
-                "text": (
-                    "Aegis requires human review for a "
-                    "software change."
-                )
-            },
-            "fullDescription": {
-                "text": (
-                    "The deterministic Aegis change policy "
-                    "found elevated risk evidence requiring "
-                    "human review."
-                )
-            },
-            "defaultConfiguration": {
-                "level": "warning",
-            },
-            "properties": {
-                "precision": "high",
-                "security-severity": "6.0",
-                "tags": [
-                    "security",
-                    "aegis",
-                    "change-gate",
-                ],
-            },
+    )
+
+    return {
+        "id": rule_id,
+        "name": metadata["name"],
+        "shortDescription": {
+            "text": metadata["description"],
         },
-    ]
+        "fullDescription": {
+            "text": metadata["description"],
+        },
+        "defaultConfiguration": {
+            "level": metadata["level"],
+        },
+        "properties": {
+            "precision": "high",
+            "security-severity": (
+                metadata["security_severity"]
+            ),
+            "tags": [
+                "security",
+                "aegis",
+                "change-gate",
+            ],
+        },
+    }
 
 
 def build_change_sarif(
     result: ChangePolicyCollectionResponse,
 ) -> dict[str, Any]:
-    sarif_results = [
-        assessment_result(assessment)
+    reportable_assessments = [
+        assessment
         for assessment in result.policy.assessments
         if assessment.decision != "allow"
     ]
+
+    sarif_results = [
+        assessment_result(assessment)
+        for assessment in reportable_assessments
+    ]
+
+    used_rule_ids = sorted(
+        {
+            assessment_rule_id(assessment)
+            for assessment in reportable_assessments
+        }
+    )
 
     invocation = {
         "executionSuccessful": True,
@@ -208,12 +325,17 @@ def build_change_sarif(
             {
                 "tool": {
                     "driver": {
-                        "name": "Aegis Change Security Gate",
+                        "name": (
+                            "Aegis Change Security Gate"
+                        ),
                         "informationUri": (
                             "https://github.com/lemkyz/aegis"
                         ),
                         "semanticVersion": "0.1.0",
-                        "rules": sarif_rules(),
+                        "rules": [
+                            sarif_rule(rule_id)
+                            for rule_id in used_rule_ids
+                        ],
                     }
                 },
                 "automationDetails": {

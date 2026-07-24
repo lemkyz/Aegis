@@ -35,6 +35,20 @@ class ChangeFilePolicyAssessment(BaseModel):
     risk_level: PolicyRiskLevel
     decision: PolicyDecision
 
+    rule_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+    )
+    start_line: int | None = Field(
+        default=None,
+        ge=1,
+    )
+    start_column: int | None = Field(
+        default=None,
+        ge=1,
+    )
+
     reasons: list[str] = Field(
         default_factory=list,
     )
