@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from aegis.schemas.change_policy import (
     ChangeFilePolicyAssessment,
     ChangePolicyDecisionResponse,
+    ChangePolicyFinding,
     ChangePolicyEvaluationRequest,
     ChangePolicySummary,
 )
@@ -272,6 +273,7 @@ class ChangeAwarePolicyEngine:
         matched_rule_id: str | None = None
         matched_line: int | None = None
         matched_column: int | None = None
+        findings: list[ChangePolicyFinding] = []
 
         if self._is_sensitive_path(change.path):
             score += 25
@@ -359,11 +361,38 @@ class ChangeAwarePolicyEngine:
         )
 
         for rule in self._pattern_rules:
-            match = rule.expression.search(
-                added_lines
-            )
+            rule_matches: list[
+                tuple[int | None, int | None]
+            ] = []
 
-            if match is None:
+            for (
+                line_number,
+                line_text,
+            ) in added_patch_lines:
+                for line_match in (
+                    rule.expression.finditer(line_text)
+                ):
+                    rule_matches.append(
+                        (
+                            line_number,
+                            line_match.start() + 1,
+                        )
+                    )
+
+            if not rule_matches:
+                fallback_match = rule.expression.search(
+                    added_lines
+                )
+
+                if fallback_match is not None:
+                    rule_matches.append(
+                        (
+                            None,
+                            fallback_match.start() + 1,
+                        )
+                    )
+
+            if not rule_matches:
                 continue
 
             score += rule.score
@@ -373,25 +402,25 @@ class ChangeAwarePolicyEngine:
                 or rule.blocking
             )
 
+            for (
+                finding_line,
+                finding_column,
+            ) in rule_matches:
+                findings.append(
+                    ChangePolicyFinding(
+                        rule_id=rule.rule_id,
+                        reason=rule.reason,
+                        score=rule.score,
+                        blocking=rule.blocking,
+                        start_line=finding_line,
+                        start_column=finding_column,
+                    )
+                )
+
             if matched_rule_id is None:
                 matched_rule_id = rule.rule_id
-
-                for (
-                    line_number,
-                    line_text,
-                ) in added_patch_lines:
-                    line_match = rule.expression.search(
-                        line_text
-                    )
-
-                    if line_match is None:
-                        continue
-
-                    matched_line = line_number
-                    matched_column = (
-                        line_match.start() + 1
-                    )
-                    break
+                matched_line = rule_matches[0][0]
+                matched_column = rule_matches[0][1]
 
         score = min(score, 100)
 
@@ -416,6 +445,7 @@ class ChangeAwarePolicyEngine:
             rule_id=matched_rule_id,
             start_line=matched_line,
             start_column=matched_column,
+            findings=findings,
             reasons=reasons,
         )
 

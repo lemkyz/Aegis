@@ -338,10 +338,10 @@ def test_sarif_fingerprint_survives_line_movement(
 
     assert (
         first["partialFingerprints"][
-            "aegisRulePath/v1"
+            "aegisRulePathOccurrence/v1"
         ]
         == second["partialFingerprints"][
-            "aegisRulePath/v1"
+            "aegisRulePathOccurrence/v1"
         ]
     )
 
@@ -384,3 +384,99 @@ def test_generic_non_pattern_result_has_no_region(
         "AEGIS-CHANGE-REVIEW"
     )
     assert "region" not in physical
+
+
+def test_sarif_emits_each_rule_as_separate_result(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    sarif_path = tmp_path / "multiple.sarif"
+
+    (root / "danger.py").write_text(
+        "import subprocess\n"
+        "subprocess.run(command, shell=True)\n"
+        'api_key = "production-secret-token"\n'
+        "requests.get(url, verify=False)\n",
+        encoding="utf-8",
+    )
+
+    exit_code, _, stderr = run_cli(
+        [
+            "change-gate",
+            "--repository",
+            str(root),
+            "--sarif",
+            str(sarif_path),
+        ]
+    )
+
+    assert exit_code == 2
+    assert stderr == ""
+
+    payload = json.loads(
+        sarif_path.read_text(
+            encoding="utf-8",
+        )
+    )
+
+    results = payload["runs"][0]["results"]
+
+    assert [
+        result["ruleId"]
+        for result in results
+    ] == [
+        "AEGIS-SHELL-EXECUTION",
+        "AEGIS-TLS-VERIFICATION-DISABLED",
+        "AEGIS-HARDCODED-CREDENTIAL",
+    ]
+
+    assert [
+        result["locations"][0][
+            "physicalLocation"
+        ]["region"]["startLine"]
+        for result in results
+    ] == [2, 4, 3]
+
+
+def test_repeated_rule_has_distinct_fingerprints(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    sarif_path = tmp_path / "repeated.sarif"
+
+    (root / "app.py").write_text(
+        "import subprocess\n"
+        "subprocess.run(first, shell=True)\n"
+        "subprocess.run(second, shell=True)\n",
+        encoding="utf-8",
+    )
+
+    exit_code, _, stderr = run_cli(
+        [
+            "change-gate",
+            "--repository",
+            str(root),
+            "--sarif",
+            str(sarif_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+
+    results = json.loads(
+        sarif_path.read_text(
+            encoding="utf-8",
+        )
+    )["runs"][0]["results"]
+
+    assert len(results) == 2
+
+    fingerprints = {
+        result["partialFingerprints"][
+            "aegisRulePathOccurrence/v1"
+        ]
+        for result in results
+    }
+
+    assert len(fingerprints) == 2

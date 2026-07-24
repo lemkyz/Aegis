@@ -17,6 +17,31 @@ class ChangePolicyEvaluationRequest(BaseModel):
     profile: PolicyProfile = "balanced"
 
 
+class ChangePolicyFinding(BaseModel):
+    rule_id: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+    reason: str = Field(
+        min_length=1,
+        max_length=2_000,
+    )
+    score: int = Field(
+        ge=0,
+        le=100,
+    )
+    blocking: bool = False
+
+    start_line: int | None = Field(
+        default=None,
+        ge=1,
+    )
+    start_column: int | None = Field(
+        default=None,
+        ge=1,
+    )
+
+
 class ChangeFilePolicyAssessment(BaseModel):
     path: str = Field(
         min_length=1,
@@ -47,6 +72,10 @@ class ChangeFilePolicyAssessment(BaseModel):
     start_column: int | None = Field(
         default=None,
         ge=1,
+    )
+
+    findings: list[ChangePolicyFinding] = Field(
+        default_factory=list,
     )
 
     reasons: list[str] = Field(

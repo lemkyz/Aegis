@@ -342,3 +342,76 @@ def test_non_pattern_assessment_has_no_source_location(
     assert assessment.rule_id is None
     assert assessment.start_line is None
     assert assessment.start_column is None
+
+
+def test_file_exposes_multiple_rule_findings() -> None:
+    result = evaluate(
+        change(
+            path="danger.py",
+            patch=(
+                "diff --git a/danger.py b/danger.py\n"
+                "--- a/danger.py\n"
+                "+++ b/danger.py\n"
+                "@@ -1,1 +1,4 @@\n"
+                "+import subprocess\n"
+                "+subprocess.run(command, shell=True)\n"
+                '+api_key = "production-secret-token"\n'
+                "+requests.get(url, verify=False)\n"
+            ),
+            additions=4,
+        )
+    )
+
+    assessment = result.assessments[0]
+
+    assert assessment.decision == "block"
+    assert [
+        finding.rule_id
+        for finding in assessment.findings
+    ] == [
+        "AEGIS-SHELL-EXECUTION",
+        "AEGIS-TLS-VERIFICATION-DISABLED",
+        "AEGIS-HARDCODED-CREDENTIAL",
+    ]
+
+    locations = {
+        finding.rule_id: (
+            finding.start_line,
+            finding.start_column,
+        )
+        for finding in assessment.findings
+    }
+
+    assert locations == {
+        "AEGIS-SHELL-EXECUTION": (2, 25),
+        "AEGIS-TLS-VERIFICATION-DISABLED": (
+            4,
+            19,
+        ),
+        "AEGIS-HARDCODED-CREDENTIAL": (3, 1),
+    }
+
+
+def test_repeated_rule_produces_multiple_findings() -> None:
+    result = evaluate(
+        change(
+            path="runner.py",
+            patch=(
+                "diff --git a/runner.py b/runner.py\n"
+                "--- a/runner.py\n"
+                "+++ b/runner.py\n"
+                "@@ -1,1 +1,2 @@\n"
+                "+subprocess.run(first, shell=True)\n"
+                "+subprocess.run(second, shell=True)\n"
+            ),
+            additions=2,
+        )
+    )
+
+    findings = result.assessments[0].findings
+
+    assert len(findings) == 2
+    assert [
+        finding.start_line
+        for finding in findings
+    ] == [1, 2]
