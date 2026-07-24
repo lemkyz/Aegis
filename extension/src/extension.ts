@@ -171,6 +171,77 @@ interface AnalyzeResponse {
   claims?: SecurityClaim[];
 }
 
+
+type ClaimDeltaStatus =
+  | "new"
+  | "persistent"
+  | "changed"
+  | "resolved"
+  | "reopened";
+
+interface RepositoryContext {
+  schema_version: string;
+  project_id: string;
+  repository_root: string;
+  identity_source:
+    | "git_remote"
+    | "local_path";
+  remote: string | null;
+  branch: string | null;
+  head_commit: string | null;
+  revision: string;
+  dirty: boolean;
+}
+
+interface ProjectSecuritySnapshot {
+  schema_version: string;
+  snapshot_id: string;
+  project_id: string;
+  revision: string | null;
+  created_at: string;
+  claims: SecurityClaim[];
+  claim_count: number;
+}
+
+interface ClaimDelta {
+  claim_id: string;
+  status: ClaimDeltaStatus;
+  previous_state: ClaimState | null;
+  current_state: ClaimState | null;
+  changed_fields: string[];
+  reasons: string[];
+}
+
+interface ClaimReconciliationSummary {
+  new: number;
+  persistent: number;
+  changed: number;
+  resolved: number;
+  reopened: number;
+}
+
+interface ClaimReconciliationResponse {
+  reconciler: string;
+  deltas: ClaimDelta[];
+  summary: ClaimReconciliationSummary;
+}
+
+interface SecurityMemoryRecordResponse {
+  service: string;
+  repository: RepositoryContext;
+  snapshot: ProjectSecuritySnapshot;
+  previous_snapshot_id: string | null;
+  reconciliation: ClaimReconciliationResponse;
+  baseline_created: boolean;
+  persisted_new_snapshot: boolean;
+  project_snapshot_count: number;
+}
+
+interface SecurityMemoryDisplay {
+  response?: SecurityMemoryRecordResponse;
+  error?: string;
+}
+
 interface LastAnalysis {
   documentUri: string;
   documentVersion: number;
@@ -6900,11 +6971,17 @@ async function showAnalysisResult(
   result: AnalyzeResponse,
   mode: AnalysisMode,
 ): Promise<void> {
+  const memory =
+    await recordAnalysisSecurityMemory(
+      result,
+    );
+
   await showReusableAegisReport(
     "analysis",
     buildMarkdownReport(
       result,
       mode,
+      memory,
     ),
   );
 }
@@ -6935,6 +7012,274 @@ function preserveIndentation(
     .map((line) => (line.length > 0 ? `${indentation}${line}` : line))
     .join("\n");
 }
+
+async function recordAnalysisSecurityMemory(
+  result: AnalyzeResponse,
+): Promise<SecurityMemoryDisplay> {
+  const editor =
+    vscode.window.activeTextEditor;
+
+  if (
+    !editor
+    || editor.document.uri.scheme !== "file"
+  ) {
+    return {
+      error:
+        "No local source document was available for project memory.",
+    };
+  }
+
+  const configuration =
+    vscode.workspace.getConfiguration("aegis");
+
+  const backendUrl = configuration
+    .get<string>(
+      "backendUrl",
+      "http://127.0.0.1:8000",
+    )
+    .replace(/\/+$/, "");
+
+  try {
+    const repositoryRoot =
+      await resolveVerificationProjectRoot(
+        editor.document,
+      );
+
+    const response =
+      await requestSecurityMemoryRecord(
+        backendUrl,
+        repositoryRoot,
+        result.claims ?? [],
+      );
+
+    return { response };
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(error);
+
+    return {
+      error: message,
+    };
+  }
+}
+
+
+async function requestSecurityMemoryRecord(
+  backendUrl: string,
+  repositoryPath: string,
+  claims: SecurityClaim[],
+): Promise<SecurityMemoryRecordResponse> {
+  const controller =
+    new AbortController();
+
+  const timeout = setTimeout(
+    () => controller.abort(),
+    30_000,
+  );
+
+  try {
+    const response = await fetch(
+      `${backendUrl}/v1/security-memory/record`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          repository_path:
+            repositoryPath,
+          claims,
+        }),
+        signal: controller.signal,
+      },
+    );
+
+    const rawBody =
+      await response.text();
+
+    if (!response.ok) {
+      let detail = rawBody;
+
+      try {
+        const payload =
+          JSON.parse(rawBody) as {
+            detail?: string;
+          };
+
+        detail =
+          payload.detail ?? rawBody;
+      } catch {
+        // Preserve the backend response.
+      }
+
+      throw new Error(
+        `Security Memory HTTP ${response.status}: ${detail}`,
+      );
+    }
+
+    return JSON.parse(
+      rawBody,
+    ) as SecurityMemoryRecordResponse;
+  } catch (error: unknown) {
+    if (
+      error instanceof Error
+      && error.name === "AbortError"
+    ) {
+      throw new Error(
+        "Security Memory request timed out after 30 seconds.",
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+
+function buildSecurityMemoryDeltaReport(
+  memory?: SecurityMemoryDisplay,
+): string[] {
+  const lines: string[] = [
+    "## Security Memory Delta",
+    "",
+  ];
+
+  if (!memory) {
+    lines.push(
+      "> Security Memory was not evaluated for this analysis.",
+      "",
+    );
+
+    return lines;
+  }
+
+  if (!memory.response) {
+    lines.push(
+      "> Security Memory could not be updated. The analysis result remains available.",
+      "",
+    );
+
+    if (memory.error) {
+      lines.push(
+        `- **Reason:** ${sanitizeMarkdownText(memory.error)}`,
+        "",
+      );
+    }
+
+    return lines;
+  }
+
+  const response = memory.response;
+  const summary =
+    response.reconciliation.summary;
+
+  lines.push(
+    `- **Project:** \`${escapeMarkdownInlineCode(response.repository.project_id)}\``,
+    `- **Revision:** \`${escapeMarkdownInlineCode(response.repository.revision)}\``,
+    `- **Working Tree:** ${response.repository.dirty ? "DIRTY" : "CLEAN"}`,
+    `- **Snapshot:** \`${escapeMarkdownInlineCode(response.snapshot.snapshot_id)}\``,
+    `- **Stored Snapshots:** ${response.project_snapshot_count}`,
+    `- **Baseline Created:** ${response.baseline_created ? "YES" : "NO"}`,
+    `- **New Snapshot Stored:** ${response.persisted_new_snapshot ? "YES" : "NO"}`,
+    "",
+    "### Lifecycle Summary",
+    "",
+    `- **New:** ${summary.new}`,
+    `- **Persistent:** ${summary.persistent}`,
+    `- **Changed:** ${summary.changed}`,
+    `- **Resolved:** ${summary.resolved}`,
+    `- **Reopened:** ${summary.reopened}`,
+    "",
+  );
+
+  if (
+    response.reconciliation.deltas.length === 0
+  ) {
+    lines.push(
+      "No claim lifecycle change was recorded.",
+      "",
+    );
+
+    return lines;
+  }
+
+  lines.push(
+    "### Claim Transitions",
+    "",
+  );
+
+  for (
+    const delta
+    of response.reconciliation.deltas
+  ) {
+    const transition = [
+      delta.previous_state
+        ?.replaceAll("_", " ")
+        .toUpperCase()
+        ?? "NONE",
+      delta.current_state
+        ?.replaceAll("_", " ")
+        .toUpperCase()
+        ?? "NONE",
+    ].join(" → ");
+
+    lines.push(
+      `#### ${formatClaimDeltaStatus(delta.status)}`,
+      "",
+      `- **Claim ID:** \`${escapeMarkdownInlineCode(delta.claim_id)}\``,
+      `- **Transition:** ${transition}`,
+    );
+
+    if (
+      delta.changed_fields.length > 0
+    ) {
+      lines.push(
+        `- **Changed Fields:** ${delta.changed_fields.join(", ")}`,
+      );
+    }
+
+    for (const reason of delta.reasons) {
+      lines.push(
+        `- ${sanitizeMarkdownText(reason)}`,
+      );
+    }
+
+    lines.push("");
+  }
+
+  return lines;
+}
+
+
+function formatClaimDeltaStatus(
+  status: ClaimDeltaStatus,
+): string {
+  const labels:
+    Record<ClaimDeltaStatus, string> = {
+      new: "NEW CLAIM",
+      persistent: "PERSISTENT CLAIM",
+      changed: "CHANGED CLAIM",
+      resolved: "RESOLVED CLAIM",
+      reopened: "REOPENED CLAIM",
+    };
+
+  return labels[status];
+}
+
+
+function sanitizeMarkdownText(
+  value: string,
+): string {
+  return value
+    .replace(/\r?\n/g, " ")
+    .replace(/[<>]/g, "")
+    .trim();
+}
+
 
 function buildClaimGraphReport(
   claims: SecurityClaim[],
@@ -7044,6 +7389,7 @@ function buildClaimGraphReport(
 function buildMarkdownReport(
   result: AnalyzeResponse,
   mode: AnalysisMode,
+  memory?: SecurityMemoryDisplay,
 ): string {
   const modeLabel =
     mode === "fast" ? "Fast Scan" : "Deep Analysis";
@@ -7070,6 +7416,12 @@ function buildMarkdownReport(
       "",
     );
   }
+
+  lines.push(
+    ...buildSecurityMemoryDeltaReport(
+      memory,
+    ),
+  );
 
   lines.push(
     ...buildClaimGraphReport(

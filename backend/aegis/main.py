@@ -1,11 +1,21 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 
 from aegis.config.settings import get_settings
+from aegis.dependencies import (
+    get_security_memory_service,
+)
 from aegis.orchestrator.analyzer import SecurityAnalyzer
 from aegis.schemas.analysis import AnalyzeCodeRequest, AnalyzeCodeResponse
+from aegis.schemas.memory import (
+    SecurityMemoryHistoryResponse,
+    SecurityMemoryLatestResponse,
+    SecurityMemoryRecordRequest,
+    SecurityMemoryRecordResponse,
+    SecurityMemorySnapshotResponse,
+)
 from aegis.schemas.attack_surface import (
     AttackSurfaceScanRequest,
     AttackSurfaceScanResponse,
@@ -61,6 +71,9 @@ from aegis.security.validation_replay_orchestrator import (
 )
 from aegis.security.fix_verification import (
     UnifiedFixVerificationEvaluator,
+)
+from aegis.security.security_memory import (
+    SecurityMemoryService,
 )
 
 
@@ -530,4 +543,183 @@ async def scan_dependencies(
             status_code=502,
             detail=f"Dependency scan failed: {exc}",
         ) from exc
+
+
+@app.post(
+    "/v1/security-memory/record",
+    response_model=SecurityMemoryRecordResponse,
+)
+def record_security_memory(
+    request: SecurityMemoryRecordRequest,
+    service: SecurityMemoryService = Depends(
+        get_security_memory_service
+    ),
+) -> SecurityMemoryRecordResponse:
+    """
+    Record the current project-security baseline and return
+    its lifecycle delta against the latest stored snapshot.
+    """
+    try:
+        return service.record(request)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Security memory could not record "
+                "the project snapshot."
+            ),
+        ) from exc
+
+
+@app.get(
+    "/v1/security-memory/latest",
+    response_model=SecurityMemoryLatestResponse,
+)
+def get_latest_security_memory(
+    repository_path: str = Query(
+        min_length=1,
+        max_length=2_000,
+    ),
+    service: SecurityMemoryService = Depends(
+        get_security_memory_service
+    ),
+) -> SecurityMemoryLatestResponse:
+    try:
+        repository = (
+            service.identity_resolver.resolve(
+                repository_path
+            )
+        )
+        snapshot = service.store.get_latest_snapshot(
+            repository.project_id
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Security memory could not read "
+                "the latest project snapshot."
+            ),
+        ) from exc
+
+    if snapshot is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No security-memory snapshot exists "
+                "for this project."
+            ),
+        )
+
+    return SecurityMemoryLatestResponse(
+        repository=repository,
+        snapshot=snapshot,
+    )
+
+
+@app.get(
+    "/v1/security-memory/history",
+    response_model=SecurityMemoryHistoryResponse,
+)
+def get_security_memory_history(
+    repository_path: str = Query(
+        min_length=1,
+        max_length=2_000,
+    ),
+    limit: int = Query(
+        default=100,
+        ge=1,
+        le=1_000,
+    ),
+    offset: int = Query(
+        default=0,
+        ge=0,
+    ),
+    service: SecurityMemoryService = Depends(
+        get_security_memory_service
+    ),
+) -> SecurityMemoryHistoryResponse:
+    try:
+        repository = (
+            service.identity_resolver.resolve(
+                repository_path
+            )
+        )
+        snapshots = service.store.list_snapshots(
+            repository.project_id,
+            limit=limit,
+            offset=offset,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Security memory could not read "
+                "the project history."
+            ),
+        ) from exc
+
+    return SecurityMemoryHistoryResponse(
+        repository=repository,
+        snapshots=snapshots,
+        count=len(snapshots),
+        limit=limit,
+        offset=offset,
+    )
+
+
+@app.get(
+    "/v1/security-memory/snapshots/{snapshot_id}",
+    response_model=SecurityMemorySnapshotResponse,
+)
+def get_security_memory_snapshot(
+    snapshot_id: str,
+    service: SecurityMemoryService = Depends(
+        get_security_memory_service
+    ),
+) -> SecurityMemorySnapshotResponse:
+    try:
+        snapshot = service.store.get_snapshot(
+            snapshot_id
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Security memory could not read "
+                "the requested snapshot."
+            ),
+        ) from exc
+
+    if snapshot is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Security-memory snapshot was not found."
+            ),
+        )
+
+    return SecurityMemorySnapshotResponse(
+        snapshot=snapshot,
+    )
 

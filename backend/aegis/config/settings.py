@@ -1,12 +1,41 @@
+import os
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _default_security_memory_database_path() -> Path:
+    xdg_data_home = os.environ.get("XDG_DATA_HOME")
+
+    if xdg_data_home:
+        data_root = Path(
+            xdg_data_home
+        ).expanduser()
+    else:
+        data_root = (
+            Path.home()
+            / ".local"
+            / "share"
+        )
+
+    return (
+        data_root
+        / "aegis"
+        / "security-memory.sqlite3"
+    )
+
+
 class Settings(BaseSettings):
     app_name: str = "Aegis"
     app_version: str = "0.1.0"
+
+    security_memory_database_path: Path = Field(
+        default_factory=(
+            _default_security_memory_database_path
+        ),
+    )
 
     aegis_fingerprint_key: str = Field(
         min_length=32,
