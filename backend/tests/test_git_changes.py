@@ -199,3 +199,138 @@ def test_rejects_missing_repository(
             tmp_path / "missing",
             mode="staged",
         )
+
+
+def test_collects_pull_request_commit_diff(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    base_commit = git(root, "rev-parse", "HEAD")
+
+    git(root, "switch", "-c", "feature")
+
+    (root / "app.py").write_text(
+        "print('safe')\n"
+        "print('feature')\n",
+        encoding="utf-8",
+    )
+    (root / "feature.py").write_text(
+        "print('new feature')\n",
+        encoding="utf-8",
+    )
+
+    git(root, "add", "app.py", "feature.py")
+    git(root, "commit", "-m", "Feature change")
+
+    head_commit = git(root, "rev-parse", "HEAD")
+
+    result = GitChangeCollector().collect(
+        root,
+        mode="pull_request",
+        base_revision=base_commit,
+        head_revision=head_commit,
+    )
+
+    assert result.mode == "pull_request"
+    assert result.base_revision == base_commit
+    assert result.head_revision == head_commit
+    assert result.file_count == 2
+    assert [
+        item.path
+        for item in result.files
+    ] == [
+        "app.py",
+        "feature.py",
+    ]
+    assert result.additions == 2
+    assert result.deletions == 0
+
+
+def test_pull_request_uses_merge_base(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    base_commit = git(root, "rev-parse", "HEAD")
+
+    git(root, "switch", "-c", "feature")
+
+    (root / "feature.py").write_text(
+        "print('feature')\n",
+        encoding="utf-8",
+    )
+    git(root, "add", "feature.py")
+    git(root, "commit", "-m", "Feature commit")
+
+    feature_commit = git(root, "rev-parse", "HEAD")
+
+    git(root, "switch", "main")
+
+    (root / "main_only.py").write_text(
+        "print('main only')\n",
+        encoding="utf-8",
+    )
+    git(root, "add", "main_only.py")
+    git(root, "commit", "-m", "Main commit")
+
+    main_commit = git(root, "rev-parse", "HEAD")
+
+    result = GitChangeCollector().collect(
+        root,
+        mode="pull_request",
+        base_revision=main_commit,
+        head_revision=feature_commit,
+    )
+
+    assert result.base_revision == base_commit
+    assert result.head_revision == feature_commit
+    assert [
+        item.path
+        for item in result.files
+    ] == ["feature.py"]
+
+
+def test_pull_request_rejects_missing_base(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+
+    with pytest.raises(
+        ValueError,
+        match="requires base_revision",
+    ):
+        GitChangeCollector().collect(
+            root,
+            mode="pull_request",
+        )
+
+
+def test_pull_request_rejects_invalid_revision(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+
+    with pytest.raises(
+        ValueError,
+        match="could not be resolved",
+    ):
+        GitChangeCollector().collect(
+            root,
+            mode="pull_request",
+            base_revision="missing-branch",
+        )
+
+
+def test_pull_request_rejects_option_like_revision(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+
+    with pytest.raises(
+        ValueError,
+        match="cannot begin",
+    ):
+        GitChangeCollector().collect(
+            root,
+            mode="pull_request",
+            base_revision="--help",
+        )

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 ChangeSetMode = Literal[
     "staged",
     "uncommitted",
+    "pull_request",
 ]
 
 ChangeFileStatus = Literal[
@@ -115,3 +116,41 @@ class ChangeSetCollectionRequest(BaseModel):
         max_length=2_000,
     )
     mode: ChangeSetMode
+
+    base_revision: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+    )
+    head_revision: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+    )
+
+    @model_validator(mode="after")
+    def validate_revisions(
+        self,
+    ) -> "ChangeSetCollectionRequest":
+        if (
+            self.mode == "pull_request"
+            and not self.base_revision
+        ):
+            raise ValueError(
+                "pull_request mode requires "
+                "base_revision"
+            )
+
+        if (
+            self.mode != "pull_request"
+            and (
+                self.base_revision is not None
+                or self.head_revision is not None
+            )
+        ):
+            raise ValueError(
+                "base_revision and head_revision "
+                "are only valid in pull_request mode"
+            )
+
+        return self

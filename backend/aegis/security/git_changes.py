@@ -59,30 +59,62 @@ class GitChangeCollector:
         repository_path: str | Path,
         *,
         mode: ChangeSetMode,
+        base_revision: str | None = None,
+        head_revision: str | None = None,
     ) -> ChangeSet:
         root = self._repository_root(
             repository_path
         )
 
-        head_revision = self._optional_git(
-            root,
-            "rev-parse",
-            "HEAD",
-        )
+        comparison: tuple[str, str] | None = None
 
-        base_revision = (
-            head_revision
-            if mode == "uncommitted"
-            else self._optional_git(
+        if mode == "pull_request":
+            if not base_revision:
+                raise ValueError(
+                    "pull_request mode requires "
+                    "base_revision."
+                )
+
+            resolved_base = self._resolve_commit(
+                root,
+                base_revision,
+            )
+            resolved_head = self._resolve_commit(
+                root,
+                head_revision or "HEAD",
+            )
+            merge_base = self._git_text(
+                root,
+                "merge-base",
+                resolved_base,
+                resolved_head,
+            ).strip()
+
+            if not merge_base:
+                raise RuntimeError(
+                    "Git could not determine the "
+                    "pull request merge base."
+                )
+
+            base_revision = merge_base
+            head_revision = resolved_head
+            comparison = (
+                merge_base,
+                resolved_head,
+            )
+        else:
+            resolved_head = self._optional_git(
                 root,
                 "rev-parse",
                 "HEAD",
             )
-        )
+            base_revision = resolved_head
+            head_revision = resolved_head
 
         entries = self._tracked_entries(
             root,
             mode=mode,
+            comparison=comparison,
         )
 
         if mode == "uncommitted":
@@ -132,6 +164,7 @@ class GitChangeCollector:
                 path=path,
                 old_path=old_path,
                 untracked=untracked,
+                comparison=comparison,
             )
             for (
                 status,
@@ -165,6 +198,7 @@ class GitChangeCollector:
         root: Path,
         *,
         mode: ChangeSetMode,
+        comparison: tuple[str, str] | None,
     ) -> list[
         tuple[
             ChangeFileStatus,
@@ -182,8 +216,15 @@ class GitChangeCollector:
 
         if mode == "staged":
             arguments.insert(1, "--cached")
-        else:
+        elif mode == "uncommitted":
             arguments.append("HEAD")
+        else:
+            if comparison is None:
+                raise RuntimeError(
+                    "Pull request comparison is missing."
+                )
+
+            arguments.extend(comparison)
 
         output = self._git_bytes(
             root,
@@ -297,6 +338,7 @@ class GitChangeCollector:
         path: str,
         old_path: str | None,
         untracked: bool,
+        comparison: tuple[str, str] | None,
     ) -> ChangeFile:
         if untracked:
             return self._untracked_change(
@@ -325,9 +367,17 @@ class GitChangeCollector:
                 1,
                 "--cached",
             )
-        else:
+        elif mode == "uncommitted":
             diff_arguments.append("HEAD")
             numstat_arguments.append("HEAD")
+        else:
+            if comparison is None:
+                raise RuntimeError(
+                    "Pull request comparison is missing."
+                )
+
+            diff_arguments.extend(comparison)
+            numstat_arguments.extend(comparison)
 
         diff_arguments.extend(
             ["--", path]
@@ -504,6 +554,59 @@ class GitChangeCollector:
             )
 
         return Path(root_output).resolve()
+
+    def _resolve_commit(
+        self,
+        root: Path,
+        revision: str,
+    ) -> str:
+        candidate = revision.strip()
+
+        if not candidate:
+            raise ValueError(
+                "Git revision cannot be empty."
+            )
+
+        if candidate.startswith("-"):
+            raise ValueError(
+                "Git revision cannot begin with '-'."
+            )
+
+        if any(
+            character in candidate
+            for character in (
+                "\x00",
+                "\n",
+                "\r",
+            )
+        ):
+            raise ValueError(
+                "Git revision contains invalid "
+                "characters."
+            )
+
+        try:
+            resolved = self._git_text(
+                root,
+                "rev-parse",
+                "--verify",
+                "--end-of-options",
+                f"{candidate}^{{commit}}",
+            ).strip()
+        except RuntimeError as exc:
+            raise ValueError(
+                f"Git revision could not be resolved: "
+                f"{candidate}"
+            ) from exc
+
+        if not resolved:
+            raise ValueError(
+                f"Git revision could not be resolved: "
+                f"{candidate}"
+            )
+
+        return resolved
+
 
     def _optional_git(
         self,

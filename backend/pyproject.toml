@@ -24,6 +24,9 @@ dependencies = [
   "uvicorn>=0.51,<1",
 ]
 
+[project.scripts]
+aegis = "aegis.cli:main"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=9,<10",

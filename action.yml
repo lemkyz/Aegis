@@ -1,0 +1,113 @@
+name: Aegis PR Security Gate
+description: >
+  Deterministically evaluate pull request changes and return
+  ALLOW, REVIEW, or BLOCK without executing repository code.
+
+author: Melike
+
+branding:
+  icon: shield
+  color: purple
+
+inputs:
+  repository:
+    description: >
+      Repository path to evaluate. Defaults to the current
+      GitHub workspace.
+    required: false
+    default: "."
+
+  base:
+    description: >
+      Base Git revision or commit SHA for the pull request.
+    required: true
+
+  head:
+    description: >
+      Head Git revision or commit SHA. Defaults to HEAD.
+    required: false
+    default: "HEAD"
+
+  profile:
+    description: >
+      Aegis policy profile: permissive, balanced, or strict.
+    required: false
+    default: "balanced"
+
+  fail-on-review:
+    description: >
+      Fail the action when the decision is REVIEW.
+    required: false
+    default: "false"
+
+  python-version:
+    description: >
+      Python version used to run the Aegis backend CLI.
+    required: false
+    default: "3.14"
+
+  output:
+    description: >
+      Path for the complete JSON gate result.
+    required: false
+    default: "aegis-change-gate.json"
+
+outputs:
+  decision:
+    description: Final ALLOW, REVIEW, or BLOCK decision.
+    value: ${{ steps.gate.outputs.decision }}
+
+  risk-score:
+    description: Highest calculated risk score.
+    value: ${{ steps.gate.outputs.risk_score }}
+
+  risk-level:
+    description: Highest calculated risk level.
+    value: ${{ steps.gate.outputs.risk_level }}
+
+  changed-files:
+    description: Number of changed files evaluated.
+    value: ${{ steps.gate.outputs.changed_files }}
+
+  blocked-files:
+    description: Number of blocked files.
+    value: ${{ steps.gate.outputs.blocked_files }}
+
+  review-files:
+    description: Number of files requiring review.
+    value: ${{ steps.gate.outputs.review_files }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+        cache-dependency-path: |
+          ${{ github.action_path }}/backend/pyproject.toml
+
+    - name: Install Aegis
+      shell: bash
+      env:
+        AEGIS_ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+
+        python -m pip install \
+          --disable-pip-version-check \
+          "$AEGIS_ACTION_PATH/backend"
+
+    - name: Run Aegis PR gate
+      id: gate
+      shell: bash
+      env:
+        AEGIS_REPOSITORY: ${{ inputs.repository }}
+        AEGIS_BASE: ${{ inputs.base }}
+        AEGIS_HEAD: ${{ inputs.head }}
+        AEGIS_PROFILE: ${{ inputs.profile }}
+        AEGIS_FAIL_ON_REVIEW: ${{ inputs.fail-on-review }}
+        AEGIS_OUTPUT: ${{ inputs.output }}
+      run: |
+        "$GITHUB_ACTION_PATH/scripts/run-pr-gate.sh"

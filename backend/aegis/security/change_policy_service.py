@@ -35,6 +35,8 @@ class ChangePolicyService:
         change_set = self.collector.collect(
             request.repository_path,
             mode=request.mode,
+            base_revision=request.base_revision,
+            head_revision=request.head_revision,
         )
 
         policy = self.engine.evaluate(

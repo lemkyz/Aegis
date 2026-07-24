@@ -1,0 +1,108 @@
+name: Aegis PR Security Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+    inputs:
+      base:
+        description: Base revision to compare against
+        required: true
+        default: origin/main
+
+      head:
+        description: Head revision to evaluate
+        required: true
+        default: HEAD
+
+      profile:
+        description: Security policy profile
+        required: true
+        default: balanced
+        type: choice
+        options:
+          - permissive
+          - balanced
+          - strict
+
+      fail_on_review:
+        description: Fail when Aegis requires review
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: >
+    aegis-pr-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security-gate:
+    name: Change Security Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve comparison revisions
+        id: revisions
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DISPATCH_BASE: ${{ inputs.base }}
+          DISPATCH_HEAD: ${{ inputs.head }}
+          DISPATCH_PROFILE: ${{ inputs.profile }}
+          DISPATCH_FAIL_ON_REVIEW: ${{ inputs.fail_on_review }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base="$PR_BASE_SHA"
+            head="$PR_HEAD_SHA"
+            profile="balanced"
+            fail_on_review="false"
+          else
+            base="$DISPATCH_BASE"
+            head="$DISPATCH_HEAD"
+            profile="$DISPATCH_PROFILE"
+            fail_on_review="$DISPATCH_FAIL_ON_REVIEW"
+          fi
+
+          {
+            echo "base=$base"
+            echo "head=$head"
+            echo "profile=$profile"
+            echo "fail_on_review=$fail_on_review"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run Aegis security gate
+        id: aegis
+        uses: ./
+        with:
+          repository: .
+          base: ${{ steps.revisions.outputs.base }}
+          head: ${{ steps.revisions.outputs.head }}
+          profile: ${{ steps.revisions.outputs.profile }}
+          fail-on-review: >
+            ${{ steps.revisions.outputs.fail_on_review }}
+          output: aegis-change-gate.json
+
+      - name: Upload gate evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: aegis-change-gate
+          path: aegis-change-gate.json
+          if-no-files-found: warn
+          retention-days: 14
