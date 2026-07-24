@@ -296,6 +296,110 @@ def escape_markdown(value: str) -> str:
     )
 
 
+def github_command_data(
+    value: str,
+) -> str:
+    return (
+        value
+        .replace("%", "%25")
+        .replace("\r", "%0D")
+        .replace("\n", "%0A")
+    )
+
+
+def github_command_property(
+    value: str,
+) -> str:
+    return (
+        github_command_data(value)
+        .replace(":", "%3A")
+        .replace(",", "%2C")
+    )
+
+
+def render_github_annotations(
+    result: ChangePolicyCollectionResponse,
+    *,
+    maximum: int = 50,
+) -> list[str]:
+    if maximum < 1:
+        raise ValueError(
+            "maximum must be at least 1"
+        )
+
+    annotations: list[str] = []
+
+    for assessment in result.policy.assessments:
+        if assessment.decision == "allow":
+            continue
+
+        command = (
+            "error"
+            if assessment.decision == "block"
+            else "warning"
+        )
+
+        title = (
+            "Aegis BLOCK"
+            if assessment.decision == "block"
+            else "Aegis REVIEW"
+        )
+
+        message = (
+            "; ".join(assessment.reasons)
+            if assessment.reasons
+            else (
+                "The changed file did not satisfy "
+                "the configured security policy."
+            )
+        )
+
+        annotations.append(
+            (
+                f"::{command} "
+                f"file={github_command_property(assessment.path)},"
+                f"title={github_command_property(title)}"
+                f"::{github_command_data(message)}"
+            )
+        )
+
+        if len(annotations) >= maximum:
+            break
+
+    remaining = sum(
+        1
+        for assessment
+        in result.policy.assessments
+        if assessment.decision != "allow"
+    ) - len(annotations)
+
+    if remaining > 0:
+        annotations.append(
+            (
+                "::notice "
+                "title=Aegis Annotation Limit"
+                "::"
+                f"{remaining} additional policy "
+                "assessment(s) were omitted from "
+                "annotations. See the JSON evidence "
+                "artifact for the complete result."
+            )
+        )
+
+    return annotations
+
+
+def emit_github_annotations(
+    result: ChangePolicyCollectionResponse,
+    *,
+    output: TextIO,
+) -> None:
+    for annotation in render_github_annotations(
+        result
+    ):
+        print(annotation, file=output)
+
+
 def append_github_output(
     path: Path,
     result: ChangePolicyCollectionResponse,
@@ -411,6 +515,18 @@ def run_change_gate(
         print(
             render_text(result),
             file=stdout,
+        )
+
+    if (
+        environment.get(
+            "GITHUB_ACTIONS",
+            "",
+        ).lower()
+        == "true"
+    ):
+        emit_github_annotations(
+            result,
+            output=stdout,
         )
 
     github_output = environment.get(

@@ -352,3 +352,125 @@ def test_pull_request_cli_requires_base(
     assert exit_code == EXIT_ERROR
     assert stdout == ""
     assert "requires base_revision" in stderr
+
+
+def test_github_block_annotation_is_emitted(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+
+    (root / "config.py").write_text(
+        'token = "production-secret-token"\n',
+        encoding="utf-8",
+    )
+
+    exit_code, stdout, stderr = run_cli(
+        [
+            "change-gate",
+            "--repository",
+            str(root),
+        ],
+        environment={
+            "GITHUB_ACTIONS": "true",
+        },
+    )
+
+    assert exit_code == EXIT_BLOCK
+    assert stderr == ""
+
+    assert (
+        "::error "
+        "file=config.py,"
+        "title=Aegis BLOCK::"
+        in stdout
+    )
+    assert (
+        "hard-coded credential"
+        in stdout.lower()
+    )
+
+
+def test_github_review_annotation_is_emitted(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+
+    (root / "app.py").write_text(
+        "import subprocess\n"
+        "subprocess.run(command, shell=True)\n",
+        encoding="utf-8",
+    )
+
+    exit_code, stdout, stderr = run_cli(
+        [
+            "change-gate",
+            "--repository",
+            str(root),
+        ],
+        environment={
+            "GITHUB_ACTIONS": "true",
+        },
+    )
+
+    assert exit_code == EXIT_ALLOW_OR_REVIEW
+    assert stderr == ""
+
+    assert (
+        "::warning "
+        "file=app.py,"
+        "title=Aegis REVIEW::"
+        in stdout
+    )
+    assert (
+        "shell-based process execution"
+        in stdout.lower()
+    )
+
+
+def test_github_annotation_escapes_commands(
+    tmp_path: Path,
+) -> None:
+    from aegis.cli import (
+        github_command_data,
+        github_command_property,
+    )
+
+    assert github_command_data(
+        "line one\nline two%done"
+    ) == (
+        "line one%0Aline two%25done"
+    )
+
+    assert github_command_property(
+        "src/a,b:c.py"
+    ) == "src/a%2Cb%3Ac.py"
+
+
+def test_json_output_stays_machine_readable_outside_actions(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+
+    (root / "config.py").write_text(
+        'token = "production-secret-token"\n',
+        encoding="utf-8",
+    )
+
+    exit_code, stdout, stderr = run_cli(
+        [
+            "change-gate",
+            "--repository",
+            str(root),
+            "--format",
+            "json",
+        ],
+        environment={},
+    )
+
+    assert exit_code == EXIT_BLOCK
+    assert stderr == ""
+
+    payload = json.loads(stdout)
+
+    assert payload["policy"]["decision"] == "block"
+    assert "::error" not in stdout

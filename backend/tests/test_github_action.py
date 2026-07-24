@@ -138,3 +138,17 @@ def test_gate_script_is_executable() -> None:
     path = ROOT / "scripts" / "run-pr-gate.sh"
 
     assert path.stat().st_mode & 0o111
+
+
+def test_cli_emits_file_annotations_in_actions() -> None:
+    cli = (
+        ROOT
+        / "backend"
+        / "aegis"
+        / "cli.py"
+    ).read_text(encoding="utf-8")
+
+    assert "GITHUB_ACTIONS" in cli
+    assert "render_github_annotations" in cli
+    assert "github_command_property" in cli
+    assert 'f"::{command} "' in cli
