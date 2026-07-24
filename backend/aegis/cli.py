@@ -5,6 +5,7 @@ import json
 import os
 import sys
 from collections.abc import Mapping, Sequence
+from datetime import date
 from pathlib import Path
 from typing import TextIO
 
@@ -25,6 +26,10 @@ from aegis.security.change_sarif import (
 )
 from aegis.security.git_changes import (
     GitChangeCollector,
+)
+from aegis.security.repository_policy import (
+    RepositoryPolicyError,
+    load_discovered_repository_policy,
 )
 
 
@@ -140,6 +145,32 @@ def build_parser() -> argparse.ArgumentParser:
             "Return the blocking exit code for "
             "REVIEW as well as BLOCK."
         ),
+    )
+
+    policy_parser = subparsers.add_parser(
+        "policy-check",
+        help=(
+            "Validate and explain repository policy "
+            "configuration."
+        ),
+    )
+    policy_parser.add_argument(
+        "--repository",
+        default=".",
+        help=(
+            "Repository root containing .aegis.yml "
+            "or .aegis.yaml. Defaults to the current "
+            "directory."
+        ),
+    )
+    policy_parser.add_argument(
+        "--format",
+        choices=(
+            "text",
+            "json",
+        ),
+        default="text",
+        help="Standard-output format.",
     )
 
     return parser
@@ -492,6 +523,261 @@ def write_sarif_result(
     )
 
 
+def repository_policy_report(
+    repository: str | Path,
+) -> dict[str, object]:
+    root = Path(
+        repository
+    ).expanduser().resolve()
+
+    if not root.exists():
+        raise RepositoryPolicyError(
+            "Repository path does not exist."
+        )
+
+    if not root.is_dir():
+        raise RepositoryPolicyError(
+            "Repository path is not a directory."
+        )
+
+    policy_path, policy = (
+        load_discovered_repository_policy(root)
+    )
+
+    if policy is None:
+        return {
+            "status": "valid",
+            "repository": str(root),
+            "policy_found": False,
+            "source": None,
+            "version": None,
+            "profile": "balanced",
+            "fail_on_review": False,
+            "rule_override_count": 0,
+            "rule_overrides": [],
+            "waiver_count": 0,
+            "active_waiver_count": 0,
+            "expired_waiver_count": 0,
+            "waivers": [],
+        }
+
+    today = date.today()
+    waivers: list[dict[str, object]] = []
+
+    for waiver in policy.waivers:
+        expired = waiver.expires < today
+
+        waivers.append(
+            {
+                "rule_id": waiver.rule_id,
+                "path": waiver.path,
+                "reason": waiver.reason,
+                "expires": (
+                    waiver.expires.isoformat()
+                ),
+                "status": (
+                    "expired"
+                    if expired
+                    else "active"
+                ),
+            }
+        )
+
+    rule_overrides = [
+        {
+            "rule_id": rule_id,
+            "decision": override.decision,
+        }
+        for rule_id, override
+        in sorted(policy.rules.items())
+    ]
+
+    active_count = sum(
+        waiver["status"] == "active"
+        for waiver in waivers
+    )
+    expired_count = sum(
+        waiver["status"] == "expired"
+        for waiver in waivers
+    )
+
+    return {
+        "status": "valid",
+        "repository": str(root),
+        "policy_found": True,
+        "source": str(policy_path),
+        "version": policy.version,
+        "profile": (
+            policy.profile
+            if policy.profile is not None
+            else "balanced"
+        ),
+        "fail_on_review": bool(
+            policy.fail_on_review
+        ),
+        "rule_override_count": len(
+            rule_overrides
+        ),
+        "rule_overrides": rule_overrides,
+        "waiver_count": len(waivers),
+        "active_waiver_count": active_count,
+        "expired_waiver_count": expired_count,
+        "waivers": waivers,
+    }
+
+
+def render_policy_check_text(
+    report: dict[str, object],
+) -> str:
+    lines = [
+        "Aegis Repository Policy Check",
+        "=============================",
+        "Status: VALID",
+        (
+            "Policy file: "
+            + (
+                str(report["source"])
+                if report["policy_found"]
+                else "not found"
+            )
+        ),
+        f"Profile: {report['profile']}",
+        (
+            "Fail on review: "
+            + (
+                "yes"
+                if report["fail_on_review"]
+                else "no"
+            )
+        ),
+        (
+            "Rule overrides: "
+            f"{report['rule_override_count']}"
+        ),
+        (
+            "Waivers: "
+            f"{report['waiver_count']} "
+            f"({report['active_waiver_count']} active, "
+            f"{report['expired_waiver_count']} expired)"
+        ),
+    ]
+
+    if not report["policy_found"]:
+        lines.extend(
+            [
+                "",
+                (
+                    "No repository policy found. "
+                    "Aegis will use the balanced "
+                    "default profile."
+                ),
+            ]
+        )
+
+    rule_overrides = report["rule_overrides"]
+
+    if rule_overrides:
+        lines.extend(
+            [
+                "",
+                "Rule overrides:",
+            ]
+        )
+
+        for override in rule_overrides:
+            lines.append(
+                (
+                    f"- {override['rule_id']}: "
+                    f"{str(override['decision']).upper()}"
+                )
+            )
+
+    waivers = report["waivers"]
+
+    if waivers:
+        lines.extend(
+            [
+                "",
+                "Waivers:",
+            ]
+        )
+
+        for waiver in waivers:
+            lines.append(
+                (
+                    f"- [{str(waiver['status']).upper()}] "
+                    f"{waiver['rule_id']} "
+                    f"on {waiver['path']} "
+                    f"until {waiver['expires']}: "
+                    f"{waiver['reason']}"
+                )
+            )
+
+    return "\n".join(lines)
+
+
+def run_policy_check(
+    arguments: argparse.Namespace,
+    *,
+    stdout: TextIO,
+    stderr: TextIO,
+) -> int:
+    try:
+        report = repository_policy_report(
+            arguments.repository
+        )
+    except (
+        OSError,
+        RuntimeError,
+        ValueError,
+        RepositoryPolicyError,
+        ValidationError,
+    ) as exc:
+        if arguments.format == "json":
+            print(
+                json.dumps(
+                    {
+                        "status": "invalid",
+                        "repository": str(
+                            Path(
+                                arguments.repository
+                            )
+                            .expanduser()
+                            .resolve()
+                        ),
+                        "error": str(exc),
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+                file=stdout,
+            )
+        else:
+            print(
+                f"Aegis policy check failed: {exc}",
+                file=stderr,
+            )
+
+        return EXIT_ERROR
+
+    if arguments.format == "json":
+        print(
+            json.dumps(
+                report,
+                indent=2,
+                ensure_ascii=False,
+            ),
+            file=stdout,
+        )
+    else:
+        print(
+            render_policy_check_text(report),
+            file=stdout,
+        )
+
+    return EXIT_ALLOW_OR_REVIEW
+
+
 def run_change_gate(
     arguments: argparse.Namespace,
     *,
@@ -676,6 +962,13 @@ def main(
             stdout=resolved_stdout,
             stderr=resolved_stderr,
             service=service or create_service(),
+        )
+
+    if arguments.command == "policy-check":
+        return run_policy_check(
+            arguments,
+            stdout=resolved_stdout,
+            stderr=resolved_stderr,
         )
 
     parser.error(
