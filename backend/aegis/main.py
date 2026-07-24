@@ -5,10 +5,18 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 
 from aegis.config.settings import get_settings
 from aegis.dependencies import (
+    get_memory_policy_engine,
+    get_security_memory_policy_service,
     get_security_memory_service,
 )
 from aegis.orchestrator.analyzer import SecurityAnalyzer
 from aegis.schemas.analysis import AnalyzeCodeRequest, AnalyzeCodeResponse
+from aegis.schemas.policy import (
+    MemoryPolicyDecisionResponse,
+    MemoryPolicyEvaluationRequest,
+    SecurityMemoryPolicyRecordRequest,
+    SecurityMemoryPolicyRecordResponse,
+)
 from aegis.schemas.memory import (
     SecurityMemoryHistoryResponse,
     SecurityMemoryLatestResponse,
@@ -71,6 +79,12 @@ from aegis.security.validation_replay_orchestrator import (
 )
 from aegis.security.fix_verification import (
     UnifiedFixVerificationEvaluator,
+)
+from aegis.security.memory_policy import (
+    MemoryAwarePolicyEngine,
+)
+from aegis.security.memory_policy_service import (
+    SecurityMemoryPolicyService,
 )
 from aegis.security.security_memory import (
     SecurityMemoryService,
@@ -723,3 +737,50 @@ def get_security_memory_snapshot(
         snapshot=snapshot,
     )
 
+
+@app.post(
+    "/v1/security-memory/policy",
+    response_model=MemoryPolicyDecisionResponse,
+)
+def evaluate_security_memory_policy(
+    request: MemoryPolicyEvaluationRequest,
+    engine: MemoryAwarePolicyEngine = Depends(
+        get_memory_policy_engine
+    ),
+) -> MemoryPolicyDecisionResponse:
+    """
+    Evaluate a security-memory reconciliation result
+    using deterministic policy rules.
+    """
+    return engine.evaluate(request)
+
+
+@app.post(
+    "/v1/security-memory/record-and-evaluate",
+    response_model=SecurityMemoryPolicyRecordResponse,
+)
+def record_and_evaluate_security_memory(
+    request: SecurityMemoryPolicyRecordRequest,
+    service: SecurityMemoryPolicyService = Depends(
+        get_security_memory_policy_service
+    ),
+) -> SecurityMemoryPolicyRecordResponse:
+    """
+    Persist the current project-security snapshot and apply
+    deterministic policy to its lifecycle reconciliation.
+    """
+    try:
+        return service.record_and_evaluate(request)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Security memory could not record and "
+                "evaluate the project snapshot."
+            ),
+        ) from exc

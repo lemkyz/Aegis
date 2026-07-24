@@ -208,7 +208,6 @@ interface ClaimDelta {
   status: ClaimDeltaStatus;
   previous_state: ClaimState | null;
   current_state: ClaimState | null;
-  changed_fields: string[];
   reasons: string[];
 }
 
@@ -237,8 +236,64 @@ interface SecurityMemoryRecordResponse {
   project_snapshot_count: number;
 }
 
+type PolicyDecision =
+  | "allow"
+  | "review"
+  | "block";
+
+type PolicyRiskLevel =
+  | "none"
+  | "low"
+  | "medium"
+  | "high"
+  | "critical";
+
+interface PolicyClaimAssessment {
+  claim_id: string;
+  lifecycle_status: ClaimDeltaStatus;
+  severity: Severity;
+  confidence: number;
+  risk_score: number;
+  risk_level: PolicyRiskLevel;
+  decision: PolicyDecision;
+  reasons: string[];
+}
+
+interface MemoryPolicySummary {
+  claims_evaluated: number;
+  claims_ignored: number;
+  allowed: number;
+  review_required: number;
+  blocked: number;
+  highest_risk_score: number;
+  highest_risk_level: PolicyRiskLevel;
+  new: number;
+  persistent: number;
+  changed: number;
+  reopened: number;
+}
+
+interface MemoryPolicyDecisionResponse {
+  engine: string;
+  policy_version: string;
+  profile: "balanced";
+  decision: PolicyDecision;
+  risk_score: number;
+  risk_level: PolicyRiskLevel;
+  blocking_claim_ids: string[];
+  review_claim_ids: string[];
+  assessments: PolicyClaimAssessment[];
+  summary: MemoryPolicySummary;
+  reasons: string[];
+}
+
+interface SecurityMemoryPolicyRecordResponse {
+  memory: SecurityMemoryRecordResponse;
+  policy: MemoryPolicyDecisionResponse;
+}
+
 interface SecurityMemoryDisplay {
-  response?: SecurityMemoryRecordResponse;
+  response?: SecurityMemoryPolicyRecordResponse;
   error?: string;
 }
 
@@ -7070,7 +7125,7 @@ async function requestSecurityMemoryRecord(
   backendUrl: string,
   repositoryPath: string,
   claims: SecurityClaim[],
-): Promise<SecurityMemoryRecordResponse> {
+): Promise<SecurityMemoryPolicyRecordResponse> {
   const controller =
     new AbortController();
 
@@ -7081,7 +7136,7 @@ async function requestSecurityMemoryRecord(
 
   try {
     const response = await fetch(
-      `${backendUrl}/v1/security-memory/record`,
+      `${backendUrl}/v1/security-memory/record-and-evaluate`,
       {
         method: "POST",
         headers: {
@@ -7092,6 +7147,7 @@ async function requestSecurityMemoryRecord(
           repository_path:
             repositoryPath,
           claims,
+          profile: "balanced",
         }),
         signal: controller.signal,
       },
@@ -7122,7 +7178,7 @@ async function requestSecurityMemoryRecord(
 
     return JSON.parse(
       rawBody,
-    ) as SecurityMemoryRecordResponse;
+    ) as SecurityMemoryPolicyRecordResponse;
   } catch (error: unknown) {
     if (
       error instanceof Error
@@ -7173,11 +7229,34 @@ function buildSecurityMemoryDeltaReport(
     return lines;
   }
 
-  const response = memory.response;
+  const combinedResponse = memory.response;
+  const response = combinedResponse.memory;
+  const policy = combinedResponse.policy;
   const summary =
     response.reconciliation.summary;
 
   lines.push(
+    "### Security Policy Gate",
+    "",
+    `- **Decision:** ${policy.decision.toUpperCase()}`,
+    `- **Risk:** ${policy.risk_score} / 100 — ${policy.risk_level.toUpperCase()}`,
+    `- **Profile:** ${policy.profile}`,
+    `- **Blocked Claims:** ${policy.summary.blocked}`,
+    `- **Review Claims:** ${policy.summary.review_required}`,
+    `- **Ignored Claims:** ${policy.summary.claims_ignored}`,
+    "",
+  );
+
+  for (const reason of policy.reasons) {
+    lines.push(
+      `- ${sanitizeMarkdownText(reason)}`,
+    );
+  }
+
+  lines.push(
+    "",
+    "### Project Security Memory",
+    "",
     `- **Project:** \`${escapeMarkdownInlineCode(response.repository.project_id)}\``,
     `- **Revision:** \`${escapeMarkdownInlineCode(response.repository.revision)}\``,
     `- **Working Tree:** ${response.repository.dirty ? "DIRTY" : "CLEAN"}`,
@@ -7233,14 +7312,6 @@ function buildSecurityMemoryDeltaReport(
       `- **Claim ID:** \`${escapeMarkdownInlineCode(delta.claim_id)}\``,
       `- **Transition:** ${transition}`,
     );
-
-    if (
-      delta.changed_fields.length > 0
-    ) {
-      lines.push(
-        `- **Changed Fields:** ${delta.changed_fields.join(", ")}`,
-      );
-    }
 
     for (const reason of delta.reasons) {
       lines.push(

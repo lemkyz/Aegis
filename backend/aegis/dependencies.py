@@ -1,5 +1,12 @@
 from functools import lru_cache
 
+from aegis.security.memory_policy import (
+    MemoryAwarePolicyEngine,
+)
+from aegis.security.memory_policy_service import (
+    SecurityMemoryPolicyService,
+)
+
 from aegis.config.settings import get_settings
 from aegis.security.security_memory import (
     SecurityMemoryService,
@@ -26,4 +33,18 @@ def get_security_memory_service(
         store=SQLiteProjectMemoryStore(
             settings.security_memory_database_path
         )
+    )
+
+
+@lru_cache
+def get_memory_policy_engine(
+) -> MemoryAwarePolicyEngine:
+    return MemoryAwarePolicyEngine()
+
+
+def get_security_memory_policy_service(
+) -> SecurityMemoryPolicyService:
+    return SecurityMemoryPolicyService(
+        memory_service=get_security_memory_service(),
+        policy_engine=get_memory_policy_engine(),
     )
