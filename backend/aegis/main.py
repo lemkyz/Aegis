@@ -5,11 +5,21 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 
 from aegis.config.settings import get_settings
 from aegis.dependencies import (
+    get_change_policy_service,
+    get_git_change_collector,
     get_memory_policy_engine,
     get_security_memory_policy_service,
     get_security_memory_service,
 )
 from aegis.orchestrator.analyzer import SecurityAnalyzer
+from aegis.schemas.change_policy import (
+    ChangePolicyCollectionRequest,
+    ChangePolicyCollectionResponse,
+)
+from aegis.schemas.changes import (
+    ChangeSet,
+    ChangeSetCollectionRequest,
+)
 from aegis.schemas.analysis import AnalyzeCodeRequest, AnalyzeCodeResponse
 from aegis.schemas.policy import (
     MemoryPolicyDecisionResponse,
@@ -54,6 +64,12 @@ from aegis.schemas.dependencies import (
     DependencyPackage,
     DependencyScanRequest,
     DependencyScanResponse,
+)
+from aegis.security.change_policy_service import (
+    ChangePolicyService,
+)
+from aegis.security.git_changes import (
+    GitChangeCollector,
 )
 from aegis.security.attack_surface import AttackSurfaceMapper
 from aegis.security.dependency_files import parse_dependency_file
@@ -782,5 +798,70 @@ def record_and_evaluate_security_memory(
             detail=(
                 "Security memory could not record and "
                 "evaluate the project snapshot."
+            ),
+        ) from exc
+
+
+@app.post(
+    "/v1/changes/collect",
+    response_model=ChangeSet,
+)
+def collect_repository_changes(
+    request: ChangeSetCollectionRequest,
+    collector: GitChangeCollector = Depends(
+        get_git_change_collector
+    ),
+) -> ChangeSet:
+    """
+    Collect a deterministic staged or uncommitted Git
+    change set without invoking a shell.
+    """
+    try:
+        return collector.collect(
+            request.repository_path,
+            mode=request.mode,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Repository changes could not "
+                "be collected."
+            ),
+        ) from exc
+
+
+@app.post(
+    "/v1/changes/collect-and-evaluate",
+    response_model=ChangePolicyCollectionResponse,
+)
+def collect_and_evaluate_repository_changes(
+    request: ChangePolicyCollectionRequest,
+    service: ChangePolicyService = Depends(
+        get_change_policy_service
+    ),
+) -> ChangePolicyCollectionResponse:
+    """
+    Collect staged or uncommitted Git changes and return
+    a deterministic ALLOW, REVIEW, or BLOCK decision.
+    """
+    try:
+        return service.collect_and_evaluate(request)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Repository changes could not be "
+                "collected and evaluated."
             ),
         ) from exc

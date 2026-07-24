@@ -1389,13 +1389,6 @@ async function scanGitChanges(mode) {
         return;
     }
     const supportedPaths = relativePaths.filter(isSupportedSourcePath);
-    if (supportedPaths.length === 0) {
-        const label = mode === "staged"
-            ? "staged"
-            : "uncommitted";
-        void vscode.window.showInformationMessage(`Aegis: No supported ${label} source files were found.`);
-        return;
-    }
     const configuration = vscode.workspace.getConfiguration("aegis");
     const backendUrl = configuration
         .get("backendUrl", "http://127.0.0.1:8000")
@@ -1408,10 +1401,31 @@ async function scanGitChanges(mode) {
         results: [],
         errors: [],
     };
+    const changePolicy = {};
+    try {
+        changePolicy.response =
+            await requestChangePolicyGate(backendUrl, repositoryRoot, mode);
+    }
+    catch (error) {
+        changePolicy.error =
+            error instanceof Error
+                ? error.message
+                : "Unknown Change Security Gate error.";
+    }
     diagnosticCollection?.clear();
     const label = mode === "staged"
         ? "staged changes"
         : "uncommitted changes";
+    if (supportedPaths.length === 0) {
+        latestWorkspaceScan = summary;
+        securityTreeProvider?.refresh();
+        await showGitChangesReport(summary, mode, changePolicy);
+        showChangePolicyNotification(changePolicy, label);
+        if (!changePolicy.response) {
+            void vscode.window.showInformationMessage(`Aegis: No supported source files were found in ${label}.`);
+        }
+        return;
+    }
     await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: `Aegis is scanning ${label}`,
@@ -1465,7 +1479,8 @@ async function scanGitChanges(mode) {
     });
     latestWorkspaceScan = summary;
     securityTreeProvider?.refresh();
-    await showGitChangesReport(summary, mode);
+    await showGitChangesReport(summary, mode, changePolicy);
+    showChangePolicyNotification(changePolicy, label);
     const totalFindings = summary.results.reduce((total, result) => total + result.response.findings.length, 0);
     if (totalFindings === 0) {
         void vscode.window.showInformationMessage(`Aegis found no security findings in ${summary.filesScanned} scanned ${label} file(s).`);
@@ -1535,13 +1550,77 @@ function uniqueNonEmptyLines(output) {
 function isSupportedSourcePath(relativePath) {
     return /\.(py|js|jsx|ts|tsx)$/i.test(relativePath);
 }
-async function showGitChangesReport(summary, mode) {
+async function showGitChangesReport(summary, mode, changePolicy) {
     const baseReport = buildWorkspaceScanReport(summary);
     const heading = mode === "staged"
         ? "# Aegis Staged Changes Security Scan"
         : "# Aegis Uncommitted Changes Security Scan";
-    const content = baseReport.replace("# Aegis Workspace Security Scan", heading);
+    const scanReport = baseReport.replace("# Aegis Workspace Security Scan", heading);
+    const content = [
+        scanReport,
+        "",
+        ...buildChangePolicyReport(changePolicy),
+    ].join("\n");
     await showReusableAegisReport("git-changes", content);
+}
+async function requestChangePolicyGate(backendUrl, repositoryPath, mode) {
+    return requestValidationJson(backendUrl, "/v1/changes/collect-and-evaluate", {
+        repository_path: repositoryPath,
+        mode,
+        profile: "balanced",
+    }, 30_000);
+}
+function buildChangePolicyReport(display) {
+    const lines = [
+        "## Change Security Gate",
+        "",
+    ];
+    if (!display.response) {
+        lines.push("> Change Security Gate could not be evaluated.", "");
+        if (display.error) {
+            lines.push(`- **Reason:** ${sanitizeMarkdownText(display.error)}`, "");
+        }
+        return lines;
+    }
+    const changeSet = display.response.change_set;
+    const policy = display.response.policy;
+    const summary = policy.summary;
+    lines.push(`- **Decision:** ${policy.decision.toUpperCase()}`, `- **Risk:** ${policy.risk_score} / 100 — ${policy.risk_level.toUpperCase()}`, `- **Profile:** ${policy.profile}`, `- **Changed files:** ${changeSet.file_count}`, `- **Additions:** ${changeSet.additions}`, `- **Deletions:** ${changeSet.deletions}`, `- **Allowed:** ${summary.allowed}`, `- **Review required:** ${summary.review_required}`, `- **Blocked:** ${summary.blocked}`, `- **Sensitive files:** ${summary.sensitive_files}`, `- **Dangerous patterns:** ${summary.dangerous_patterns}`, `- **Binary files:** ${summary.binary_files}`, `- **Truncated patches:** ${summary.truncated_files}`, "");
+    if (policy.blocking_paths.length > 0) {
+        lines.push("### Blocking Paths", "", ...policy.blocking_paths.map((filePath) => `- \`${sanitizeMarkdownText(filePath)}\``), "");
+    }
+    if (policy.review_paths.length > 0) {
+        lines.push("### Review Paths", "", ...policy.review_paths.map((filePath) => `- \`${sanitizeMarkdownText(filePath)}\``), "");
+    }
+    if (policy.assessments.length > 0) {
+        lines.push("### File Assessments", "");
+        for (const assessment of policy.assessments) {
+            lines.push(`#### \`${sanitizeMarkdownText(assessment.path)}\``, "", `- **Decision:** ${assessment.decision.toUpperCase()}`, `- **Risk:** ${assessment.risk_score} / 100 — ${assessment.risk_level.toUpperCase()}`, `- **Status:** ${assessment.status}`, "");
+            for (const reason of assessment.reasons) {
+                lines.push(`- ${sanitizeMarkdownText(reason)}`);
+            }
+            lines.push("");
+        }
+    }
+    return lines;
+}
+function showChangePolicyNotification(display, label) {
+    if (!display.response) {
+        if (display.error) {
+            void vscode.window.showWarningMessage(`Aegis Change Security Gate was unavailable: ${display.error}`);
+        }
+        return;
+    }
+    const policy = display.response.policy;
+    if (policy.decision === "block") {
+        void vscode.window.showErrorMessage(`Aegis Change Security Gate: BLOCK — ${policy.blocking_paths.length} blocking file(s) in ${label}.`);
+        return;
+    }
+    if (policy.decision === "review") {
+        void vscode.window.showWarningMessage(`Aegis Change Security Gate: REVIEW — ${policy.review_paths.length} file(s) require human review in ${label}.`);
+        return;
+    }
+    void vscode.window.showInformationMessage(`Aegis Change Security Gate: ALLOW — ${display.response.change_set.file_count} changed file(s) evaluated.`);
 }
 async function generateWorkspaceThreatModel() {
     const workspaceFolders = vscode.workspace.workspaceFolders;

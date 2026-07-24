@@ -150,4 +150,3 @@ class SecurityMemoryPolicyRecordRequest(
 class SecurityMemoryPolicyRecordResponse(BaseModel):
     memory: SecurityMemoryRecordResponse
     policy: MemoryPolicyDecisionResponse
-

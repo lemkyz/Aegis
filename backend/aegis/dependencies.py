@@ -1,5 +1,14 @@
 from functools import lru_cache
 
+from aegis.security.git_changes import (
+    GitChangeCollector,
+)
+from aegis.security.change_policy import (
+    ChangeAwarePolicyEngine,
+)
+from aegis.security.change_policy_service import (
+    ChangePolicyService,
+)
 from aegis.security.memory_policy import (
     MemoryAwarePolicyEngine,
 )
@@ -47,4 +56,24 @@ def get_security_memory_policy_service(
     return SecurityMemoryPolicyService(
         memory_service=get_security_memory_service(),
         policy_engine=get_memory_policy_engine(),
+    )
+
+
+@lru_cache
+def get_git_change_collector(
+) -> GitChangeCollector:
+    return GitChangeCollector()
+
+
+@lru_cache
+def get_change_policy_engine(
+) -> ChangeAwarePolicyEngine:
+    return ChangeAwarePolicyEngine()
+
+
+def get_change_policy_service(
+) -> ChangePolicyService:
+    return ChangePolicyService(
+        collector=get_git_change_collector(),
+        engine=get_change_policy_engine(),
     )
