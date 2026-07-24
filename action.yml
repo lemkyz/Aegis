@@ -52,6 +52,12 @@ inputs:
     required: false
     default: "aegis-change-gate.json"
 
+  sarif:
+    description: >
+      Path for the SARIF 2.1.0 security result.
+    required: false
+    default: "aegis-results.sarif"
+
 outputs:
   decision:
     description: Final ALLOW, REVIEW, or BLOCK decision.
@@ -109,5 +115,6 @@ runs:
         AEGIS_PROFILE: ${{ inputs.profile }}
         AEGIS_FAIL_ON_REVIEW: ${{ inputs.fail-on-review }}
         AEGIS_OUTPUT: ${{ inputs.output }}
+        AEGIS_SARIF: ${{ inputs.sarif }}
       run: |
         "$GITHUB_ACTION_PATH/scripts/run-pr-gate.sh"

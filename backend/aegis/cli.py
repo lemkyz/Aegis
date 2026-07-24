@@ -20,6 +20,9 @@ from aegis.security.change_policy import (
 from aegis.security.change_policy_service import (
     ChangePolicyService,
 )
+from aegis.security.change_sarif import (
+    build_change_sarif,
+)
 from aegis.security.git_changes import (
     GitChangeCollector,
 )
@@ -117,6 +120,14 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Optional path for the complete JSON "
             "result."
+        ),
+    )
+    gate_parser.add_argument(
+        "--sarif",
+        type=Path,
+        help=(
+            "Optional path for a SARIF 2.1.0 "
+            "security result."
         ),
     )
     gate_parser.add_argument(
@@ -458,6 +469,26 @@ def write_json_result(
     )
 
 
+def write_sarif_result(
+    path: Path,
+    result: ChangePolicyCollectionResponse,
+) -> None:
+    path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    path.write_text(
+        json.dumps(
+            build_change_sarif(result),
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def run_change_gate(
     arguments: argparse.Namespace,
     *,
@@ -500,6 +531,25 @@ def run_change_gate(
             print(
                 (
                     "Aegis could not write the JSON "
+                    f"result: {exc}"
+                ),
+                file=stderr,
+            )
+            return EXIT_ERROR
+
+    if arguments.sarif is not None:
+        try:
+            write_sarif_result(
+                arguments.sarif,
+                result,
+            )
+        except (
+            OSError,
+            ValueError,
+        ) as exc:
+            print(
+                (
+                    "Aegis could not write the SARIF "
                     f"result: {exc}"
                 ),
                 file=stderr,

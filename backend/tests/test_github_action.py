@@ -89,7 +89,8 @@ def test_pull_request_workflow_is_read_only() -> None:
     )
 
     assert workflow["permissions"] == {
-        "contents": "read"
+        "contents": "read",
+        "security-events": "write",
     }
 
     job = workflow["jobs"]["security-gate"]
@@ -152,3 +153,57 @@ def test_cli_emits_file_annotations_in_actions() -> None:
     assert "render_github_annotations" in cli
     assert "github_command_property" in cli
     assert 'f"::{command} "' in cli
+
+
+def test_action_exposes_sarif_input() -> None:
+    action = load_yaml(ROOT / "action.yml")
+
+    assert action["inputs"]["sarif"]["default"] == (
+        "aegis-results.sarif"
+    )
+
+    gate_step = next(
+        step
+        for step in action["runs"]["steps"]
+        if step["name"] == "Run Aegis PR gate"
+    )
+
+    assert gate_step["env"]["AEGIS_SARIF"] == (
+        "${{ inputs.sarif }}"
+    )
+
+
+def test_workflow_uploads_sarif() -> None:
+    workflow = load_yaml(
+        ROOT
+        / ".github"
+        / "workflows"
+        / "aegis-pr-gate.yml"
+    )
+
+    assert workflow["permissions"] == {
+        "contents": "read",
+        "security-events": "write",
+    }
+
+    steps = workflow["jobs"][
+        "security-gate"
+    ]["steps"]
+
+    upload = next(
+        step
+        for step in steps
+        if step["name"]
+        == "Upload SARIF to code scanning"
+    )
+
+    assert upload["uses"] == (
+        "github/codeql-action/upload-sarif@v4"
+    )
+    assert upload["with"]["sarif_file"] == (
+        "aegis-results.sarif"
+    )
+    assert upload["with"]["category"] == (
+        "aegis/change-gate"
+    )
+    assert upload["continue-on-error"] is True

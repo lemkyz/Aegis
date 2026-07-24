@@ -8,6 +8,7 @@ head_revision="${AEGIS_HEAD:-HEAD}"
 profile="${AEGIS_PROFILE:-balanced}"
 fail_on_review="${AEGIS_FAIL_ON_REVIEW:-false}"
 output_path="${AEGIS_OUTPUT:-aegis-change-gate.json}"
+sarif_path="${AEGIS_SARIF:-aegis-results.sarif}"
 
 if [[ -z "$base_revision" ]]; then
   echo "Aegis PR gate requires a base revision." >&2
@@ -23,6 +24,7 @@ arguments=(
   --profile "$profile"
   --format text
   --output "$output_path"
+  --sarif "$sarif_path"
 )
 
 case "${fail_on_review,,}" in

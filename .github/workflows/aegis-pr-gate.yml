@@ -35,6 +35,7 @@ on:
 
 permissions:
   contents: read
+  security-events: write
 
 concurrency:
   group: >
@@ -97,12 +98,23 @@ jobs:
           fail-on-review: >
             ${{ steps.revisions.outputs.fail_on_review }}
           output: aegis-change-gate.json
+          sarif: aegis-results.sarif
+
+      - name: Upload SARIF to code scanning
+        if: ${{ always() && hashFiles('aegis-results.sarif') != '' }}
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: aegis-results.sarif
+          category: aegis/change-gate
 
       - name: Upload gate evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: aegis-change-gate
-          path: aegis-change-gate.json
+          path: |
+            aegis-change-gate.json
+            aegis-results.sarif
           if-no-files-found: warn
           retention-days: 14
