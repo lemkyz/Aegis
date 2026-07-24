@@ -24,7 +24,9 @@ PolicyRiskLevel = Literal[
 ]
 
 PolicyProfile = Literal[
+    "permissive",
     "balanced",
+    "strict",
 ]
 
 

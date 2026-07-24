@@ -189,11 +189,18 @@ def finding_result(
     finding: ChangePolicyFinding,
     occurrence: int,
 ) -> dict[str, Any]:
-    level = (
-        "error"
-        if finding.blocking
-        else "warning"
-    )
+    if finding.waived:
+        level = "note"
+    elif finding.decision_override == "block":
+        level = "error"
+    elif finding.decision_override == "review":
+        level = "warning"
+    else:
+        level = (
+            "error"
+            if finding.blocking
+            else "warning"
+        )
 
     fingerprint = stable_fingerprint(
         rule_id=finding.rule_id,
@@ -228,6 +235,22 @@ def finding_result(
             "riskLevel": assessment.risk_level,
             "ruleScore": finding.score,
             "blockingRule": finding.blocking,
+            "decisionOverride": (
+                finding.decision_override
+            ),
+            "waived": finding.waived,
+            "waiverReason": (
+                finding.waiver_reason
+            ),
+            "waiverExpires": (
+                finding.waiver_expires.isoformat()
+                if finding.waiver_expires
+                is not None
+                else None
+            ),
+            "waiverExpired": (
+                finding.waiver_expired
+            ),
             "changeStatus": assessment.status,
         },
     }
@@ -362,7 +385,10 @@ def build_change_sarif(
     assessments = [
         assessment
         for assessment in result.policy.assessments
-        if assessment.decision != "allow"
+        if (
+            assessment.decision != "allow"
+            or bool(assessment.findings)
+        )
     ]
 
     sarif_results = [

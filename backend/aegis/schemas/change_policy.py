@@ -1,3 +1,5 @@
+from datetime import date
+
 from pydantic import BaseModel, Field, model_validator
 
 from aegis.schemas.changes import (
@@ -16,6 +18,11 @@ class ChangePolicyEvaluationRequest(BaseModel):
     change_set: ChangeSet
     profile: PolicyProfile = "balanced"
 
+    repository_policy: object | None = Field(
+        default=None,
+        exclude=True,
+    )
+
 
 class ChangePolicyFinding(BaseModel):
     rule_id: str = Field(
@@ -31,6 +38,19 @@ class ChangePolicyFinding(BaseModel):
         le=100,
     )
     blocking: bool = False
+
+    decision_override: str | None = Field(
+        default=None,
+        pattern=r"^(review|block)$",
+    )
+
+    waived: bool = False
+    waiver_reason: str | None = Field(
+        default=None,
+        max_length=2_000,
+    )
+    waiver_expires: date | None = None
+    waiver_expired: bool = False
 
     start_line: int | None = Field(
         default=None,
@@ -154,9 +174,32 @@ class ChangePolicyDecisionResponse(BaseModel):
 class ChangePolicyCollectionRequest(
     ChangeSetCollectionRequest
 ):
+    profile: PolicyProfile | None = None
+
+
+class RepositoryPolicyApplication(BaseModel):
+    source: str | None = None
+    loaded: bool = False
     profile: PolicyProfile = "balanced"
+    fail_on_review: bool = False
+
+    rule_overrides: int = Field(
+        default=0,
+        ge=0,
+    )
+    active_waivers: int = Field(
+        default=0,
+        ge=0,
+    )
+    expired_waivers: int = Field(
+        default=0,
+        ge=0,
+    )
 
 
 class ChangePolicyCollectionResponse(BaseModel):
     change_set: ChangeSet
     policy: ChangePolicyDecisionResponse
+    repository_policy: RepositoryPolicyApplication = Field(
+        default_factory=RepositoryPolicyApplication,
+    )

@@ -102,8 +102,11 @@ def build_parser() -> argparse.ArgumentParser:
             "balanced",
             "strict",
         ),
-        default="balanced",
-        help="Security policy profile.",
+        default=None,
+        help=(
+            "Security policy profile. When omitted, "
+            ".aegis.yml is used, then balanced."
+        ),
     )
     gate_parser.add_argument(
         "--format",
@@ -628,7 +631,10 @@ def run_change_gate(
         return EXIT_BLOCK
 
     if (
-        arguments.fail_on_review
+        (
+            arguments.fail_on_review
+            or result.repository_policy.fail_on_review
+        )
         and result.policy.decision == "review"
     ):
         return EXIT_BLOCK

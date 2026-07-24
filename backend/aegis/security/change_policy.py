@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import date
 
 from aegis.schemas.change_policy import (
     ChangeFilePolicyAssessment,
@@ -170,6 +171,17 @@ class ChangeAwarePolicyEngine:
             self._evaluate_file(change)
             for change in request.change_set.files
         ]
+
+        repository_policy = request.repository_policy
+
+        if repository_policy is not None:
+            assessments = [
+                self._apply_repository_policy(
+                    assessment,
+                    repository_policy,
+                )
+                for assessment in assessments
+            ]
 
         assessments.sort(
             key=lambda item: (
@@ -448,6 +460,214 @@ class ChangeAwarePolicyEngine:
             findings=findings,
             reasons=reasons,
         )
+
+    @classmethod
+    def _apply_repository_policy(
+        cls,
+        assessment: ChangeFilePolicyAssessment,
+        repository_policy: object,
+    ) -> ChangeFilePolicyAssessment:
+        rules = getattr(
+            repository_policy,
+            "rules",
+            {},
+        )
+        waivers = getattr(
+            repository_policy,
+            "waivers",
+            [],
+        )
+        today = date.today()
+
+        updated_findings: list[
+            ChangePolicyFinding
+        ] = []
+
+        active_finding_decisions: list[
+            PolicyDecision
+        ] = []
+
+        unique_active_scores: dict[str, int] = {}
+
+        for finding in assessment.findings:
+            override = rules.get(
+                finding.rule_id
+            )
+            override_decision = (
+                override.decision
+                if override is not None
+                else None
+            )
+
+            matched_waiver = next(
+                (
+                    waiver
+                    for waiver in waivers
+                    if waiver.rule_id
+                    == finding.rule_id
+                    and waiver.path
+                    == assessment.path.replace(
+                        "\\",
+                        "/",
+                    )
+                ),
+                None,
+            )
+
+            waived = False
+            waiver_expired = False
+            waiver_reason = None
+            waiver_expires = None
+
+            if matched_waiver is not None:
+                waiver_reason = (
+                    matched_waiver.reason
+                )
+                waiver_expires = (
+                    matched_waiver.expires
+                )
+
+                if matched_waiver.expires >= today:
+                    waived = True
+                else:
+                    waiver_expired = True
+
+            updated = finding.model_copy(
+                update={
+                    "decision_override": (
+                        override_decision
+                    ),
+                    "waived": waived,
+                    "waiver_reason": waiver_reason,
+                    "waiver_expires": waiver_expires,
+                    "waiver_expired": (
+                        waiver_expired
+                    ),
+                }
+            )
+            updated_findings.append(updated)
+
+            if waived:
+                continue
+
+            unique_active_scores.setdefault(
+                finding.rule_id,
+                finding.score,
+            )
+
+            if override_decision == "block":
+                active_finding_decisions.append(
+                    "block"
+                )
+            elif override_decision == "review":
+                active_finding_decisions.append(
+                    "review"
+                )
+            elif finding.blocking:
+                active_finding_decisions.append(
+                    "block"
+                )
+            else:
+                active_finding_decisions.append(
+                    "review"
+                )
+
+        original_rule_scores: dict[str, int] = {}
+
+        for finding in assessment.findings:
+            original_rule_scores.setdefault(
+                finding.rule_id,
+                finding.score,
+            )
+
+        structural_score = max(
+            0,
+            assessment.risk_score
+            - sum(original_rule_scores.values()),
+        )
+
+        effective_score = min(
+            100,
+            structural_score
+            + sum(unique_active_scores.values()),
+        )
+
+        structural_decision = cls._decision(
+            score=structural_score,
+            forced_block=False,
+        )
+
+        decisions = [
+            structural_decision,
+            *active_finding_decisions,
+        ]
+
+        if "block" in decisions:
+            decision: PolicyDecision = "block"
+        elif "review" in decisions:
+            decision = "review"
+        else:
+            decision = "allow"
+
+        reasons = list(assessment.reasons)
+
+        for finding in updated_findings:
+            if finding.waived:
+                reasons.append(
+                    (
+                        f"Waiver applied to "
+                        f"{finding.rule_id}: "
+                        f"{finding.waiver_reason} "
+                        f"(expires "
+                        f"{finding.waiver_expires})."
+                    )
+                )
+            elif finding.waiver_expired:
+                reasons.append(
+                    (
+                        f"Expired waiver ignored for "
+                        f"{finding.rule_id} "
+                        f"(expired "
+                        f"{finding.waiver_expires})."
+                    )
+                )
+
+        first_active = next(
+            (
+                finding
+                for finding in updated_findings
+                if not finding.waived
+            ),
+            None,
+        )
+
+        return assessment.model_copy(
+            update={
+                "risk_score": effective_score,
+                "risk_level": cls._risk_level(
+                    effective_score
+                ),
+                "decision": decision,
+                "rule_id": (
+                    first_active.rule_id
+                    if first_active is not None
+                    else None
+                ),
+                "start_line": (
+                    first_active.start_line
+                    if first_active is not None
+                    else None
+                ),
+                "start_column": (
+                    first_active.start_column
+                    if first_active is not None
+                    else None
+                ),
+                "findings": updated_findings,
+                "reasons": reasons,
+            }
+        )
+
 
     @staticmethod
     def _added_patch_lines_with_locations(
