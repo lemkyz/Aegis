@@ -43,6 +43,8 @@ class OsvDependencyScanner:
         )
 
         vulnerabilities: list[DependencyVulnerability] = []
+        successful_packages = 0
+        errors: list[str] = []
 
         for package, result in zip(
             packages,
@@ -50,18 +52,41 @@ class OsvDependencyScanner:
             strict=True,
         ):
             if isinstance(result, Exception):
-                print(
-                    "OSV dependency query failed for "
+                package_identifier = (
                     f"{package.ecosystem}/{package.name}"
-                    f"@{package.version}: {result}"
+                    f"@{package.version}"
+                )
+
+                error_message = (
+                    "OSV dependency query failed for "
+                    f"{package_identifier}: {result}"
+                )
+
+                print(error_message)
+
+                errors.append(
+                    error_message[:1_000]
                 )
                 continue
 
+            successful_packages += 1
             vulnerabilities.extend(result)
 
         vulnerabilities = self._deduplicate_vulnerabilities(
             vulnerabilities
         )
+
+        failed_packages = (
+            len(packages)
+            - successful_packages
+        )
+
+        if failed_packages == 0:
+            scan_status = "completed"
+        elif successful_packages == 0:
+            scan_status = "failed"
+        else:
+            scan_status = "partial"
 
         vulnerable_packages = len(
             {
@@ -77,6 +102,10 @@ class OsvDependencyScanner:
         return DependencyScanResponse(
             scanner=self.name,
             packages_scanned=len(packages),
+            successful_packages=successful_packages,
+            failed_packages=failed_packages,
+            scan_status=scan_status,
+            errors=errors,
             vulnerable_packages=vulnerable_packages,
             vulnerabilities=vulnerabilities,
         )

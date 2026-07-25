@@ -21,6 +21,12 @@ DependencySeverity = Literal[
     "critical",
 ]
 
+DependencyScanStatus = Literal[
+    "completed",
+    "partial",
+    "failed",
+]
+
 
 class DependencyPackage(BaseModel):
     name: str = Field(min_length=1, max_length=300)
@@ -82,8 +88,20 @@ class DependencyVulnerability(BaseModel):
 
 class DependencyScanResponse(BaseModel):
     scanner: str
-    packages_scanned: int
-    vulnerable_packages: int
+    packages_scanned: int = Field(ge=0)
+    successful_packages: int = Field(
+        default=0,
+        ge=0,
+    )
+    failed_packages: int = Field(
+        default=0,
+        ge=0,
+    )
+    scan_status: DependencyScanStatus = "completed"
+    errors: list[str] = Field(
+        default_factory=list,
+    )
+    vulnerable_packages: int = Field(ge=0)
     vulnerabilities: list[DependencyVulnerability]
 
 

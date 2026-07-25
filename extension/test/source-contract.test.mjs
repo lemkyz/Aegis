@@ -189,3 +189,152 @@ test(
     );
   },
 );
+
+
+test(
+  "partial analysis reports do not persist project security memory",
+  () => {
+    const showResultStart =
+      source.indexOf(
+        "async function showAnalysisResult(",
+      );
+
+    const nextFunctionStart =
+      source.indexOf(
+        "\nfunction findFirstPatch(",
+        showResultStart,
+      );
+
+    assert.ok(
+      showResultStart >= 0,
+      "showAnalysisResult was not found.",
+    );
+
+    assert.ok(
+      nextFunctionStart > showResultStart,
+      "showAnalysisResult boundary was not found.",
+    );
+
+    const showResultSource =
+      source.slice(
+        showResultStart,
+        nextFunctionStart,
+      );
+
+    assert.ok(
+      !showResultSource.includes(
+        "recordAnalysisSecurityMemory(",
+      ),
+      "Partial analysis still persists project memory.",
+    );
+
+    assert.ok(
+      showResultSource.includes(
+        "memory?: SecurityMemoryDisplay",
+      ),
+      "Analysis report does not accept explicit memory context.",
+    );
+  },
+);
+
+
+test(
+  "dependency reports never treat incomplete OSV coverage as clean",
+  () => {
+    assert.ok(
+      source.includes(
+        'result.scan_status === "failed"',
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        'result.scan_status === "partial"',
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "The absence of vulnerability records must not be interpreted as a clean dependency scan.",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "Packages checked successfully",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "Package queries failed",
+      ),
+    );
+  },
+);
+
+
+test(
+  "fix verification separates the selected target from unrelated matching findings",
+  () => {
+    assert.ok(
+      source.includes(
+        "expectedUnrelatedRemaining",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "remainingRuleBudgets",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "subprocess-popen-with-shell-equals-true",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        'normalized.includes(".b602.")',
+      ),
+    );
+  },
+);
+
+
+test(
+  "secure fixes reject malformed unified diff patches before editing files",
+  () => {
+    assert.ok(
+      source.includes(
+        "function normalizeProposedPatch",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "containsUnifiedDiffMetadata",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "/^(?:diff --git |index |--- |\\\\+\\\\+\\\\+ |@@(?: |$))/",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "fencedBlocks.length > 1",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "normalizeProposedPatch(",
+      ),
+    );
+  },
+);

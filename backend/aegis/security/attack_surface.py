@@ -1156,6 +1156,7 @@ class AttackSurfaceMapper:
     ) -> AttackSurfaceNode:
         identity = (
             f"{file}:{line}:{kind}:"
+            f"{symbol or ''}:"
             f"{method or ''}:{path or ''}:"
             f"{evidence}"
         )

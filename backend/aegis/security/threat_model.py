@@ -38,6 +38,7 @@ class ThreatModeler:
         )
         trust_boundaries = self._build_trust_boundaries(
             attack_surface.nodes,
+            attack_surface.edges,
         )
         files_by_name = {
             file.filename: file
@@ -154,8 +155,14 @@ class ThreatModeler:
     def _build_trust_boundaries(
         self,
         nodes: list[AttackSurfaceNode],
+        edges: list[AttackSurfaceEdge],
     ) -> list[TrustBoundary]:
         boundaries: list[TrustBoundary] = []
+
+        nodes_by_id = {
+            node.id: node
+            for node in nodes
+        }
 
         for node in nodes:
             if node.kind == "http_route":
@@ -223,6 +230,50 @@ class ThreatModeler:
                         boundary_type="sensitive_configuration",
                         evidence=node.evidence,
                         source_node_ids=[node.id],
+                    )
+                )
+
+        for edge in edges:
+            if edge.relationship != "data_flow":
+                continue
+
+            source = nodes_by_id.get(edge.source)
+            target = nodes_by_id.get(edge.target)
+
+            if (
+                source is None
+                or target is None
+                or source.kind
+                != "function_parameter"
+            ):
+                continue
+
+            if target.kind == "process_execution":
+                boundaries.append(
+                    TrustBoundary(
+                        id=self._stable_id(
+                            "boundary",
+                            source.id,
+                            target.id,
+                            "process-input",
+                        ),
+                        label=(
+                            "Untrusted input to "
+                            "operating-system process"
+                        ),
+                        file=source.file,
+                        line=source.line_start,
+                        boundary_type=(
+                            "untrusted_process_input"
+                        ),
+                        evidence=(
+                            f"{source.evidence} -> "
+                            f"{target.evidence}"
+                        ),
+                        source_node_ids=[
+                            source.id,
+                            target.id,
+                        ],
                     )
                 )
 

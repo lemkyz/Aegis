@@ -416,14 +416,26 @@ class DependencyRootTreeItem extends vscode.TreeItem {
     constructor(result) {
         super("Supply Chain Risks", vscode.TreeItemCollapsibleState.Expanded);
         this.result = result;
-        this.description =
-            `${result.vulnerable_packages} package(s) · ${result.vulnerabilities.length} advisory(s)`;
-        this.tooltip =
-            `${result.packages_scanned} package version(s) checked with ${result.scanner.toUpperCase()}`;
+        this.description = [
+            `${result.vulnerable_packages} package(s)`,
+            `${result.vulnerabilities.length} advisory(s)`,
+            result.scan_status.toUpperCase(),
+        ].join(" · ");
+        this.tooltip = [
+            `${result.successful_packages}/${result.packages_scanned} package version(s) checked successfully`,
+            `${result.failed_packages} package query failure(s)`,
+            `Scanner: ${result.scanner.toUpperCase()}`,
+        ].join("\n");
         this.contextValue = "aegisDependencyRoot";
-        this.iconPath = new vscode.ThemeIcon(result.vulnerabilities.length > 0
-            ? "package"
-            : "pass-filled");
+        const icon = result.scan_status === "failed"
+            ? "error"
+            : result.scan_status === "partial"
+                ? "warning"
+                : result.vulnerabilities.length > 0
+                    ? "package"
+                    : "pass-filled";
+        this.iconPath =
+            new vscode.ThemeIcon(icon);
     }
 }
 class DependencyPackageTreeItem extends vscode.TreeItem {
@@ -727,8 +739,16 @@ async function scanDependencies() {
         latestDependencyScan = result;
         securityTreeProvider?.refresh();
         await showDependencyScanReport(result, packages);
+        if (result.scan_status === "failed") {
+            void vscode.window.showErrorMessage(`Aegis Dependency Scan could not verify ${result.failed_packages} package(s) because OSV advisory queries failed.`, "Keep Report Open");
+            return;
+        }
+        if (result.scan_status === "partial") {
+            void vscode.window.showWarningMessage(`Aegis Dependency Scan completed partially: ${result.successful_packages}/${result.packages_scanned} package(s) checked successfully and ${result.failed_packages} failed.`, "Keep Report Open");
+            return;
+        }
         if (result.vulnerabilities.length === 0) {
-            void vscode.window.showInformationMessage(`Aegis Dependency Scan completed: ${result.packages_scanned} package(s) checked and no known vulnerabilities detected.`);
+            void vscode.window.showInformationMessage(`Aegis Dependency Scan completed: ${result.successful_packages} package(s) checked and no known vulnerabilities detected.`);
             return;
         }
         void vscode.window.showWarningMessage(`Aegis found ${result.vulnerabilities.length} known vulnerability record(s) across ${result.vulnerable_packages} package(s).`, "Keep Report Open");
@@ -1220,7 +1240,10 @@ function buildDependencyScanReport(result, packages) {
         "# Aegis Dependency Security Scan",
         "",
         `- **Scanner:** ${result.scanner.toUpperCase()}`,
-        `- **Packages checked:** ${result.packages_scanned}`,
+        `- **Scan status:** ${result.scan_status.toUpperCase()}`,
+        `- **Packages submitted:** ${result.packages_scanned}`,
+        `- **Packages checked successfully:** ${result.successful_packages}`,
+        `- **Package queries failed:** ${result.failed_packages}`,
         `- **Vulnerable packages:** ${result.vulnerable_packages}`,
         `- **Vulnerability records:** ${vulnerabilities.length}`,
         `- **Manifests:** ${manifests.length}`,
@@ -1234,8 +1257,28 @@ function buildDependencyScanReport(result, packages) {
         `- **Unknown:** ${countSeverity("unknown")}`,
         "",
     ];
-    if (vulnerabilities.length === 0) {
+    if (result.scan_status !== "completed") {
+        lines.push("## Advisory Coverage Warning", "");
+        if (result.scan_status === "failed") {
+            lines.push("> Dependency advisory coverage failed. No package received a successful OSV result.", "", "> The absence of vulnerability records must not be interpreted as a clean dependency scan.", "");
+        }
+        else {
+            lines.push(`> Dependency advisory coverage was partial. ${result.failed_packages} package query or queries failed.`, "", "> Vulnerability records below cover only packages checked successfully.", "");
+        }
+        if (result.errors.length > 0) {
+            lines.push("### Query Errors", "");
+            for (const error of result.errors) {
+                lines.push(`- ${sanitizeMarkdownText(error)}`);
+            }
+            lines.push("");
+        }
+    }
+    if (vulnerabilities.length === 0
+        && result.scan_status === "completed") {
         lines.push("No known dependency vulnerability was found for the exact versions checked.", "", "> This result depends on available advisory data and does not guarantee that every dependency is secure.");
+        return lines.join("\n");
+    }
+    if (vulnerabilities.length === 0) {
         return lines.join("\n");
     }
     lines.push("## Vulnerabilities", "");
@@ -2640,9 +2683,40 @@ function sanitizeVerificationDetails(details) {
         .slice(0, 12_000);
 }
 function compareSecurityVerificationResults(analyzedResponse, baselineResponse, verificationResponse) {
-    const targetRuleIds = Array.from(new Set(analyzedResponse.findings.flatMap((finding) => finding.scanner_evidence.map((evidence) => evidence.rule_id))));
+    const findingRuleIds = (finding) => Array.from(new Set(finding.scanner_evidence.map((evidence) => evidence.rule_id)));
+    const countRules = (findings) => {
+        const counts = new Map();
+        for (const finding of findings) {
+            for (const ruleId of findingRuleIds(finding)) {
+                counts.set(ruleId, (counts.get(ruleId) ?? 0) + 1);
+            }
+        }
+        return counts;
+    };
+    const analyzedTargetCounts = countRules(analyzedResponse.findings);
+    const targetRuleIds = Array.from(analyzedTargetCounts.keys());
+    const baselineRuleCounts = countRules(baselineResponse.findings);
+    const verificationRuleCounts = countRules(verificationResponse.findings);
+    const remainingRuleBudgets = new Map();
+    for (const ruleId of targetRuleIds) {
+        const baselineCount = baselineRuleCounts.get(ruleId) ?? 0;
+        const targetCount = analyzedTargetCounts.get(ruleId) ?? 0;
+        const verificationCount = verificationRuleCounts.get(ruleId) ?? 0;
+        const expectedUnrelatedRemaining = Math.max(0, baselineCount - targetCount);
+        remainingRuleBudgets.set(ruleId, Math.max(0, verificationCount -
+            expectedUnrelatedRemaining));
+    }
+    const remainingTargetFindings = [];
+    for (const finding of verificationResponse.findings) {
+        const matchedRuleId = findingRuleIds(finding).find((ruleId) => (remainingRuleBudgets.get(ruleId) ?? 0)
+            > 0);
+        if (!matchedRuleId) {
+            continue;
+        }
+        remainingTargetFindings.push(finding);
+        remainingRuleBudgets.set(matchedRuleId, (remainingRuleBudgets.get(matchedRuleId) ?? 1) - 1);
+    }
     const baselineIdentities = new Set(baselineResponse.findings.map(securityFindingIdentity));
-    const remainingTargetFindings = verificationResponse.findings.filter((finding) => finding.scanner_evidence.some((evidence) => targetRuleIds.includes(evidence.rule_id)));
     const introducedFindings = verificationResponse.findings.filter((finding) => !baselineIdentities.has(securityFindingIdentity(finding)) &&
         !isExpectedCommandInjectionMitigation(finding, targetRuleIds));
     const unchangedFindings = verificationResponse.findings.filter((finding) => baselineIdentities.has(securityFindingIdentity(finding)));
@@ -2654,9 +2728,13 @@ function compareSecurityVerificationResults(analyzedResponse, baselineResponse, 
     };
 }
 function isExpectedCommandInjectionMitigation(finding, targetRuleIds) {
-    const fixesCommandInjection = targetRuleIds.some((ruleId) => ruleId
-        .toLowerCase()
-        .includes("command-injection"));
+    const fixesCommandInjection = targetRuleIds.some((ruleId) => {
+        const normalized = ruleId.toLowerCase();
+        return (normalized.includes("command-injection") ||
+            normalized.includes("subprocess-popen-with-shell-equals-true") ||
+            normalized.includes("subprocess-shell") ||
+            normalized.includes(".b602."));
+    });
     if (!fixesCommandInjection) {
         return false;
     }
@@ -3372,13 +3450,47 @@ function mapDiagnosticSeverity(severity) {
 function clampLine(line, document) {
     return Math.max(0, Math.min(line, document.lineCount - 1));
 }
-async function showAnalysisResult(result, mode) {
-    const memory = await recordAnalysisSecurityMemory(result);
+async function showAnalysisResult(result, mode, memory) {
     await showReusableAegisReport("analysis", buildMarkdownReport(result, mode, memory));
 }
+function normalizeProposedPatch(proposedPatch) {
+    const trimmed = proposedPatch.trim();
+    if (!trimmed) {
+        return undefined;
+    }
+    const fencedBlocks = Array.from(trimmed.matchAll(/```[^\\n]*\\n([\\s\\S]*?)```/g));
+    if (fencedBlocks.length > 1) {
+        return undefined;
+    }
+    if (trimmed.includes("```")
+        && fencedBlocks.length === 0) {
+        return undefined;
+    }
+    const candidate = fencedBlocks.length === 1
+        ? fencedBlocks[0][1].trim()
+        : trimmed;
+    if (!candidate) {
+        return undefined;
+    }
+    const containsUnifiedDiffMetadata = candidate
+        .split(/\\r?\\n/)
+        .some((line) => /^(?:diff --git |index |--- |\\+\\+\\+ |@@(?: |$))/.test(line));
+    if (containsUnifiedDiffMetadata) {
+        return undefined;
+    }
+    return candidate;
+}
 function findFirstPatch(result) {
-    return (result.findings.find((finding) => finding.proposed_patch &&
-        finding.proposed_patch.trim().length > 0)?.proposed_patch ?? undefined);
+    for (const finding of result.findings) {
+        if (!finding.proposed_patch) {
+            continue;
+        }
+        const normalized = normalizeProposedPatch(finding.proposed_patch);
+        if (normalized) {
+            return normalized;
+        }
+    }
+    return undefined;
 }
 function preserveIndentation(originalCode, proposedPatch) {
     const sourceLine = originalCode

@@ -134,3 +134,33 @@ def test_analysis_response_serializes_claims() -> None:
     assert payload["claims"][0]["claim_id"].startswith(
         "claim:sha256:"
     )
+
+
+def test_scanner_claims_do_not_create_model_review_evidence() -> None:
+    claims = SecurityAnalyzer._build_claims(
+        findings=[finding()],
+        filename="app.py",
+        include_narrative_evidence=False,
+    )
+
+    assert len(claims) == 1
+    assert {
+        evidence.source.kind
+        for evidence in claims[0].evidence
+    } == {"scanner"}
+
+
+def test_ai_claims_preserve_model_review_evidence() -> None:
+    claims = SecurityAnalyzer._build_claims(
+        findings=[finding()],
+        filename="app.py",
+        include_narrative_evidence=True,
+    )
+
+    assert {
+        evidence.source.kind
+        for evidence in claims[0].evidence
+    } == {
+        "scanner",
+        "model_review",
+    }

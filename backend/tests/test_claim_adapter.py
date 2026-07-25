@@ -274,3 +274,18 @@ def test_adapter_category_uses_known_rule_family_from_any_scanner() -> None:
     )
 
     assert claim.category == "command-injection"
+
+
+def test_adapter_can_exclude_narrative_evidence() -> None:
+    claim = finding_to_claim(
+        make_finding(),
+        filename="app.py",
+        include_narrative_evidence=False,
+    )
+
+    assert len(claim.evidence) == 1
+    assert claim.evidence[0].source.kind == "scanner"
+    assert all(
+        evidence.source.kind != "model_review"
+        for evidence in claim.evidence
+    )

@@ -905,3 +905,62 @@ export function loadFile(filename: string): string {
 
     assert sink.line_start == 2
     assert sink.line_end == 5
+
+
+def test_builds_process_input_trust_boundary_from_proven_flow() -> None:
+    result = ThreatModeler().scan(
+        [
+            AttackSurfaceFile(
+                filename="command.py",
+                language="python",
+                code="""
+import subprocess
+
+
+def run_command(user_input: str) -> None:
+    subprocess.run(
+        user_input,
+        shell=True,
+    )
+""".strip(),
+            )
+        ]
+    )
+
+    boundary = next(
+        boundary
+        for boundary in result.trust_boundaries
+        if boundary.boundary_type
+        == "untrusted_process_input"
+    )
+
+    assert boundary.label == (
+        "Untrusted input to operating-system process"
+    )
+    assert len(boundary.source_node_ids) == 2
+    assert (
+        result.summary.trust_boundaries_found
+        == len(result.trust_boundaries)
+    )
+    assert result.summary.trust_boundaries_found >= 1
+
+
+def test_safe_parameters_do_not_create_process_boundaries() -> None:
+    result = ThreatModeler().scan(
+        [
+            AttackSurfaceFile(
+                filename="safe.py",
+                language="python",
+                code="""
+def add(left: int, right: int) -> int:
+    return left + right
+""".strip(),
+            )
+        ]
+    )
+
+    assert result.trust_boundaries == []
+    assert (
+        result.summary.trust_boundaries_found
+        == 0
+    )

@@ -561,3 +561,39 @@ normalize(filename),
         "normalize(filename)",
         "fs.readFileSync(...)",
     ]
+
+
+def test_preserves_multiple_parameters_on_same_line() -> None:
+    mapper = AttackSurfaceMapper()
+
+    result = mapper.scan(
+        [
+            AttackSurfaceFile(
+                filename="math.py",
+                language="python",
+                code=(
+                    "def add(left: int, right: int) -> int:\n"
+                    "    return left + right\n"
+                ),
+            )
+        ]
+    )
+
+    parameters = {
+        node.symbol
+        for node in result.nodes
+        if node.kind == "function_parameter"
+    }
+
+    assert parameters == {
+        "left",
+        "right",
+    }
+
+    parameter_ids = {
+        node.id
+        for node in result.nodes
+        if node.kind == "function_parameter"
+    }
+
+    assert len(parameter_ids) == 2

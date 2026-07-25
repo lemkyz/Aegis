@@ -183,6 +183,7 @@ class SecurityAnalyzer:
             claims=self._build_claims(
                 findings=findings,
                 filename=request.filename,
+                include_narrative_evidence=False,
             ),
         )
 
@@ -304,6 +305,7 @@ class SecurityAnalyzer:
                 claims=self._build_claims(
                     findings=findings,
                     filename=request.filename,
+                    include_narrative_evidence=False,
                 ),
             )
 
@@ -331,11 +333,15 @@ class SecurityAnalyzer:
         *,
         findings: list[SecurityFinding],
         filename: str,
+        include_narrative_evidence: bool = True,
     ) -> list[SecurityClaim]:
         return [
             finding_to_claim(
                 finding,
                 filename=filename,
+                include_narrative_evidence=(
+                    include_narrative_evidence
+                ),
             )
             for finding in findings
         ]

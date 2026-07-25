@@ -18,6 +18,7 @@ def finding_to_claim(
     finding: SecurityFinding,
     *,
     filename: str,
+    include_narrative_evidence: bool = True,
 ) -> SecurityClaim:
     normalized_filename = _normalize_path(filename)
     category = _claim_category(finding)
@@ -30,6 +31,9 @@ def finding_to_claim(
     evidence_items = _evidence_items(
         finding,
         filename=normalized_filename,
+        include_narrative_evidence=(
+            include_narrative_evidence
+        ),
     )
 
     identity_anchor = _claim_identity_anchor(
@@ -70,6 +74,7 @@ def _evidence_items(
     finding: SecurityFinding,
     *,
     filename: str,
+    include_narrative_evidence: bool,
 ) -> list[EvidenceItem]:
     result: list[EvidenceItem] = []
 
@@ -143,27 +148,28 @@ def _evidence_items(
             )
         )
 
-    for narrative_index, narrative in enumerate(
-        finding.evidence,
-    ):
-        result.append(
-            EvidenceItem(
-                evidence_id=_stable_id(
-                    "evidence",
-                    "model_review",
-                    filename,
-                    narrative,
-                    str(narrative_index),
-                ),
-                source=EvidenceSource(
-                    kind="model_review",
-                    name="Aegis Analysis",
-                ),
-                summary=narrative,
-                confidence=finding.confidence,
-                locations=[],
+    if include_narrative_evidence:
+        for narrative_index, narrative in enumerate(
+            finding.evidence,
+        ):
+            result.append(
+                EvidenceItem(
+                    evidence_id=_stable_id(
+                        "evidence",
+                        "model_review",
+                        filename,
+                        narrative,
+                        str(narrative_index),
+                    ),
+                    source=EvidenceSource(
+                        kind="model_review",
+                        name="Aegis Analysis",
+                    ),
+                    summary=narrative,
+                    confidence=finding.confidence,
+                    locations=[],
+                )
             )
-        )
 
     return result
 
