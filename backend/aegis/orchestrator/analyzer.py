@@ -1,8 +1,8 @@
 import re
 
-from aegis.models.nvidia import NvidiaModelClient
-from aegis.models.nvidia_verifier import (
-    NvidiaVerifierClient,
+from aegis.models.factory import (
+    create_primary_model_client,
+    create_verifier_model_client,
 )
 from aegis.models.protocol import (
     SecurityModelClient,
@@ -43,12 +43,12 @@ class SecurityAnalyzer:
         self.model_client = (
             model_client
             if model_client is not None
-            else NvidiaModelClient()
+            else create_primary_model_client()
         )
         self.verifier_client = (
             verifier_client
             if verifier_client is not None
-            else NvidiaVerifierClient()
+            else create_verifier_model_client()
         )
         self.consensus_evaluator = (
             consensus_evaluator

@@ -106,15 +106,16 @@ def test_rejects_invalid_verifier_json(
 def test_uses_dedicated_verifier_model_when_configured(
     monkeypatch,
 ) -> None:
-    from types import SimpleNamespace
-
+    from aegis.config.settings import Settings
     import aegis.models.nvidia_verifier as module
 
-    settings = SimpleNamespace(
-        nvidia_model="fake/primary",
-        nvidia_verifier_model="fake/verifier",
+    settings = Settings(
+        _env_file=None,
+        aegis_fingerprint_key="f" * 32,
         nvidia_api_key="test-key",
         nvidia_base_url="https://example.invalid/v1",
+        nvidia_model="fake/primary",
+        nvidia_verifier_model="fake/verifier",
         ai_request_timeout_seconds=45.0,
         ai_max_retries=0,
     )
@@ -133,15 +134,16 @@ def test_uses_dedicated_verifier_model_when_configured(
 def test_falls_back_to_primary_model_when_verifier_unset(
     monkeypatch,
 ) -> None:
-    from types import SimpleNamespace
-
+    from aegis.config.settings import Settings
     import aegis.models.nvidia_verifier as module
 
-    settings = SimpleNamespace(
-        nvidia_model="fake/primary",
-        nvidia_verifier_model=None,
+    settings = Settings(
+        _env_file=None,
+        aegis_fingerprint_key="f" * 32,
         nvidia_api_key="test-key",
         nvidia_base_url="https://example.invalid/v1",
+        nvidia_model="fake/primary",
+        nvidia_verifier_model=None,
         ai_request_timeout_seconds=45.0,
         ai_max_retries=0,
     )

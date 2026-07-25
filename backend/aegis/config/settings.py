@@ -41,10 +41,38 @@ class Settings(BaseSettings):
         min_length=32,
     )
 
-    nvidia_api_key: str
+    # Legacy NVIDIA configuration.
+    #
+    # These fields remain supported while Aegis transitions to the
+    # provider-independent AI_PRIMARY_* / AI_VERIFIER_* contract.
+    nvidia_api_key: str | None = None
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
     nvidia_model: str = "openai/gpt-oss-120b"
     nvidia_verifier_model: str | None = None
+
+    # OpenRouter provider configuration.
+    openrouter_api_key: str | None = None
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+
+    # Groq provider configuration.
+    groq_api_key: str | None = None
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+
+    # Role-specific custom OpenAI-compatible configuration.
+    ai_primary_api_key: str | None = None
+    ai_primary_base_url: str | None = None
+    ai_verifier_api_key: str | None = None
+    ai_verifier_base_url: str | None = None
+
+    # Provider-independent model routing configuration.
+    #
+    # Explicit AI_* model values take precedence over the legacy
+    # NVIDIA_* model values. Provider-specific credentials and
+    # transports are introduced by the following Step 43 phases.
+    ai_primary_provider: str = "nvidia"
+    ai_primary_model: str | None = None
+    ai_verifier_provider: str | None = None
+    ai_verifier_model: str | None = None
 
     ai_request_timeout_seconds: float = Field(
         default=45.0,
@@ -56,6 +84,32 @@ class Settings(BaseSettings):
         ge=0,
         le=3,
     )
+
+    @property
+    def resolved_primary_provider(self) -> str:
+        return self.ai_primary_provider.strip().lower()
+
+    @property
+    def resolved_primary_model(self) -> str:
+        configured_model = self.ai_primary_model or self.nvidia_model
+        return configured_model.strip()
+
+    @property
+    def resolved_verifier_provider(self) -> str:
+        configured_provider = (
+            self.ai_verifier_provider
+            or self.resolved_primary_provider
+        )
+        return configured_provider.strip().lower()
+
+    @property
+    def resolved_verifier_model(self) -> str:
+        configured_model = (
+            self.ai_verifier_model
+            or self.nvidia_verifier_model
+            or self.resolved_primary_model
+        )
+        return configured_model.strip()
 
     model_config = SettingsConfigDict(
         env_file=".env",

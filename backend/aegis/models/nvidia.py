@@ -1,157 +1,35 @@
-import json
-from typing import Any
+from aegis.config.settings import Settings, get_settings
+from aegis.models.openai_compatible_primary import (
+    OpenAICompatibleSecurityModelClient,
+)
+from aegis.models.provider_config import (
+    ModelProviderConfigurationError,
+)
 
-from openai import AsyncOpenAI
 
-from aegis.config.settings import get_settings
-from aegis.utils.text import strip_markdown_code_fence
-from aegis.schemas.analysis import ScannerEvidence, SecurityFinding
+class NvidiaModelClient(
+    OpenAICompatibleSecurityModelClient
+):
+    """
+    Backward-compatible NVIDIA primary-model client.
 
+    The security-review implementation is shared by all providers
+    exposing an OpenAI-compatible chat-completions endpoint.
+    """
 
-class NvidiaModelClient:
-    def __init__(self) -> None:
-        settings = get_settings()
-
-        self.model = settings.nvidia_model
-        self.client = AsyncOpenAI(
-            api_key=settings.nvidia_api_key,
-            base_url=settings.nvidia_base_url,
-            timeout=settings.ai_request_timeout_seconds,
-            max_retries=settings.ai_max_retries,
-        )
-
-    async def analyze_security(
+    def __init__(
         self,
-        *,
-        code: str,
-        language: str,
-        filename: str,
-        scanner_evidence: list[ScannerEvidence],
-    ) -> list[SecurityFinding]:
-        system_prompt = """
-You are Aegis Security Reviewer.
+        settings: Settings | None = None,
+    ) -> None:
+        resolved_settings = settings or get_settings()
 
-Analyze source code defensively using both the source code and
-deterministic scanner evidence.
-
-Rules:
-- Do not invent vulnerabilities.
-- Scanner results are evidence, not absolute truth.
-- Identify false positives where appropriate.
-- Tie conclusions to exact code behavior.
-- Return only valid JSON.
-- Do not use Markdown code fences.
-- Do not provide instructions for attacking unauthorized systems.
-- Preserve relevant scanner evidence in each final finding.
-
-Return exactly this JSON structure:
-
-{
-  "findings": [
-    {
-      "title": "string",
-      "severity": "info | low | medium | high | critical",
-      "confidence": 0.0,
-      "summary": "string",
-      "evidence": ["string"],
-      "scanner_evidence": [
-        {
-          "tool": "string",
-          "rule_id": "string",
-          "message": "string",
-          "severity": "string",
-          "file": "string",
-          "line_start": 1,
-          "line_end": 1,
-          "code": "string or null"
-        }
-      ],
-      "cwe": ["CWE-123"],
-      "owasp": ["A01:2021"],
-      "vulnerable_lines": [1],
-      "false_positive_notes": ["string"],
-      "recommended_fix": "string",
-      "proposed_patch": "string or null"
-    }
-  ]
-}
-
-If no meaningful vulnerability exists, return:
-
-{"findings": []}
-""".strip()
-
-        scanner_json = json.dumps(
-            [item.model_dump() for item in scanner_evidence],
-            ensure_ascii=False,
-            indent=2,
-        )
-
-        user_prompt = f"""
-Filename: {filename}
-Language: {language}
-
-Deterministic scanner evidence:
-
-{scanner_json}
-
-Important secret-handling rules:
-
-- Values such as <AEGIS_REDACTED_SECRET_1> are protected placeholders.
-- Never attempt to reconstruct, guess, repeat, or transform their original values.
-- Do not preserve a redacted placeholder inside proposed_patch.
-- When remediating a hardcoded secret, replace it with an environment variable,
-  secret-manager lookup, or another secure runtime configuration mechanism.
-- Do not include credentials, tokens, private keys, or authorization values
-  in summaries, evidence, recommendations, or patches.
-
-Analyze the following source code and determine whether each
-scanner result represents a genuine vulnerability.
-
---- BEGIN SOURCE CODE ---
-{code}
---- END SOURCE CODE ---
-""".strip()
-
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            temperature=0.1,
-            max_tokens=1600,
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": user_prompt,
-                },
-            ],
-        )
-
-        content = response.choices[0].message.content
-
-        if not content:
-            raise RuntimeError("The model returned an empty response.")
-
-        try:
-            parsed: dict[str, Any] = json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"The model returned invalid JSON: {content[:500]}"
-            ) from exc
-
-        raw_findings = parsed.get("findings", [])
-
-        validated_findings: list[SecurityFinding] = []
-
-        for finding in raw_findings:
-            validated = SecurityFinding.model_validate(finding)
-
-            validated.proposed_patch = strip_markdown_code_fence(
-                validated.proposed_patch
+        if (
+            resolved_settings.resolved_primary_provider
+            != "nvidia"
+        ):
+            raise ModelProviderConfigurationError(
+                "NvidiaModelClient requires the primary "
+                "provider to be 'nvidia'."
             )
 
-            validated_findings.append(validated)
-
-        return validated_findings
+        super().__init__(resolved_settings)
