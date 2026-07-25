@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     nvidia_api_key: str
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
     nvidia_model: str = "openai/gpt-oss-120b"
+    nvidia_verifier_model: str | None = None
 
     ai_request_timeout_seconds: float = Field(
         default=45.0,

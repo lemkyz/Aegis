@@ -50,23 +50,80 @@ def finding_to_claim(
         identity_anchor,
     )
 
+    claim_state, claim_confidence = (
+        _claim_state_and_confidence(finding)
+    )
+
     return SecurityClaim(
         claim_id=claim_id,
         statement=finding.summary,
         category=category,
         severity=finding.severity,
-        confidence=finding.confidence,
-        state=(
-            "supported"
-            if finding.scanner_evidence
-            else "suspected"
-        ),
+        confidence=claim_confidence,
+        state=claim_state,
         cwe=finding.cwe,
         owasp=finding.owasp,
         locations=locations,
         evidence=evidence_items,
         remediation=finding.recommended_fix,
         proposed_patch=finding.proposed_patch,
+    )
+
+
+def _claim_state_and_confidence(
+    finding: SecurityFinding,
+) -> tuple[str, float]:
+    baseline_state = (
+        "supported"
+        if finding.scanner_evidence
+        else "suspected"
+    )
+    primary_confidence = finding.confidence
+
+    if (
+        finding.consensus_verdict == "confirmed"
+        and finding.consensus_confidence is not None
+    ):
+        return (
+            "confirmed",
+            finding.consensus_confidence,
+        )
+
+    if finding.consensus_verdict == "disputed":
+        verifier_confidence = (
+            finding.verifier_confidence
+            if finding.verifier_confidence is not None
+            else 0.0
+        )
+
+        claim_confidence = min(
+            primary_confidence,
+            max(
+                0.0,
+                1.0 - verifier_confidence,
+            ),
+        )
+
+        return (
+            "inconclusive",
+            claim_confidence,
+        )
+
+    if (
+        finding.consensus_verdict == "uncertain"
+        and finding.consensus_confidence is not None
+    ):
+        return (
+            "inconclusive",
+            min(
+                primary_confidence,
+                finding.consensus_confidence,
+            ),
+        )
+
+    return (
+        baseline_state,
+        primary_confidence,
     )
 
 
@@ -163,13 +220,122 @@ def _evidence_items(
                     ),
                     source=EvidenceSource(
                         kind="model_review",
-                        name="Aegis Analysis",
+                        name=(
+                            finding.primary_model
+                            or "Aegis Analysis"
+                        ),
                     ),
                     summary=narrative,
                     confidence=finding.confidence,
                     locations=[],
                 )
             )
+
+    if (
+        include_narrative_evidence
+        and finding.verifier_verdict is not None
+        and finding.verifier_confidence is not None
+    ):
+        verifier_details = [
+            "Role: verifier",
+            f"Verdict: {finding.verifier_verdict}",
+        ]
+
+        if finding.verifier_reasoning:
+            verifier_details.append(
+                "Reasoning: "
+                + finding.verifier_reasoning
+            )
+
+        verifier_details.extend(
+            "Evidence: " + item
+            for item in finding.verifier_evidence
+        )
+
+        result.append(
+            EvidenceItem(
+                evidence_id=_stable_id(
+                    "evidence",
+                    "model_verification",
+                    filename,
+                    finding.verifier_model or "unknown",
+                    finding.verifier_verdict,
+                    finding.verifier_reasoning or "",
+                ),
+                source=EvidenceSource(
+                    kind="model_verification",
+                    name=(
+                        finding.verifier_model
+                        or "Aegis Verifier"
+                    ),
+                ),
+                summary=(
+                    "Independent verifier marked the "
+                    "primary finding as "
+                    f"{finding.verifier_verdict}."
+                ),
+                confidence=finding.verifier_confidence,
+                locations=[],
+                details=verifier_details,
+            )
+        )
+
+    if (
+        include_narrative_evidence
+        and finding.consensus_verdict is not None
+        and finding.consensus_confidence is not None
+    ):
+        consensus_details = [
+            "Evaluator: deterministic consensus",
+            (
+                "Primary model: "
+                + (
+                    finding.primary_model
+                    or "unknown"
+                )
+            ),
+            (
+                "Verifier model: "
+                + (
+                    finding.verifier_model
+                    or "unavailable"
+                )
+            ),
+            (
+                "Verdict: "
+                + finding.consensus_verdict
+            ),
+        ]
+
+        consensus_details.extend(
+            "Reason: " + reason
+            for reason in finding.consensus_reasons
+        )
+
+        result.append(
+            EvidenceItem(
+                evidence_id=_stable_id(
+                    "evidence",
+                    "model_consensus",
+                    filename,
+                    finding.primary_model or "unknown",
+                    finding.verifier_model or "unavailable",
+                    finding.consensus_verdict,
+                ),
+                source=EvidenceSource(
+                    kind="model_consensus",
+                    name="Aegis Deterministic Consensus",
+                ),
+                summary=(
+                    "Deterministic consensus classified "
+                    "the finding as "
+                    f"{finding.consensus_verdict}."
+                ),
+                confidence=finding.consensus_confidence,
+                locations=[],
+                details=consensus_details,
+            )
+        )
 
     return result
 

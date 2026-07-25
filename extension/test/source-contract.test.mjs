@@ -338,3 +338,107 @@ test(
     );
   },
 );
+
+
+test(
+  "analysis response models multi-model verification metadata",
+  () => {
+    assert.match(
+      source,
+      /type ConsensusVerdict =[\s\S]*"confirmed"[\s\S]*"disputed"[\s\S]*"uncertain"[\s\S]*"unverified"/,
+    );
+
+    assert.match(
+      source,
+      /interface ModelConsensusResult \{[\s\S]*primary_model: string;[\s\S]*verifier_model: string \| null;[\s\S]*status: ModelConsensusStatus;[\s\S]*decisions: FindingConsensusDecision\[\];[\s\S]*errors: string\[\];[\s\S]*\}/,
+    );
+
+    assert.match(
+      source,
+      /interface SecurityFinding \{[\s\S]*primary_model\?: string \| null;[\s\S]*verifier_model\?: string \| null;[\s\S]*verifier_verdict\?: string \| null;[\s\S]*consensus_verdict\?: ConsensusVerdict \| null;[\s\S]*consensus_confidence\?: number \| null;/,
+    );
+
+    assert.match(
+      source,
+      /model_consensus\?: ModelConsensusResult \| null;/,
+    );
+  },
+);
+
+
+test(
+  "canonical claim evidence supports verifier and consensus nodes",
+  () => {
+    assert.match(
+      source,
+      /\| "model_review"[\s\S]*\| "model_verification"[\s\S]*\| "model_consensus";/,
+    );
+  },
+);
+
+
+test(
+  "security finding tree displays consensus when present",
+  () => {
+    assert.match(
+      source,
+      /function findingConsensusLabel\(/,
+    );
+
+    assert.match(
+      source,
+      /if \(!finding\.consensus_verdict\) \{/,
+    );
+
+    assert.match(
+      source,
+      /const consensusLabel =\s*findingConsensusLabel\(finding\);/,
+    );
+
+    assert.match(
+      source,
+      /\.filter\([\s\S]*value !== undefined[\s\S]*\)\s*\.join\(" · "\);/,
+    );
+  },
+);
+
+
+test(
+  "markdown report displays multi-model verification",
+  () => {
+    assert.match(
+      source,
+      /if \(finding\.consensus_verdict\) \{/,
+    );
+
+    assert.match(
+      source,
+      /### Multi-Model Verification/,
+    );
+
+    assert.match(
+      source,
+      /\*\*Consensus Verdict:\*\*/,
+    );
+
+    assert.match(
+      source,
+      /\*\*Primary Model:\*\*/,
+    );
+
+    assert.match(
+      source,
+      /\*\*Verifier Model:\*\*/,
+    );
+
+    assert.match(
+      source,
+      /#### Verifier Evidence/,
+    );
+
+    assert.match(
+      source,
+      /#### Consensus Reasons/,
+    );
+  },
+);

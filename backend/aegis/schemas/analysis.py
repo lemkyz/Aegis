@@ -3,6 +3,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from aegis.schemas.claims import SecurityClaim
+from aegis.schemas.model_consensus import (
+    ModelConsensusResult,
+)
 
 
 Severity = Literal["info", "low", "medium", "high", "critical"]
@@ -57,6 +60,30 @@ class SecurityFinding(BaseModel):
     severity: Severity
     confidence: float = Field(ge=0.0, le=1.0)
 
+    primary_model: str | None = None
+
+    verifier_model: str | None = None
+    verifier_verdict: str | None = None
+    verifier_confidence: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+    )
+    verifier_reasoning: str | None = None
+    verifier_evidence: list[str] = Field(
+        default_factory=list,
+    )
+
+    consensus_verdict: str | None = None
+    consensus_confidence: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+    )
+    consensus_reasons: list[str] = Field(
+        default_factory=list,
+    )
+
     summary: str
     evidence: list[str] = Field(default_factory=list)
     scanner_evidence: list[ScannerEvidence] = Field(default_factory=list)
@@ -82,3 +109,4 @@ class AnalyzeCodeResponse(BaseModel):
     claims: list[SecurityClaim] = Field(
         default_factory=list,
     )
+    model_consensus: ModelConsensusResult | None = None

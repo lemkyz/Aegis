@@ -83,10 +83,51 @@ interface ScannerEvidence {
   code: string | null;
 }
 
+type ConsensusVerdict =
+  | "confirmed"
+  | "disputed"
+  | "uncertain"
+  | "unverified";
+
+type ModelConsensusStatus =
+  | "completed"
+  | "partial"
+  | "failed";
+
+interface FindingConsensusDecision {
+  finding_index: number;
+  verdict: ConsensusVerdict;
+  confidence: number;
+  primary_confidence: number;
+  verifier_confidence: number | null;
+  reasons: string[];
+}
+
+interface ModelConsensusResult {
+  primary_model: string;
+  verifier_model: string | null;
+  status: ModelConsensusStatus;
+  decisions: FindingConsensusDecision[];
+  errors: string[];
+}
+
 interface SecurityFinding {
   title: string;
   severity: Severity;
   confidence: number;
+
+  primary_model?: string | null;
+
+  verifier_model?: string | null;
+  verifier_verdict?: string | null;
+  verifier_confidence?: number | null;
+  verifier_reasoning?: string | null;
+  verifier_evidence?: string[];
+
+  consensus_verdict?: ConsensusVerdict | null;
+  consensus_confidence?: number | null;
+  consensus_reasons?: string[];
+
   summary: string;
   evidence: string[];
   scanner_evidence: ScannerEvidence[];
@@ -117,7 +158,9 @@ type EvidenceKind =
   | "test_result"
   | "patch_diff"
   | "user_decision"
-  | "model_review";
+  | "model_review"
+  | "model_verification"
+  | "model_consensus";
 
 interface ClaimCodeLocation {
   file: string;
@@ -183,6 +226,7 @@ interface AnalyzeResponse {
   result_source?: "scanner" | "ai" | "scanner_fallback";
   findings: SecurityFinding[];
   claims?: SecurityClaim[];
+  model_consensus?: ModelConsensusResult | null;
 }
 
 
@@ -1237,6 +1281,34 @@ class SecurityFileTreeItem extends vscode.TreeItem {
   }
 }
 
+function findingConsensusLabel(
+  finding: SecurityFinding,
+): string | undefined {
+  if (!finding.consensus_verdict) {
+    return undefined;
+  }
+
+  const verdict = finding.consensus_verdict
+    .replaceAll("_", " ")
+    .toUpperCase();
+
+  const confidence =
+    finding.consensus_confidence;
+
+  if (
+    confidence === undefined
+    || confidence === null
+  ) {
+    return verdict;
+  }
+
+  return (
+    `${verdict} `
+    + `${Math.round(confidence * 100)}%`
+  );
+}
+
+
 class SecurityFindingTreeItem extends vscode.TreeItem {
   constructor(
     readonly result: WorkspaceFileResult,
@@ -1253,8 +1325,19 @@ class SecurityFindingTreeItem extends vscode.TreeItem {
       finding.vulnerable_lines[0] ??
       1;
 
-    this.description =
-      `${finding.severity.toUpperCase()} · ${cwe}`;
+    const consensusLabel =
+      findingConsensusLabel(finding);
+
+    this.description = [
+      finding.severity.toUpperCase(),
+      cwe,
+      consensusLabel,
+    ]
+      .filter(
+        (value): value is string =>
+          value !== undefined,
+      )
+      .join(" · ");
 
     this.tooltip = new vscode.MarkdownString(
       [
@@ -7768,6 +7851,109 @@ function buildMarkdownReport(
     finding.evidence.forEach((evidence) => {
       lines.push(`- ${evidence}`);
     });
+
+    if (finding.consensus_verdict) {
+      lines.push(
+        "",
+        "### Multi-Model Verification",
+        "",
+        `- **Consensus Verdict:** ${
+          finding.consensus_verdict
+            .replaceAll("_", " ")
+            .toUpperCase()
+        }`,
+      );
+
+      if (
+        finding.consensus_confidence !== undefined
+        && finding.consensus_confidence !== null
+      ) {
+        lines.push(
+          `- **Consensus Confidence:** ${
+            Math.round(
+              finding.consensus_confidence * 100,
+            )
+          }%`,
+        );
+      }
+
+      if (finding.primary_model) {
+        lines.push(
+          `- **Primary Model:** ${finding.primary_model}`,
+        );
+      }
+
+      if (finding.verifier_model) {
+        lines.push(
+          `- **Verifier Model:** ${finding.verifier_model}`,
+        );
+      }
+
+      if (finding.verifier_verdict) {
+        lines.push(
+          `- **Verifier Verdict:** ${
+            finding.verifier_verdict
+              .replaceAll("_", " ")
+              .toUpperCase()
+          }`,
+        );
+      }
+
+      if (
+        finding.verifier_confidence !== undefined
+        && finding.verifier_confidence !== null
+      ) {
+        lines.push(
+          `- **Verifier Confidence:** ${
+            Math.round(
+              finding.verifier_confidence * 100,
+            )
+          }%`,
+        );
+      }
+
+      if (finding.verifier_reasoning) {
+        lines.push(
+          `- **Verifier Reasoning:** ${
+            finding.verifier_reasoning
+          }`,
+        );
+      }
+
+      if (
+        finding.verifier_evidence
+        && finding.verifier_evidence.length > 0
+      ) {
+        lines.push(
+          "",
+          "#### Verifier Evidence",
+          "",
+        );
+
+        finding.verifier_evidence.forEach(
+          (evidence) => {
+            lines.push(`- ${evidence}`);
+          },
+        );
+      }
+
+      if (
+        finding.consensus_reasons
+        && finding.consensus_reasons.length > 0
+      ) {
+        lines.push(
+          "",
+          "#### Consensus Reasons",
+          "",
+        );
+
+        finding.consensus_reasons.forEach(
+          (reason) => {
+            lines.push(`- ${reason}`);
+          },
+        );
+      }
+    }
 
     lines.push("", "### Scanner Evidence", "");
 

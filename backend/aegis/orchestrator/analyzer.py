@@ -1,6 +1,17 @@
 import re
+
 from aegis.models.nvidia import NvidiaModelClient
+from aegis.models.nvidia_verifier import (
+    NvidiaVerifierClient,
+)
+from aegis.models.protocol import (
+    SecurityModelClient,
+    SecurityVerifierClient,
+)
 from aegis.security.claim_adapter import finding_to_claim
+from aegis.security.model_consensus import (
+    ModelConsensusEvaluator,
+)
 from aegis.security.config_secrets import ConfigSecretScanner
 from aegis.security.redaction import SecretRedactor
 from aegis.security.secrets import SecretIntelligenceEngine
@@ -11,6 +22,9 @@ from aegis.schemas.analysis import (
     SecurityFinding,
 )
 from aegis.schemas.claims import SecurityClaim
+from aegis.schemas.model_verification import (
+    VerifierReviewResult,
+)
 from aegis.security.bandit import BanditScanner
 from aegis.security.eslint import EslintSecurityScanner
 from aegis.security.orchestrator import SecurityScannerOrchestrator
@@ -22,8 +36,25 @@ class SecurityAnalyzer:
         self,
         *,
         fingerprint_key: str,
+        model_client: SecurityModelClient | None = None,
+        verifier_client: SecurityVerifierClient | None = None,
+        consensus_evaluator: ModelConsensusEvaluator | None = None,
     ) -> None:
-        self.model_client = NvidiaModelClient()
+        self.model_client = (
+            model_client
+            if model_client is not None
+            else NvidiaModelClient()
+        )
+        self.verifier_client = (
+            verifier_client
+            if verifier_client is not None
+            else NvidiaVerifierClient()
+        )
+        self.consensus_evaluator = (
+            consensus_evaluator
+            if consensus_evaluator is not None
+            else ModelConsensusEvaluator()
+        )
         self.semgrep_scanner = SemgrepScanner()
         self.bandit_scanner = BanditScanner()
         self.eslint_scanner = EslintSecurityScanner()
@@ -310,8 +341,98 @@ class SecurityAnalyzer:
             )
 
         print(
-            f"5. NVIDIA analysis completed. "
+            "5. Primary model analysis completed. "
             f"{len(findings)} finding(s) returned."
+        )
+
+        print(
+            "6. Independent model verification starting..."
+        )
+
+        try:
+            verifier_result = (
+                await self.verifier_client.verify_findings(
+                    code=safe_relevant_code,
+                    language=request.language,
+                    filename=request.filename,
+                    scanner_evidence=(
+                        safe_scanner_evidence
+                    ),
+                    primary_findings=findings,
+                )
+            )
+
+            print(
+                "7. Independent model verification "
+                "completed. "
+                f"{len(verifier_result.verifications)} "
+                "decision(s) returned."
+            )
+        except Exception as exc:
+            print(
+                "7. Independent model verification "
+                f"failed safely: {exc}"
+            )
+
+            verifier_result = VerifierReviewResult(
+                model=self.verifier_client.model,
+                status="failed",
+                error=str(exc),
+            )
+
+        consensus = self.consensus_evaluator.evaluate(
+            primary_model=self.model_client.model,
+            primary_findings=findings,
+            verifier_result=verifier_result,
+        )
+
+        verifications_by_index = {}
+
+        for verification in verifier_result.verifications:
+            if verification.finding_index >= len(findings):
+                continue
+
+            verifications_by_index.setdefault(
+                verification.finding_index,
+                verification,
+            )
+
+        for decision in consensus.decisions:
+            if decision.finding_index >= len(findings):
+                continue
+
+            finding = findings[decision.finding_index]
+            verification = verifications_by_index.get(
+                decision.finding_index
+            )
+
+            finding.primary_model = self.model_client.model
+            finding.verifier_model = consensus.verifier_model
+            finding.consensus_verdict = decision.verdict
+            finding.consensus_confidence = (
+                decision.confidence
+            )
+            finding.consensus_reasons = list(
+                decision.reasons
+            )
+            finding.verifier_confidence = (
+                decision.verifier_confidence
+            )
+
+            if verification is not None:
+                finding.verifier_verdict = (
+                    verification.verdict
+                )
+                finding.verifier_reasoning = (
+                    verification.reasoning
+                )
+                finding.verifier_evidence = list(
+                    verification.evidence
+                )
+
+        print(
+            "8. Deterministic model consensus completed: "
+            f"{consensus.status}."
         )
 
         return AnalyzeCodeResponse(
@@ -326,6 +447,7 @@ class SecurityAnalyzer:
                 findings=findings,
                 filename=request.filename,
             ),
+            model_consensus=consensus,
         )
 
     @staticmethod

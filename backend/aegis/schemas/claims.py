@@ -24,6 +24,8 @@ EvidenceKind = Literal[
     "patch_diff",
     "user_decision",
     "model_review",
+    "model_verification",
+    "model_consensus",
 ]
 
 EvidenceRelationshipKind = Literal[

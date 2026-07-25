@@ -1,3 +1,5 @@
+import pytest
+
 from aegis.schemas.analysis import (
     ScannerEvidence,
     SecurityFinding,
@@ -289,3 +291,199 @@ def test_adapter_can_exclude_narrative_evidence() -> None:
         evidence.source.kind != "model_review"
         for evidence in claim.evidence
     )
+
+
+def test_adapter_creates_separate_model_audit_evidence() -> None:
+    finding = make_finding()
+
+    finding.primary_model = "fake/primary"
+    finding.verifier_model = "fake/verifier"
+    finding.verifier_verdict = "supported"
+    finding.verifier_confidence = 0.94
+    finding.verifier_reasoning = (
+        "The source confirms the unsafe shell flow."
+    )
+    finding.verifier_evidence = [
+        "subprocess.run(command, shell=True)",
+    ]
+    finding.consensus_verdict = "confirmed"
+    finding.consensus_confidence = 0.925
+    finding.consensus_reasons = [
+        "The independent verifier supports the finding.",
+    ]
+
+    claim = finding_to_claim(
+        finding,
+        filename="app.py",
+    )
+
+    evidence_by_kind = {
+        item.source.kind: item
+        for item in claim.evidence
+    }
+
+    assert set(evidence_by_kind) == {
+        "scanner",
+        "model_review",
+        "model_verification",
+        "model_consensus",
+    }
+
+    primary = evidence_by_kind["model_review"]
+    verifier = evidence_by_kind["model_verification"]
+    consensus = evidence_by_kind["model_consensus"]
+
+    assert primary.source.name == "fake/primary"
+
+    assert verifier.source.name == "fake/verifier"
+    assert verifier.confidence == 0.94
+    assert "Verdict: supported" in verifier.details
+    assert any(
+        detail.startswith("Reasoning:")
+        for detail in verifier.details
+    )
+
+    assert consensus.source.name == (
+        "Aegis Deterministic Consensus"
+    )
+    assert consensus.confidence == 0.925
+    assert "Primary model: fake/primary" in (
+        consensus.details
+    )
+    assert "Verifier model: fake/verifier" in (
+        consensus.details
+    )
+    assert "Verdict: confirmed" in consensus.details
+
+
+def test_model_audit_metadata_does_not_change_claim_identity() -> None:
+    baseline = make_finding()
+    audited = make_finding()
+
+    audited.primary_model = "fake/primary"
+    audited.verifier_model = "fake/verifier"
+    audited.verifier_verdict = "supported"
+    audited.verifier_confidence = 0.94
+    audited.verifier_reasoning = "Supported."
+    audited.consensus_verdict = "confirmed"
+    audited.consensus_confidence = 0.925
+    audited.consensus_reasons = [
+        "Independent support.",
+    ]
+
+    baseline_claim = finding_to_claim(
+        baseline,
+        filename="app.py",
+    )
+    audited_claim = finding_to_claim(
+        audited,
+        filename="app.py",
+    )
+
+    assert baseline_claim.claim_id == audited_claim.claim_id
+
+
+def test_scanner_only_claim_has_no_model_audit_evidence() -> None:
+    finding = make_finding(
+        narrative_evidence=[],
+    )
+
+    claim = finding_to_claim(
+        finding,
+        filename="app.py",
+        include_narrative_evidence=False,
+    )
+
+    assert {
+        item.source.kind
+        for item in claim.evidence
+    } == {"scanner"}
+
+
+def test_confirmed_consensus_confirms_claim() -> None:
+    finding = make_finding()
+    finding.consensus_verdict = "confirmed"
+    finding.consensus_confidence = 0.93
+
+    claim = finding_to_claim(
+        finding,
+        filename="app.py",
+    )
+
+    assert claim.state == "confirmed"
+    assert claim.confidence == 0.93
+
+
+def test_disputed_consensus_marks_claim_inconclusive() -> None:
+    finding = make_finding()
+    finding.consensus_verdict = "disputed"
+    finding.consensus_confidence = 0.95
+    finding.verifier_confidence = 0.95
+
+    claim = finding_to_claim(
+        finding,
+        filename="app.py",
+    )
+
+    assert claim.state == "inconclusive"
+    assert claim.confidence == pytest.approx(
+        0.05
+    )
+
+
+def test_uncertain_consensus_marks_claim_inconclusive() -> None:
+    finding = make_finding()
+    finding.consensus_verdict = "uncertain"
+    finding.consensus_confidence = 0.61
+
+    claim = finding_to_claim(
+        finding,
+        filename="app.py",
+    )
+
+    assert claim.state == "inconclusive"
+    assert claim.confidence == 0.61
+
+
+def test_unverified_consensus_preserves_scanner_support() -> None:
+    finding = make_finding()
+    finding.consensus_verdict = "unverified"
+    finding.consensus_confidence = 0.70
+
+    claim = finding_to_claim(
+        finding,
+        filename="app.py",
+    )
+
+    assert claim.state == "supported"
+    assert claim.confidence == 0.91
+
+
+def test_unverified_model_only_claim_remains_suspected() -> None:
+    finding = make_finding(
+        scanner_evidence=[],
+    )
+    finding.consensus_verdict = "unverified"
+    finding.consensus_confidence = 0.70
+
+    claim = finding_to_claim(
+        finding,
+        filename="app.py",
+    )
+
+    assert claim.state == "suspected"
+    assert claim.confidence == 0.91
+
+
+def test_disputed_claim_is_not_automatically_false_positive() -> None:
+    finding = make_finding()
+    finding.consensus_verdict = "disputed"
+    finding.verifier_confidence = 0.99
+
+    claim = finding_to_claim(
+        finding,
+        filename="app.py",
+    )
+
+    assert claim.state == "inconclusive"
+    assert claim.state != "false_positive"

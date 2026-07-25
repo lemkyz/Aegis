@@ -196,6 +196,21 @@ class SecurityFileTreeItem extends vscode.TreeItem {
         this.iconPath = new vscode.ThemeIcon("file-code");
     }
 }
+function findingConsensusLabel(finding) {
+    if (!finding.consensus_verdict) {
+        return undefined;
+    }
+    const verdict = finding.consensus_verdict
+        .replaceAll("_", " ")
+        .toUpperCase();
+    const confidence = finding.consensus_confidence;
+    if (confidence === undefined
+        || confidence === null) {
+        return verdict;
+    }
+    return (`${verdict} `
+        + `${Math.round(confidence * 100)}%`);
+}
 class SecurityFindingTreeItem extends vscode.TreeItem {
     result;
     finding;
@@ -207,8 +222,14 @@ class SecurityFindingTreeItem extends vscode.TreeItem {
         const line = finding.scanner_evidence[0]?.line_start ??
             finding.vulnerable_lines[0] ??
             1;
-        this.description =
-            `${finding.severity.toUpperCase()} · ${cwe}`;
+        const consensusLabel = findingConsensusLabel(finding);
+        this.description = [
+            finding.severity.toUpperCase(),
+            cwe,
+            consensusLabel,
+        ]
+            .filter((value) => value !== undefined)
+            .join(" · ");
         this.tooltip = new vscode.MarkdownString([
             `**${finding.title}**`,
             "",
@@ -3688,6 +3709,47 @@ function buildMarkdownReport(result, mode, memory) {
         finding.evidence.forEach((evidence) => {
             lines.push(`- ${evidence}`);
         });
+        if (finding.consensus_verdict) {
+            lines.push("", "### Multi-Model Verification", "", `- **Consensus Verdict:** ${finding.consensus_verdict
+                .replaceAll("_", " ")
+                .toUpperCase()}`);
+            if (finding.consensus_confidence !== undefined
+                && finding.consensus_confidence !== null) {
+                lines.push(`- **Consensus Confidence:** ${Math.round(finding.consensus_confidence * 100)}%`);
+            }
+            if (finding.primary_model) {
+                lines.push(`- **Primary Model:** ${finding.primary_model}`);
+            }
+            if (finding.verifier_model) {
+                lines.push(`- **Verifier Model:** ${finding.verifier_model}`);
+            }
+            if (finding.verifier_verdict) {
+                lines.push(`- **Verifier Verdict:** ${finding.verifier_verdict
+                    .replaceAll("_", " ")
+                    .toUpperCase()}`);
+            }
+            if (finding.verifier_confidence !== undefined
+                && finding.verifier_confidence !== null) {
+                lines.push(`- **Verifier Confidence:** ${Math.round(finding.verifier_confidence * 100)}%`);
+            }
+            if (finding.verifier_reasoning) {
+                lines.push(`- **Verifier Reasoning:** ${finding.verifier_reasoning}`);
+            }
+            if (finding.verifier_evidence
+                && finding.verifier_evidence.length > 0) {
+                lines.push("", "#### Verifier Evidence", "");
+                finding.verifier_evidence.forEach((evidence) => {
+                    lines.push(`- ${evidence}`);
+                });
+            }
+            if (finding.consensus_reasons
+                && finding.consensus_reasons.length > 0) {
+                lines.push("", "#### Consensus Reasons", "");
+                finding.consensus_reasons.forEach((reason) => {
+                    lines.push(`- ${reason}`);
+                });
+            }
+        }
         lines.push("", "### Scanner Evidence", "");
         finding.scanner_evidence.forEach((evidence) => {
             lines.push(`- **${evidence.tool} / ${evidence.rule_id}**`, `  - Lines: ${evidence.line_start}-${evidence.line_end}`, `  - Severity: ${evidence.severity}`, `  - ${evidence.message}`);

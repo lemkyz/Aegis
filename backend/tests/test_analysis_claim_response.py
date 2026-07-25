@@ -164,3 +164,36 @@ def test_ai_claims_preserve_model_review_evidence() -> None:
         "scanner",
         "model_review",
     }
+
+
+def test_ai_claim_exposes_consensus_audit_evidence() -> None:
+    original = finding()
+
+    original.primary_model = "fake/primary"
+    original.verifier_model = "fake/verifier"
+    original.verifier_verdict = "supported"
+    original.verifier_confidence = 0.93
+    original.verifier_reasoning = (
+        "Unsafe shell execution is present."
+    )
+    original.consensus_verdict = "confirmed"
+    original.consensus_confidence = 0.94
+    original.consensus_reasons = [
+        "Primary and verifier agree.",
+    ]
+
+    claims = SecurityAnalyzer._build_claims(
+        findings=[original],
+        filename="app.py",
+        include_narrative_evidence=True,
+    )
+
+    assert {
+        evidence.source.kind
+        for evidence in claims[0].evidence
+    } == {
+        "scanner",
+        "model_review",
+        "model_verification",
+        "model_consensus",
+    }
