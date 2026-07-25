@@ -30,9 +30,10 @@ inputs:
 
   profile:
     description: >
-      Aegis policy profile: permissive, balanced, or strict.
+      Optional Aegis policy profile override. Leave empty to
+      use .aegis.yml, then the balanced default.
     required: false
-    default: "balanced"
+    default: ""
 
   fail-on-review:
     description: >
@@ -58,6 +59,12 @@ inputs:
     required: false
     default: "aegis-results.sarif"
 
+  policy-output:
+    description: >
+      Path for the repository policy preflight report.
+    required: false
+    default: "aegis-policy-check.json"
+
 outputs:
   decision:
     description: Final ALLOW, REVIEW, or BLOCK decision.
@@ -82,6 +89,22 @@ outputs:
   review-files:
     description: Number of files requiring review.
     value: ${{ steps.gate.outputs.review_files }}
+
+  policy-status:
+    description: Repository policy validation status.
+    value: ${{ steps.gate.outputs.policy_status }}
+
+  policy-profile:
+    description: Effective repository policy profile.
+    value: ${{ steps.gate.outputs.policy_profile }}
+
+  active-waivers:
+    description: Number of active repository policy waivers.
+    value: ${{ steps.gate.outputs.active_waivers }}
+
+  expired-waivers:
+    description: Number of expired repository policy waivers.
+    value: ${{ steps.gate.outputs.expired_waivers }}
 
 runs:
   using: composite
@@ -116,5 +139,6 @@ runs:
         AEGIS_FAIL_ON_REVIEW: ${{ inputs.fail-on-review }}
         AEGIS_OUTPUT: ${{ inputs.output }}
         AEGIS_SARIF: ${{ inputs.sarif }}
+        AEGIS_POLICY_OUTPUT: ${{ inputs.policy-output }}
       run: |
         "$GITHUB_ACTION_PATH/scripts/run-pr-gate.sh"

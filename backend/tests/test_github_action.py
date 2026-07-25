@@ -24,9 +24,7 @@ def test_action_metadata_contract() -> None:
 
     assert inputs["base"]["required"] is True
     assert inputs["head"]["default"] == "HEAD"
-    assert inputs["profile"]["default"] == (
-        "balanced"
-    )
+    assert inputs["profile"]["default"] == ""
     assert inputs["fail-on-review"]["default"] == (
         "false"
     )
@@ -40,6 +38,10 @@ def test_action_metadata_contract() -> None:
         "changed-files",
         "blocked-files",
         "review-files",
+        "policy-status",
+        "policy-profile",
+        "active-waivers",
+        "expired-waivers",
     }
 
 

@@ -71,7 +71,7 @@ jobs:
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             base="$PR_BASE_SHA"
             head="$PR_HEAD_SHA"
-            profile="balanced"
+            profile=""
             fail_on_review="false"
           else
             base="$DISPATCH_BASE"
@@ -114,6 +114,7 @@ jobs:
         with:
           name: aegis-change-gate
           path: |
+            aegis-policy-check.json
             aegis-change-gate.json
             aegis-results.sarif
           if-no-files-found: warn
