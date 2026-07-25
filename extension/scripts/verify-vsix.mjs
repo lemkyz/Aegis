@@ -110,6 +110,12 @@ const requiredFiles = [
       "extension/dist/backendclient.js",
     ],
   },
+  {
+    label: "compiled workspace safety module",
+    acceptedSuffixes: [
+      "extension/dist/workspacesafety.js",
+    ],
+  },
 ];
 
 for (const requirement of requiredFiles) {

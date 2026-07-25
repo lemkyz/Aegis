@@ -159,3 +159,33 @@ test(
   },
 );
 
+
+
+test(
+  "workspace scanning uses the centralized safety boundary",
+  () => {
+    assert.ok(
+      source.includes(
+        'from "./workspaceSafety"',
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "readSafeWorkspaceFile",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "collectSafeModelSourceFiles",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "WORKSPACE_EXCLUDE_GLOB",
+      ),
+    );
+  },
+);

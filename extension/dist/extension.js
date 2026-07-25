@@ -41,6 +41,7 @@ const promises_1 = require("node:fs/promises");
 const node_util_1 = require("node:util");
 const vscode = __importStar(require("vscode"));
 const backendClient_1 = require("./backendClient");
+const workspaceSafety_1 = require("./workspaceSafety");
 const execFileAsync = (0, node_util_1.promisify)(node_child_process_1.execFile);
 const aegisReportScheme = "aegis-report";
 class AegisReportContentProvider {
@@ -1515,6 +1516,43 @@ function showChangePolicyNotification(display, label) {
     }
     void vscode.window.showInformationMessage(`Aegis Change Security Gate: ALLOW — ${display.response.change_set.file_count} changed file(s) evaluated.`);
 }
+async function collectSafeModelSourceFiles(maximumFiles = workspaceSafety_1.MAX_MODEL_CONTEXT_FILES) {
+    const fileUris = await vscode.workspace.findFiles(workspaceSafety_1.WORKSPACE_SOURCE_GLOB, workspaceSafety_1.WORKSPACE_EXCLUDE_GLOB, maximumFiles);
+    const files = [];
+    const payloadBudget = (0, workspaceSafety_1.createPayloadBudget)(workspaceSafety_1.MAX_MODEL_PAYLOAD_BYTES);
+    const seenRealPaths = new Set();
+    for (const uri of fileUris) {
+        if (uri.scheme !== "file") {
+            continue;
+        }
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+        if (!workspaceFolder
+            || workspaceFolder.uri.scheme
+                !== "file") {
+            continue;
+        }
+        const relativePath = vscode.workspace.asRelativePath(uri, false);
+        const safeResult = await (0, workspaceSafety_1.readSafeWorkspaceFile)(workspaceFolder.uri.fsPath, uri.fsPath, relativePath, workspaceSafety_1.MAX_MODEL_FILE_BYTES);
+        const safeFile = safeResult.file;
+        if (!safeFile) {
+            continue;
+        }
+        if (seenRealPaths.has(safeFile.realPath)) {
+            continue;
+        }
+        if (!payloadBudget.canAdd(safeFile.sizeBytes)) {
+            break;
+        }
+        payloadBudget.add(safeFile.sizeBytes);
+        seenRealPaths.add(safeFile.realPath);
+        files.push({
+            filename: safeFile.relativePath,
+            language: normalizeLanguage(path.extname(safeFile.relativePath).slice(1)),
+            code: safeFile.content,
+        });
+    }
+    return files;
+}
 async function generateWorkspaceThreatModel() {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders
@@ -1527,8 +1565,8 @@ async function generateWorkspaceThreatModel() {
         .get("backendUrl", "http://127.0.0.1:8000")
         .replace(/\/+$/, "");
     try {
-        const fileUris = await vscode.workspace.findFiles("**/*.{py,js,jsx,ts,tsx}", "**/{.git,node_modules,.venv,venv,dist,build,out,coverage,__pycache__,.pytest_cache,.mypy_cache}/**", 300);
-        if (fileUris.length === 0) {
+        const files = await collectSafeModelSourceFiles();
+        if (files.length === 0) {
             void vscode.window.showInformationMessage("Aegis: No supported source files were found.");
             return;
         }
@@ -1537,34 +1575,6 @@ async function generateWorkspaceThreatModel() {
             title: "Aegis is generating the threat model",
             cancellable: true,
         }, async (progress, cancellationToken) => {
-            const files = [];
-            const increment = 50 / fileUris.length;
-            for (const [index, uri] of fileUris.entries()) {
-                if (cancellationToken
-                    .isCancellationRequested) {
-                    return undefined;
-                }
-                const relativePath = vscode.workspace.asRelativePath(uri, false);
-                progress.report({
-                    increment,
-                    message: `${index + 1}/${fileUris.length} · ${relativePath}`,
-                });
-                const document = await vscode.workspace
-                    .openTextDocument(uri);
-                const code = document.getText();
-                if (!code.trim()
-                    || code.length > 200_000) {
-                    continue;
-                }
-                files.push({
-                    filename: relativePath,
-                    language: normalizeLanguage(document.languageId),
-                    code,
-                });
-            }
-            if (files.length === 0) {
-                throw new Error("No eligible source files remained after filtering.");
-            }
             progress.report({
                 increment: 45,
                 message: `Modeling threats across ${files.length} source file(s)`,
@@ -1608,8 +1618,8 @@ async function mapWorkspaceAttackSurface() {
         .get("backendUrl", "http://127.0.0.1:8000")
         .replace(/\/+$/, "");
     try {
-        const fileUris = await vscode.workspace.findFiles("**/*.{py,js,jsx,ts,tsx}", "**/{.git,node_modules,.venv,venv,dist,build,out,coverage,__pycache__,.pytest_cache,.mypy_cache}/**", 300);
-        if (fileUris.length === 0) {
+        const files = await collectSafeModelSourceFiles();
+        if (files.length === 0) {
             void vscode.window.showInformationMessage("Aegis: No supported source files were found.");
             return;
         }
@@ -1618,34 +1628,6 @@ async function mapWorkspaceAttackSurface() {
             title: "Aegis is mapping the attack surface",
             cancellable: true,
         }, async (progress, cancellationToken) => {
-            const files = [];
-            const increment = 50 / fileUris.length;
-            for (const [index, uri] of fileUris.entries()) {
-                if (cancellationToken
-                    .isCancellationRequested) {
-                    return undefined;
-                }
-                const relativePath = vscode.workspace.asRelativePath(uri, false);
-                progress.report({
-                    increment,
-                    message: `${index + 1}/${fileUris.length} · ${relativePath}`,
-                });
-                const document = await vscode.workspace
-                    .openTextDocument(uri);
-                const code = document.getText();
-                if (!code.trim()
-                    || code.length > 200_000) {
-                    continue;
-                }
-                files.push({
-                    filename: relativePath,
-                    language: normalizeLanguage(document.languageId),
-                    code,
-                });
-            }
-            if (files.length === 0) {
-                throw new Error("No eligible source files remained after filtering.");
-            }
             progress.report({
                 increment: 45,
                 message: `Analyzing ${files.length} source file(s)`,
@@ -1680,9 +1662,7 @@ async function scanEntireWorkspace() {
     const backendUrl = configuration
         .get("backendUrl", "http://127.0.0.1:8000")
         .replace(/\/+$/, "");
-    const includePattern = "**/*.{py,js,jsx,ts,tsx}";
-    const excludePattern = "**/{.git,node_modules,.venv,venv,dist,build,out,coverage,__pycache__,.pytest_cache,.mypy_cache}/**";
-    const fileUris = await vscode.workspace.findFiles(includePattern, excludePattern, 500);
+    const fileUris = await vscode.workspace.findFiles(workspaceSafety_1.WORKSPACE_SOURCE_GLOB, workspaceSafety_1.WORKSPACE_EXCLUDE_GLOB, workspaceSafety_1.MAX_WORKSPACE_SCAN_FILES);
     if (fileUris.length === 0) {
         void vscode.window.showInformationMessage("Aegis: No supported source files were found in this workspace.");
         return;
@@ -1712,28 +1692,38 @@ async function scanEntireWorkspace() {
                 message: `${index + 1}/${fileUris.length} · ${relativePath}`,
             });
             try {
+                if (uri.scheme !== "file") {
+                    summary.filesSkipped += 1;
+                    summary.errors.push(`${relativePath}: skipped because only local file workspaces are supported.`);
+                    continue;
+                }
+                const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+                if (!workspaceFolder
+                    || workspaceFolder.uri.scheme
+                        !== "file") {
+                    summary.filesSkipped += 1;
+                    summary.errors.push(`${relativePath}: skipped because its workspace root could not be resolved safely.`);
+                    continue;
+                }
+                const safeResult = await (0, workspaceSafety_1.readSafeWorkspaceFile)(workspaceFolder.uri.fsPath, uri.fsPath, relativePath, workspaceSafety_1.MAX_WORKSPACE_FILE_BYTES);
+                const safeFile = safeResult.file;
+                if (!safeFile) {
+                    summary.filesSkipped += 1;
+                    summary.errors.push(`${relativePath}: skipped — ${safeResult.message ?? safeResult.reason ?? "unsafe file"}.`);
+                    continue;
+                }
                 const document = await vscode.workspace.openTextDocument(uri);
-                const code = document.getText();
-                if (!code.trim()) {
-                    summary.filesSkipped += 1;
-                    continue;
-                }
-                if (code.length > 1_000_000) {
-                    summary.filesSkipped += 1;
-                    summary.errors.push(`${relativePath}: skipped because the file exceeds 1 MB.`);
-                    continue;
-                }
                 const result = await requestAnalysis({
                     backendUrl,
-                    code,
-                    filename: relativePath,
+                    code: safeFile.content,
+                    filename: safeFile.relativePath,
                     language: normalizeLanguage(document.languageId),
                     mode: "fast",
                 });
                 summary.filesScanned += 1;
                 summary.results.push({
                     uri,
-                    relativePath,
+                    relativePath: safeFile.relativePath,
                     response: result,
                 });
                 updateDiagnostics(document, result, 0);
