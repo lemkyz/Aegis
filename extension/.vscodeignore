@@ -4,3 +4,14 @@ node_modules/**
 tsconfig.json
 *.vsix
 dist/**/*.map
+test/**
+scripts/**
+*.log
+.env
+.env.*
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+credentials.json
+secrets.json

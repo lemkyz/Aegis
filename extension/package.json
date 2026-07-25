@@ -15,8 +15,15 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "scripts": {
+    "clean": "node ./scripts/clean.mjs",
     "compile": "tsc -p ./",
-    "watch": "tsc --watch -p ./"
+    "watch": "tsc --watch -p ./",
+    "check:manifest": "node --test ./test/manifest.test.mjs",
+    "test": "npm run compile && node --test ./test/*.test.mjs",
+    "package:list": "vsce ls",
+    "package": "npm run clean && npm run compile && vsce package --no-dependencies",
+    "verify:vsix": "node ./scripts/verify-vsix.mjs",
+    "release:check": "npm test && npm run package && npm run verify:vsix"
   },
   "contributes": {
     "commands": [
@@ -153,7 +160,21 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/lemkyz/aegis.git"
+    "url": "https://github.com/lemkyz/Aegis.git"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/lemkyz/Aegis",
+  "bugs": {
+    "url": "https://github.com/lemkyz/Aegis/issues"
+  },
+  "keywords": [
+    "security",
+    "sast",
+    "ai-security",
+    "secure-coding",
+    "code-analysis",
+    "devsecops",
+    "vulnerability",
+    "sarif"
+  ]
 }

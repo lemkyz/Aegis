@@ -7,7 +7,7 @@ os.environ.setdefault(
     "test-only-fingerprint-key-32-characters",
 )
 
-from aegis.main import app
+from aegis.main import analyzer, app
 
 
 client = TestClient(app)
@@ -69,7 +69,22 @@ def test_safe_fast_analysis_returns_empty_claims() -> None:
     assert payload["claims"] == []
 
 
-def test_legacy_analysis_endpoint_exposes_claims() -> None:
+def test_legacy_analysis_endpoint_exposes_claims(
+    monkeypatch,
+) -> None:
+    async def deterministic_deep_analysis(
+        request,
+    ):
+        return await analyzer.fast_analyze(
+            request
+        )
+
+    monkeypatch.setattr(
+        analyzer,
+        "deep_analyze",
+        deterministic_deep_analysis,
+    )
+
     response = client.post(
         "/v1/analyze",
         json={
@@ -85,6 +100,9 @@ def test_legacy_analysis_endpoint_exposes_claims() -> None:
 
     assert "findings" in payload
     assert "claims" in payload
+    assert len(payload["claims"]) == len(
+        payload["findings"]
+    )
 
 
 def test_response_keeps_existing_top_level_fields() -> None:

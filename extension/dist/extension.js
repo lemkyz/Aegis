@@ -40,6 +40,7 @@ const path = __importStar(require("node:path"));
 const promises_1 = require("node:fs/promises");
 const node_util_1 = require("node:util");
 const vscode = __importStar(require("vscode"));
+const backendClient_1 = require("./backendClient");
 const execFileAsync = (0, node_util_1.promisify)(node_child_process_1.execFile);
 const aegisReportScheme = "aegis-report";
 class AegisReportContentProvider {
@@ -919,119 +920,37 @@ function isRecord(value) {
         !Array.isArray(value));
 }
 async function requestDependencyManifestScan(backendUrl, manifests) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 180_000);
-    try {
-        const response = await fetch(`${backendUrl}/v1/dependencies/manifests/scan`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                manifests,
-            }),
-            signal: controller.signal,
-        });
-        const rawBody = await response.text();
-        if (!response.ok) {
-            let detail = rawBody;
-            try {
-                const payload = JSON.parse(rawBody);
-                detail = payload.detail ?? rawBody;
-            }
-            catch {
-                // Preserve raw response body.
-            }
-            throw new Error(`Backend returned HTTP ${response.status}: ${detail}`);
-        }
-        return JSON.parse(rawBody);
-    }
-    catch (error) {
-        if (error instanceof Error
-            && error.name === "AbortError") {
-            throw new Error("Dependency Scan timed out after three minutes.");
-        }
-        throw error;
-    }
-    finally {
-        clearTimeout(timeout);
-    }
+    return (0, backendClient_1.postBackendJson)({
+        backendUrl,
+        endpoint: "/v1/dependencies/manifests/scan",
+        body: {
+            manifests,
+        },
+        timeoutMilliseconds: 180_000,
+        timeoutMessage: "Dependency Scan timed out after three minutes.",
+    });
 }
 async function requestDependencyScan(backendUrl, packages) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 180_000);
-    try {
-        const response = await fetch(`${backendUrl}/v1/dependencies/scan`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                packages,
-            }),
-            signal: controller.signal,
-        });
-        const rawBody = await response.text();
-        if (!response.ok) {
-            let detail = rawBody;
-            try {
-                const payload = JSON.parse(rawBody);
-                detail = payload.detail ?? rawBody;
-            }
-            catch {
-                // Preserve raw response body.
-            }
-            throw new Error(`Backend returned HTTP ${response.status}: ${detail}`);
-        }
-        return JSON.parse(rawBody);
-    }
-    catch (error) {
-        if (error instanceof Error &&
-            error.name === "AbortError") {
-            throw new Error("Dependency Scan timed out after three minutes.");
-        }
-        throw error;
-    }
-    finally {
-        clearTimeout(timeout);
-    }
+    return (0, backendClient_1.postBackendJson)({
+        backendUrl,
+        endpoint: "/v1/dependencies/scan",
+        body: {
+            packages,
+        },
+        timeoutMilliseconds: 180_000,
+        timeoutMessage: "Dependency Scan timed out after three minutes.",
+    });
 }
 async function requestThreatModelScan(backendUrl, files) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 180_000);
-    try {
-        const response = await fetch(`${backendUrl}/v1/threat-model/scan`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ files }),
-            signal: controller.signal,
-        });
-        const rawBody = await response.text();
-        if (!response.ok) {
-            let detail = rawBody;
-            try {
-                const payload = JSON.parse(rawBody);
-                detail = payload.detail ?? rawBody;
-            }
-            catch {
-                // Preserve the raw backend response.
-            }
-            throw new Error(`Backend returned HTTP ${response.status}: ${detail}`);
-        }
-        return JSON.parse(rawBody);
-    }
-    catch (error) {
-        if (error instanceof Error
-            && error.name === "AbortError") {
-            throw new Error("Threat modeling timed out after three minutes.");
-        }
-        throw error;
-    }
-    finally {
-        clearTimeout(timeout);
-    }
+    return (0, backendClient_1.postBackendJson)({
+        backendUrl,
+        endpoint: "/v1/threat-model/scan",
+        body: {
+            files,
+        },
+        timeoutMilliseconds: 180_000,
+        timeoutMessage: "Threat modeling timed out after three minutes.",
+    });
 }
 function buildThreatModelReport(result) {
     const lines = [
@@ -1242,41 +1161,15 @@ function formatAttackSurfaceKind(kind) {
     return labels[kind];
 }
 async function requestAttackSurfaceScan(backendUrl, files) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 180_000);
-    try {
-        const response = await fetch(`${backendUrl}/v1/attack-surface/scan`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ files }),
-            signal: controller.signal,
-        });
-        const rawBody = await response.text();
-        if (!response.ok) {
-            let detail = rawBody;
-            try {
-                const payload = JSON.parse(rawBody);
-                detail = payload.detail ?? rawBody;
-            }
-            catch {
-                // Preserve the raw backend response.
-            }
-            throw new Error(`Backend returned HTTP ${response.status}: ${detail}`);
-        }
-        return JSON.parse(rawBody);
-    }
-    catch (error) {
-        if (error instanceof Error
-            && error.name === "AbortError") {
-            throw new Error("Attack Surface mapping timed out after three minutes.");
-        }
-        throw error;
-    }
-    finally {
-        clearTimeout(timeout);
-    }
+    return (0, backendClient_1.postBackendJson)({
+        backendUrl,
+        endpoint: "/v1/attack-surface/scan",
+        body: {
+            files,
+        },
+        timeoutMilliseconds: 180_000,
+        timeoutMessage: "Attack Surface mapping timed out after three minutes.",
+    });
 }
 function aegisReportUri(kind) {
     return vscode.Uri.from({
@@ -2283,42 +2176,13 @@ async function requestUnifiedFixVerification(backendUrl, input) {
     }, 30_000);
 }
 async function requestValidationJson(backendUrl, endpoint, body, timeoutMilliseconds) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMilliseconds);
-    try {
-        const response = await fetch(`${backendUrl}${endpoint}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(body),
-            signal: controller.signal,
-        });
-        const rawBody = await response.text();
-        if (!response.ok) {
-            let detail = rawBody;
-            try {
-                const payload = JSON.parse(rawBody);
-                detail =
-                    payload.detail ?? rawBody;
-            }
-            catch {
-                // Preserve the raw response.
-            }
-            throw new Error(`Backend HTTP ${response.status}: ${detail}`);
-        }
-        return JSON.parse(rawBody);
-    }
-    catch (error) {
-        if (error instanceof Error &&
-            error.name === "AbortError") {
-            throw new Error(`Validation request timed out after ${Math.round(timeoutMilliseconds / 1_000)} seconds.`);
-        }
-        throw error;
-    }
-    finally {
-        clearTimeout(timeout);
-    }
+    return (0, backendClient_1.postBackendJson)({
+        backendUrl,
+        endpoint,
+        body,
+        timeoutMilliseconds,
+        timeoutMessage: `Validation request timed out after ${Math.round(timeoutMilliseconds / 1_000)} seconds.`,
+    });
 }
 async function applySecureFix() {
     if (!lastAnalysis) {
@@ -3376,43 +3240,26 @@ async function runVerificationCommand(input) {
     }
 }
 async function requestAnalysis(input) {
-    const controller = new AbortController();
-    const timeoutMilliseconds = input.mode === "fast" ? 30_000 : 300_000;
-    const timeout = setTimeout(() => controller.abort(), timeoutMilliseconds);
+    const timeoutMilliseconds = input.mode === "fast"
+        ? 30_000
+        : 300_000;
     const endpoint = input.mode === "fast"
         ? "/v1/analyze/fast"
         : "/v1/analyze/deep";
-    try {
-        const response = await fetch(`${input.backendUrl}${endpoint}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                code: input.code,
-                filename: input.filename,
-                language: input.language,
-            }),
-            signal: controller.signal,
-        });
-        const rawBody = await response.text();
-        if (!response.ok) {
-            throw new Error(`Backend HTTP ${response.status} döndürdü: ${rawBody}`);
-        }
-        return JSON.parse(rawBody);
-    }
-    catch (error) {
-        if (error instanceof Error && error.name === "AbortError") {
-            const timeoutMessage = input.mode === "fast"
-                ? "Fast Scan timed out after 30 seconds."
-                : "Deep Analysis timed out after five minutes.";
-            throw new Error(timeoutMessage);
-        }
-        throw error;
-    }
-    finally {
-        clearTimeout(timeout);
-    }
+    const timeoutMessage = input.mode === "fast"
+        ? "Fast Scan timed out after 30 seconds."
+        : "Deep Analysis timed out after five minutes.";
+    return (0, backendClient_1.postBackendJson)({
+        backendUrl: input.backendUrl,
+        endpoint,
+        body: {
+            code: input.code,
+            filename: input.filename,
+            language: input.language,
+        },
+        timeoutMilliseconds,
+        timeoutMessage,
+    });
 }
 class AegisCodeActionProvider {
     provideCodeActions(document, _range, context) {
@@ -3580,46 +3427,17 @@ async function recordAnalysisSecurityMemory(result) {
     }
 }
 async function requestSecurityMemoryRecord(backendUrl, repositoryPath, claims) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30_000);
-    try {
-        const response = await fetch(`${backendUrl}/v1/security-memory/record-and-evaluate`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                repository_path: repositoryPath,
-                claims,
-                profile: "balanced",
-            }),
-            signal: controller.signal,
-        });
-        const rawBody = await response.text();
-        if (!response.ok) {
-            let detail = rawBody;
-            try {
-                const payload = JSON.parse(rawBody);
-                detail =
-                    payload.detail ?? rawBody;
-            }
-            catch {
-                // Preserve the backend response.
-            }
-            throw new Error(`Security Memory HTTP ${response.status}: ${detail}`);
-        }
-        return JSON.parse(rawBody);
-    }
-    catch (error) {
-        if (error instanceof Error
-            && error.name === "AbortError") {
-            throw new Error("Security Memory request timed out after 30 seconds.");
-        }
-        throw error;
-    }
-    finally {
-        clearTimeout(timeout);
-    }
+    return (0, backendClient_1.postBackendJson)({
+        backendUrl,
+        endpoint: "/v1/security-memory/record-and-evaluate",
+        body: {
+            repository_path: repositoryPath,
+            claims,
+            profile: "balanced",
+        },
+        timeoutMilliseconds: 30_000,
+        timeoutMessage: "Security Memory request timed out after 30 seconds.",
+    });
 }
 function buildSecurityMemoryDeltaReport(memory) {
     const lines = [
