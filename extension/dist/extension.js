@@ -1965,6 +1965,9 @@ async function analyzeSelectedCode(mode) {
             mode,
         };
         updateDiagnostics(document, result, selection.start.line);
+        if (shouldWarnOnNonIndependentVerification(result)) {
+            void vscode.window.showWarningMessage(nonIndependentVerificationMessage(result));
+        }
         await showAnalysisResult(result, mode);
         if (mode === "fast" && result.findings.length > 0) {
             const action = await vscode.window.showWarningMessage(`Aegis Fast Scan ${result.findings.length} suspicious finding(s).`, "Run Deep Analysis", "Keep Report Open");
@@ -3678,8 +3681,31 @@ function buildClaimGraphReport(claims) {
     });
     return lines;
 }
+function shouldWarnOnNonIndependentVerification(result) {
+    const consensus = result.model_consensus;
+    if (!consensus
+        || consensus.independently_verified !== false) {
+        return false;
+    }
+    return vscode.workspace
+        .getConfiguration("aegis")
+        .get("warnOnNonIndependentVerification", true);
+}
+function nonIndependentVerificationMessage(result) {
+    const classification = result.model_consensus?.route_independence
+        ?.replaceAll("_", " ")
+        .toUpperCase()
+        ?? "NON-INDEPENDENT ROUTE";
+    return ("Aegis: Verification completed through a route "
+        + `classified as ${classification}. `
+        + "Treat the result as corroborated rather than "
+        + "independently verified.");
+}
 function buildMarkdownReport(result, mode, memory) {
     const modeLabel = mode === "fast" ? "Fast Scan" : "Deep Analysis";
+    const showModelRouteMetadata = vscode.workspace
+        .getConfiguration("aegis")
+        .get("showModelRouteMetadata", true);
     const lines = [
         `# Aegis ${modeLabel}`,
         "",
@@ -3717,7 +3743,9 @@ function buildMarkdownReport(result, mode, memory) {
                 && finding.consensus_confidence !== null) {
                 lines.push(`- **Consensus Confidence:** ${Math.round(finding.consensus_confidence * 100)}%`);
             }
-            const consensus = result.model_consensus;
+            const consensus = showModelRouteMetadata
+                ? result.model_consensus
+                : undefined;
             if (consensus?.primary_provider) {
                 lines.push(`- **Primary Provider:** ${consensus.primary_provider}`);
             }

@@ -139,6 +139,16 @@
           "type": "string",
           "default": "http://127.0.0.1:8000",
           "description": "Address of the local Aegis backend."
+        },
+        "aegis.showModelRouteMetadata": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show model providers, route classification, and independence details in Aegis security reports."
+        },
+        "aegis.warnOnNonIndependentVerification": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when multi-model verification used a route that Aegis does not classify as independent."
         }
       }
     },

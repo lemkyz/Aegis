@@ -189,3 +189,34 @@ test(
     );
   },
 );
+
+
+test(
+  "manifest exposes model route display settings",
+  () => {
+    const properties =
+      manifest.contributes.configuration.properties;
+
+    const showMetadata =
+      properties[
+        "aegis.showModelRouteMetadata"
+      ];
+
+    const warnNonIndependent =
+      properties[
+        "aegis.warnOnNonIndependentVerification"
+      ];
+
+    assert.equal(showMetadata.type, "boolean");
+    assert.equal(showMetadata.default, true);
+
+    assert.equal(
+      warnNonIndependent.type,
+      "boolean",
+    );
+    assert.equal(
+      warnNonIndependent.default,
+      true,
+    );
+  },
+);

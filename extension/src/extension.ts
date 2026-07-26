@@ -4606,6 +4606,14 @@ async function analyzeSelectedCode(mode: AnalysisMode): Promise<void> {
       selection.start.line,
     );
 
+    if (
+      shouldWarnOnNonIndependentVerification(result)
+    ) {
+      void vscode.window.showWarningMessage(
+        nonIndependentVerificationMessage(result),
+      );
+    }
+
     await showAnalysisResult(result, mode);
 
     if (mode === "fast" && result.findings.length > 0) {
@@ -7789,6 +7797,45 @@ function buildClaimGraphReport(
   return lines;
 }
 
+function shouldWarnOnNonIndependentVerification(
+  result: AnalyzeResponse,
+): boolean {
+  const consensus = result.model_consensus;
+
+  if (
+    !consensus
+    || consensus.independently_verified !== false
+  ) {
+    return false;
+  }
+
+  return vscode.workspace
+    .getConfiguration("aegis")
+    .get<boolean>(
+      "warnOnNonIndependentVerification",
+      true,
+    );
+}
+
+
+function nonIndependentVerificationMessage(
+  result: AnalyzeResponse,
+): string {
+  const classification =
+    result.model_consensus?.route_independence
+      ?.replaceAll("_", " ")
+      .toUpperCase()
+    ?? "NON-INDEPENDENT ROUTE";
+
+  return (
+    "Aegis: Verification completed through a route "
+    + `classified as ${classification}. `
+    + "Treat the result as corroborated rather than "
+    + "independently verified."
+  );
+}
+
+
 function buildMarkdownReport(
   result: AnalyzeResponse,
   mode: AnalysisMode,
@@ -7796,6 +7843,14 @@ function buildMarkdownReport(
 ): string {
   const modeLabel =
     mode === "fast" ? "Fast Scan" : "Deep Analysis";
+
+  const showModelRouteMetadata =
+    vscode.workspace
+      .getConfiguration("aegis")
+      .get<boolean>(
+        "showModelRouteMetadata",
+        true,
+      );
 
   const lines: string[] = [
     `# Aegis ${modeLabel}`,
@@ -7888,7 +7943,10 @@ function buildMarkdownReport(
         );
       }
 
-      const consensus = result.model_consensus;
+      const consensus =
+        showModelRouteMetadata
+          ? result.model_consensus
+          : undefined;
 
       if (consensus?.primary_provider) {
         lines.push(

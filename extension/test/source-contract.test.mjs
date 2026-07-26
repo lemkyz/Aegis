@@ -469,3 +469,26 @@ test(
     );
   },
 );
+
+
+test(
+  "extension honors model route presentation settings",
+  () => {
+    assert.match(
+      source,
+      /showModelRouteMetadata/,
+    );
+    assert.match(
+      source,
+      /warnOnNonIndependentVerification/,
+    );
+    assert.match(
+      source,
+      /independently_verified !== false/,
+    );
+    assert.match(
+      source,
+      /corroborated rather than/,
+    );
+  },
+);
