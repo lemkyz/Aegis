@@ -75,6 +75,15 @@ class Settings(BaseSettings):
     ai_verifier_provider: str | None = None
     ai_verifier_model: str | None = None
 
+    # Optional explicit fallback routes.
+    #
+    # No fallback provider is selected implicitly. A fallback is
+    # enabled only when both its provider and model are configured.
+    ai_primary_fallback_provider: str | None = None
+    ai_primary_fallback_model: str | None = None
+    ai_verifier_fallback_provider: str | None = None
+    ai_verifier_fallback_model: str | None = None
+
     ai_request_timeout_seconds: float = Field(
         default=45.0,
         ge=5.0,
@@ -150,6 +159,54 @@ class Settings(BaseSettings):
             or self.resolved_primary_model
         )
         return configured_model.strip()
+
+    @property
+    def resolved_primary_fallback_provider(
+        self,
+    ) -> str | None:
+        provider = self.ai_primary_fallback_provider
+
+        if provider is None:
+            return None
+
+        normalized = provider.strip().lower()
+        return normalized or None
+
+    @property
+    def resolved_primary_fallback_model(
+        self,
+    ) -> str | None:
+        model = self.ai_primary_fallback_model
+
+        if model is None:
+            return None
+
+        normalized = model.strip()
+        return normalized or None
+
+    @property
+    def resolved_verifier_fallback_provider(
+        self,
+    ) -> str | None:
+        provider = self.ai_verifier_fallback_provider
+
+        if provider is None:
+            return None
+
+        normalized = provider.strip().lower()
+        return normalized or None
+
+    @property
+    def resolved_verifier_fallback_model(
+        self,
+    ) -> str | None:
+        model = self.ai_verifier_fallback_model
+
+        if model is None:
+            return None
+
+        normalized = model.strip()
+        return normalized or None
 
     model_config = SettingsConfigDict(
         env_file=".env",

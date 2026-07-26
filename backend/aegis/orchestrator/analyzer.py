@@ -1,7 +1,9 @@
 import re
 
 from aegis.models.factory import (
+    create_primary_fallback_model_client,
     create_primary_model_client,
+    create_verifier_fallback_model_client,
     create_verifier_model_client,
 )
 from aegis.models.protocol import (
@@ -42,6 +44,8 @@ class SecurityAnalyzer:
         fingerprint_key: str,
         model_client: SecurityModelClient | None = None,
         verifier_client: SecurityVerifierClient | None = None,
+        primary_fallback_client: SecurityModelClient | None = None,
+        verifier_fallback_client: SecurityVerifierClient | None = None,
         consensus_evaluator: ModelConsensusEvaluator | None = None,
         route_policy: ModelRoutePolicy | None = None,
     ) -> None:
@@ -54,6 +58,16 @@ class SecurityAnalyzer:
             verifier_client
             if verifier_client is not None
             else create_verifier_model_client()
+        )
+        self.primary_fallback_client = (
+            primary_fallback_client
+            if primary_fallback_client is not None
+            else create_primary_fallback_model_client()
+        )
+        self.verifier_fallback_client = (
+            verifier_fallback_client
+            if verifier_fallback_client is not None
+            else create_verifier_fallback_model_client()
         )
         self.consensus_evaluator = (
             consensus_evaluator
@@ -299,56 +313,124 @@ class SecurityAnalyzer:
         )
         print("4. NVIDIA deep analysis starting...")
 
+        active_primary_client = self.model_client
+
         try:
-            findings = await self.model_client.analyze_security(
-                code=safe_relevant_code,
-                language=request.language,
-                filename=request.filename,
-                scanner_evidence=safe_scanner_evidence,
-            )
-
-            findings = redaction_session.redact_findings(
-                findings
-            )
-        except Exception as exc:
-            print(
-                "5. NVIDIA analysis failed. "
-                f"Falling back to scanner findings: {exc}"
-            )
-
-            findings = [
-                self._scanner_evidence_to_finding(
-                    evidence,
-                    source_code=request.code,
-                    allow_local_patch=True,
-                )
-                for evidence in safe_scanner_evidence
-            ]
-
-            findings = redaction_session.redact_findings(
-                findings
-            )
-
-            for finding in findings:
-                finding.false_positive_notes.append(
-                    "AI review was unavailable or returned an invalid response. "
-                    "This result is based on deterministic scanner evidence."
-                )
-
-            return AnalyzeCodeResponse(
-                filename=request.filename,
-                language=request.language,
-                model=f"{self.model_client.model} (fallback)",
-                scanner=self._scanner_name(request),
-                analysis_status="fallback",
-                result_source="scanner_fallback",
-                findings=findings,
-                claims=self._build_claims(
-                    findings=findings,
+            findings = (
+                await active_primary_client.analyze_security(
+                    code=safe_relevant_code,
+                    language=request.language,
                     filename=request.filename,
-                    include_narrative_evidence=False,
-                ),
+                    scanner_evidence=safe_scanner_evidence,
+                )
             )
+
+            findings = redaction_session.redact_findings(
+                findings
+            )
+        except Exception as primary_error:
+            print(
+                "5. Primary model analysis failed safely: "
+                f"{primary_error}"
+            )
+
+            fallback_error: Exception | None = None
+
+            if self.primary_fallback_client is not None:
+                print(
+                    "5. Explicit primary fallback route "
+                    "starting..."
+                )
+
+                try:
+                    active_primary_client = (
+                        self.primary_fallback_client
+                    )
+                    findings = (
+                        await active_primary_client.analyze_security(
+                            code=safe_relevant_code,
+                            language=request.language,
+                            filename=request.filename,
+                            scanner_evidence=(
+                                safe_scanner_evidence
+                            ),
+                        )
+                    )
+
+                    findings = (
+                        redaction_session.redact_findings(
+                            findings
+                        )
+                    )
+
+                    print(
+                        "5. Explicit primary fallback route "
+                        "completed."
+                    )
+                except Exception as exc:
+                    fallback_error = exc
+                    print(
+                        "5. Explicit primary fallback route "
+                        f"failed safely: {exc}"
+                    )
+
+            if (
+                self.primary_fallback_client is None
+                or fallback_error is not None
+            ):
+                print(
+                    "5. Falling back to deterministic "
+                    "scanner findings."
+                )
+
+                findings = [
+                    self._scanner_evidence_to_finding(
+                        evidence,
+                        source_code=request.code,
+                        allow_local_patch=True,
+                    )
+                    for evidence in safe_scanner_evidence
+                ]
+
+                findings = (
+                    redaction_session.redact_findings(
+                        findings
+                    )
+                )
+
+                for finding in findings:
+                    finding.false_positive_notes.append(
+                        "AI review was unavailable or returned "
+                        "an invalid response. This result is "
+                        "based on deterministic scanner evidence."
+                    )
+
+                attempted_models = [
+                    self.model_client.model,
+                ]
+
+                if self.primary_fallback_client is not None:
+                    attempted_models.append(
+                        self.primary_fallback_client.model
+                    )
+
+                return AnalyzeCodeResponse(
+                    filename=request.filename,
+                    language=request.language,
+                    model=(
+                        " -> ".join(attempted_models)
+                        + " (scanner fallback)"
+                    ),
+                    scanner=self._scanner_name(request),
+                    analysis_status="fallback",
+                    result_source="scanner_fallback",
+                    findings=findings,
+                    claims=self._build_claims(
+                        findings=findings,
+                        filename=request.filename,
+                        include_narrative_evidence=False,
+                    ),
+                )
 
         print(
             "5. Primary model analysis completed. "
@@ -359,9 +441,11 @@ class SecurityAnalyzer:
             "6. Independent model verification starting..."
         )
 
+        active_verifier_client = self.verifier_client
+
         try:
             verifier_result = (
-                await self.verifier_client.verify_findings(
+                await active_verifier_client.verify_findings(
                     code=safe_relevant_code,
                     language=request.language,
                     filename=request.filename,
@@ -378,25 +462,69 @@ class SecurityAnalyzer:
                 f"{len(verifier_result.verifications)} "
                 "decision(s) returned."
             )
-        except Exception as exc:
+        except Exception as verifier_error:
             print(
-                "7. Independent model verification "
-                f"failed safely: {exc}"
+                "7. Verifier model failed safely: "
+                f"{verifier_error}"
             )
 
-            verifier_result = VerifierReviewResult(
-                model=self.verifier_client.model,
-                status="failed",
-                error=str(exc),
-            )
+            fallback_error: Exception | None = None
+
+            if self.verifier_fallback_client is not None:
+                print(
+                    "7. Explicit verifier fallback route "
+                    "starting..."
+                )
+
+                try:
+                    active_verifier_client = (
+                        self.verifier_fallback_client
+                    )
+                    verifier_result = (
+                        await active_verifier_client.verify_findings(
+                            code=safe_relevant_code,
+                            language=request.language,
+                            filename=request.filename,
+                            scanner_evidence=(
+                                safe_scanner_evidence
+                            ),
+                            primary_findings=findings,
+                        )
+                    )
+
+                    print(
+                        "7. Explicit verifier fallback route "
+                        "completed."
+                    )
+                except Exception as exc:
+                    fallback_error = exc
+                    print(
+                        "7. Explicit verifier fallback route "
+                        f"failed safely: {exc}"
+                    )
+
+            if (
+                self.verifier_fallback_client is None
+                or fallback_error is not None
+            ):
+                errors = [str(verifier_error)]
+
+                if fallback_error is not None:
+                    errors.append(str(fallback_error))
+
+                verifier_result = VerifierReviewResult(
+                    model=active_verifier_client.model,
+                    status="failed",
+                    error="; ".join(errors),
+                )
 
         primary_transport = getattr(
-            self.model_client,
+            active_primary_client,
             "transport",
             None,
         )
         verifier_transport = getattr(
-            self.verifier_client,
+            active_verifier_client,
             "transport",
             None,
         )
@@ -404,11 +532,11 @@ class SecurityAnalyzer:
         route_assessment = self.route_policy.assess(
             primary=ModelRouteIdentity(
                 provider=getattr(
-                    self.model_client,
+                    active_primary_client,
                     "provider",
                     "unknown",
                 ),
-                model=self.model_client.model,
+                model=active_primary_client.model,
                 base_url=getattr(
                     primary_transport,
                     "base_url",
@@ -417,11 +545,11 @@ class SecurityAnalyzer:
             ),
             verifier=ModelRouteIdentity(
                 provider=getattr(
-                    self.verifier_client,
+                    active_verifier_client,
                     "provider",
                     "unknown",
                 ),
-                model=self.verifier_client.model,
+                model=active_verifier_client.model,
                 base_url=getattr(
                     verifier_transport,
                     "base_url",
@@ -432,13 +560,13 @@ class SecurityAnalyzer:
 
         consensus = self.consensus_evaluator.evaluate(
             primary_provider=getattr(
-                self.model_client,
+                active_primary_client,
                 "provider",
                 None,
             ),
-            primary_model=self.model_client.model,
+            primary_model=active_primary_client.model,
             verifier_provider=getattr(
-                self.verifier_client,
+                active_verifier_client,
                 "provider",
                 None,
             ),
@@ -499,7 +627,7 @@ class SecurityAnalyzer:
         return AnalyzeCodeResponse(
             filename=request.filename,
             language=request.language,
-            model=self.model_client.model,
+            model=active_primary_client.model,
             scanner=self._scanner_name(request),
             analysis_status="completed",
             result_source="ai",

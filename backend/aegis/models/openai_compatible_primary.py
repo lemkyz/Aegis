@@ -19,11 +19,16 @@ class OpenAICompatibleSecurityModelClient:
     def __init__(
         self,
         settings: Settings | None = None,
+        *,
+        provider_override: str | None = None,
+        model_override: str | None = None,
     ) -> None:
         resolved_settings = settings or get_settings()
         endpoint = resolve_model_endpoint(
             resolved_settings,
             role="primary",
+            provider_override=provider_override,
+            model_override=model_override,
         )
         request_config = resolve_model_request_config(
             resolved_settings,

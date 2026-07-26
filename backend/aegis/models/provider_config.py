@@ -45,13 +45,29 @@ def resolve_model_endpoint(
     settings: Settings,
     *,
     role: ModelRole,
+    provider_override: str | None = None,
+    model_override: str | None = None,
 ) -> ModelEndpointConfig:
     if role == "primary":
-        provider = settings.resolved_primary_provider
-        model = settings.resolved_primary_model
+        provider = (
+            provider_override
+            or settings.resolved_primary_provider
+        )
+        model = (
+            model_override
+            or settings.resolved_primary_model
+        )
     else:
-        provider = settings.resolved_verifier_provider
-        model = settings.resolved_verifier_model
+        provider = (
+            provider_override
+            or settings.resolved_verifier_provider
+        )
+        model = (
+            model_override
+            or settings.resolved_verifier_model
+        )
+
+    provider = provider.strip().lower()
 
     model = _required_value(
         model,
