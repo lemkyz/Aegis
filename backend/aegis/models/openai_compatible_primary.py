@@ -8,6 +8,9 @@ from aegis.models.openai_compatible import (
 from aegis.models.provider_config import (
     resolve_model_endpoint,
 )
+from aegis.models.request_policy import (
+    resolve_model_request_config,
+)
 from aegis.utils.text import strip_markdown_code_fence
 from aegis.schemas.analysis import ScannerEvidence, SecurityFinding
 
@@ -22,18 +25,21 @@ class OpenAICompatibleSecurityModelClient:
             resolved_settings,
             role="primary",
         )
+        request_config = resolve_model_request_config(
+            resolved_settings,
+            role="primary",
+        )
 
         self.provider = endpoint.provider
         self.model = endpoint.model
+        self.request_config = request_config
         self.transport = OpenAICompatibleTransport(
             api_key=endpoint.api_key,
             base_url=endpoint.base_url,
             timeout_seconds=(
-                resolved_settings.ai_request_timeout_seconds
+                request_config.timeout_seconds
             ),
-            max_retries=(
-                resolved_settings.ai_max_retries
-            ),
+            max_retries=request_config.max_retries,
         )
 
         # Backward-compatible access for existing integrations and
@@ -136,7 +142,7 @@ scanner result represents a genuine vulnerability.
         response = await self.transport.create_chat_completion(
             model=self.model,
             temperature=0.1,
-            max_tokens=1600,
+            max_tokens=self.request_config.max_tokens,
             messages=[
                 {
                     "role": "system",

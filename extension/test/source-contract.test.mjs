@@ -442,3 +442,30 @@ test(
     );
   },
 );
+
+
+test(
+  "markdown report exposes model route independence",
+  () => {
+    assert.match(
+      source,
+      /Primary Provider/,
+    );
+    assert.match(
+      source,
+      /Verifier Provider/,
+    );
+    assert.match(
+      source,
+      /Route Classification/,
+    );
+    assert.match(
+      source,
+      /Independent Verification/,
+    );
+    assert.match(
+      source,
+      /Route Assessment/,
+    );
+  },
+);

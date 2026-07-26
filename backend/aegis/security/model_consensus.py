@@ -6,6 +6,9 @@ from aegis.schemas.model_consensus import (
 from aegis.schemas.model_verification import (
     VerifierReviewResult,
 )
+from aegis.security.model_route_policy import (
+    ModelRouteAssessment,
+)
 
 
 class ModelConsensusEvaluator:
@@ -17,6 +20,9 @@ class ModelConsensusEvaluator:
         primary_model: str,
         primary_findings: list[SecurityFinding],
         verifier_result: VerifierReviewResult,
+        primary_provider: str | None = None,
+        verifier_provider: str | None = None,
+        route_assessment: ModelRouteAssessment | None = None,
     ) -> ModelConsensusResult:
         errors: list[str] = []
 
@@ -27,8 +33,25 @@ class ModelConsensusEvaluator:
             )
 
             return ModelConsensusResult(
+                primary_provider=primary_provider,
                 primary_model=primary_model,
+                verifier_provider=verifier_provider,
                 verifier_model=verifier_result.model,
+                route_independence=(
+                    route_assessment.classification
+                    if route_assessment
+                    else None
+                ),
+                independently_verified=(
+                    route_assessment.independently_verified
+                    if route_assessment
+                    else None
+                ),
+                route_reasons=(
+                    list(route_assessment.reasons)
+                    if route_assessment
+                    else []
+                ),
                 status="partial",
                 decisions=[
                     FindingConsensusDecision(
@@ -109,10 +132,22 @@ class ModelConsensusEvaluator:
                     / 2,
                     0.99,
                 )
-                reason = (
-                    "The independent verifier supports the "
-                    "primary finding."
-                )
+
+                if (
+                    route_assessment is not None
+                    and not route_assessment.independently_verified
+                ):
+                    confidence = min(confidence, 0.85)
+                    reason = (
+                        "The verifier corroborates the primary "
+                        "finding, but the configured model route "
+                        "is not independent."
+                    )
+                else:
+                    reason = (
+                        "The independent verifier supports the "
+                        "primary finding."
+                    )
 
             elif verification.verdict == "refuted":
                 verdict = "disputed"
@@ -156,12 +191,33 @@ class ModelConsensusEvaluator:
                 decision.verdict == "unverified"
                 for decision in decisions
             )
+            or (
+                route_assessment is not None
+                and not route_assessment.independently_verified
+            )
             else "completed"
         )
 
         return ModelConsensusResult(
+            primary_provider=primary_provider,
             primary_model=primary_model,
+            verifier_provider=verifier_provider,
             verifier_model=verifier_result.model,
+            route_independence=(
+                route_assessment.classification
+                if route_assessment
+                else None
+            ),
+            independently_verified=(
+                route_assessment.independently_verified
+                if route_assessment
+                else None
+            ),
+            route_reasons=(
+                list(route_assessment.reasons)
+                if route_assessment
+                else []
+            ),
             status=status,
             decisions=decisions,
             errors=errors,

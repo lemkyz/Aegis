@@ -12,6 +12,10 @@ from aegis.security.claim_adapter import finding_to_claim
 from aegis.security.model_consensus import (
     ModelConsensusEvaluator,
 )
+from aegis.security.model_route_policy import (
+    ModelRouteIdentity,
+    ModelRoutePolicy,
+)
 from aegis.security.config_secrets import ConfigSecretScanner
 from aegis.security.redaction import SecretRedactor
 from aegis.security.secrets import SecretIntelligenceEngine
@@ -39,6 +43,7 @@ class SecurityAnalyzer:
         model_client: SecurityModelClient | None = None,
         verifier_client: SecurityVerifierClient | None = None,
         consensus_evaluator: ModelConsensusEvaluator | None = None,
+        route_policy: ModelRoutePolicy | None = None,
     ) -> None:
         self.model_client = (
             model_client
@@ -54,6 +59,11 @@ class SecurityAnalyzer:
             consensus_evaluator
             if consensus_evaluator is not None
             else ModelConsensusEvaluator()
+        )
+        self.route_policy = (
+            route_policy
+            if route_policy is not None
+            else ModelRoutePolicy()
         )
         self.semgrep_scanner = SemgrepScanner()
         self.bandit_scanner = BanditScanner()
@@ -380,10 +390,61 @@ class SecurityAnalyzer:
                 error=str(exc),
             )
 
+        primary_transport = getattr(
+            self.model_client,
+            "transport",
+            None,
+        )
+        verifier_transport = getattr(
+            self.verifier_client,
+            "transport",
+            None,
+        )
+
+        route_assessment = self.route_policy.assess(
+            primary=ModelRouteIdentity(
+                provider=getattr(
+                    self.model_client,
+                    "provider",
+                    "unknown",
+                ),
+                model=self.model_client.model,
+                base_url=getattr(
+                    primary_transport,
+                    "base_url",
+                    "unknown",
+                ),
+            ),
+            verifier=ModelRouteIdentity(
+                provider=getattr(
+                    self.verifier_client,
+                    "provider",
+                    "unknown",
+                ),
+                model=self.verifier_client.model,
+                base_url=getattr(
+                    verifier_transport,
+                    "base_url",
+                    "unknown",
+                ),
+            ),
+        )
+
         consensus = self.consensus_evaluator.evaluate(
+            primary_provider=getattr(
+                self.model_client,
+                "provider",
+                None,
+            ),
             primary_model=self.model_client.model,
+            verifier_provider=getattr(
+                self.verifier_client,
+                "provider",
+                None,
+            ),
             primary_findings=findings,
             verifier_result=verifier_result,
+            route_assessment=route_assessment,
         )
 
         verifications_by_index = {}

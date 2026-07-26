@@ -1,6 +1,7 @@
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -83,6 +84,45 @@ class Settings(BaseSettings):
         default=0,
         ge=0,
         le=3,
+    )
+
+    ai_request_profile: Literal[
+        "fast",
+        "balanced",
+        "thorough",
+    ] = "balanced"
+
+    ai_primary_timeout_seconds: float | None = Field(
+        default=None,
+        ge=5.0,
+        le=600.0,
+    )
+    ai_verifier_timeout_seconds: float | None = Field(
+        default=None,
+        ge=5.0,
+        le=600.0,
+    )
+
+    ai_primary_max_retries: int | None = Field(
+        default=None,
+        ge=0,
+        le=3,
+    )
+    ai_verifier_max_retries: int | None = Field(
+        default=None,
+        ge=0,
+        le=3,
+    )
+
+    ai_primary_max_tokens: int | None = Field(
+        default=None,
+        ge=128,
+        le=16_384,
+    )
+    ai_verifier_max_tokens: int | None = Field(
+        default=None,
+        ge=128,
+        le=16_384,
     )
 
     @property

@@ -22,8 +22,15 @@ def test_analysis_response_remains_backward_compatible() -> None:
 
 def test_analysis_response_exposes_model_consensus() -> None:
     consensus = ModelConsensusResult(
+        primary_provider="provider-a",
         primary_model="fake/primary",
+        verifier_provider="provider-b",
         verifier_model="fake/verifier",
+        route_independence="independent",
+        independently_verified=True,
+        route_reasons=[
+            "Distinct provider and model.",
+        ],
         status="completed",
         decisions=[
             FindingConsensusDecision(
@@ -52,6 +59,22 @@ def test_analysis_response_exposes_model_consensus() -> None:
     )
 
     assert response.model_consensus is consensus
+    assert (
+        response.model_consensus.primary_provider
+        == "provider-a"
+    )
+    assert (
+        response.model_consensus.verifier_provider
+        == "provider-b"
+    )
+    assert (
+        response.model_consensus.route_independence
+        == "independent"
+    )
+    assert (
+        response.model_consensus.independently_verified
+        is True
+    )
     assert (
         response.model_consensus.decisions[0].verdict
         == "confirmed"

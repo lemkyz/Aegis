@@ -8,6 +8,9 @@ from aegis.models.openai_compatible import (
 from aegis.models.provider_config import (
     resolve_model_endpoint,
 )
+from aegis.models.request_policy import (
+    resolve_model_request_config,
+)
 from aegis.schemas.analysis import (
     ScannerEvidence,
     SecurityFinding,
@@ -28,18 +31,21 @@ class OpenAICompatibleVerifierClient:
             resolved_settings,
             role="verifier",
         )
+        request_config = resolve_model_request_config(
+            resolved_settings,
+            role="verifier",
+        )
 
         self.provider = endpoint.provider
         self.model = endpoint.model
+        self.request_config = request_config
         self.transport = OpenAICompatibleTransport(
             api_key=endpoint.api_key,
             base_url=endpoint.base_url,
             timeout_seconds=(
-                resolved_settings.ai_request_timeout_seconds
+                request_config.timeout_seconds
             ),
-            max_retries=(
-                resolved_settings.ai_max_retries
-            ),
+            max_retries=request_config.max_retries,
         )
 
         # Backward-compatible access for existing integrations and
@@ -128,7 +134,7 @@ Source code:
         response = await self.transport.create_chat_completion(
             model=self.model,
             temperature=0.0,
-            max_tokens=1200,
+            max_tokens=self.request_config.max_tokens,
             messages=[
                 {
                     "role": "system",

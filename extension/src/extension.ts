@@ -103,9 +103,20 @@ interface FindingConsensusDecision {
   reasons: string[];
 }
 
+type RouteIndependence =
+  | "same_route"
+  | "same_model_distinct_endpoint"
+  | "same_provider_distinct_model"
+  | "independent";
+
 interface ModelConsensusResult {
+  primary_provider: string | null;
   primary_model: string;
+  verifier_provider: string | null;
   verifier_model: string | null;
+  route_independence: RouteIndependence | null;
+  independently_verified: boolean | null;
+  route_reasons: string[];
   status: ModelConsensusStatus;
   decisions: FindingConsensusDecision[];
   errors: string[];
@@ -7877,15 +7888,73 @@ function buildMarkdownReport(
         );
       }
 
+      const consensus = result.model_consensus;
+
+      if (consensus?.primary_provider) {
+        lines.push(
+          `- **Primary Provider:** ${
+            consensus.primary_provider
+          }`,
+        );
+      }
+
       if (finding.primary_model) {
         lines.push(
           `- **Primary Model:** ${finding.primary_model}`,
         );
       }
 
+      if (consensus?.verifier_provider) {
+        lines.push(
+          `- **Verifier Provider:** ${
+            consensus.verifier_provider
+          }`,
+        );
+      }
+
       if (finding.verifier_model) {
         lines.push(
           `- **Verifier Model:** ${finding.verifier_model}`,
+        );
+      }
+
+      if (consensus?.route_independence) {
+        lines.push(
+          `- **Route Classification:** ${
+            consensus.route_independence
+              .replaceAll("_", " ")
+              .toUpperCase()
+          }`,
+        );
+      }
+
+      if (
+        consensus?.independently_verified !== undefined
+        && consensus.independently_verified !== null
+      ) {
+        lines.push(
+          `- **Independent Verification:** ${
+            consensus.independently_verified
+              ? "YES"
+              : "NO"
+          }`,
+        );
+      }
+
+      if (
+        consensus?.route_reasons
+        && consensus.route_reasons.length > 0
+      ) {
+        lines.push(
+          "",
+          "#### Route Assessment",
+          "",
+        );
+
+        consensus.route_reasons.forEach(
+          (reason: string) => {
+            lines.push(`- ${reason}`);
+          },
         );
       }
 

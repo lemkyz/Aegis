@@ -2,6 +2,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from aegis.security.model_route_policy import (
+    RouteIndependence,
+)
+
 
 ConsensusVerdict = Literal[
     "confirmed",
@@ -30,8 +34,15 @@ class FindingConsensusDecision(BaseModel):
 
 
 class ModelConsensusResult(BaseModel):
+    primary_provider: str | None = None
     primary_model: str
+    verifier_provider: str | None = None
     verifier_model: str | None = None
+    route_independence: RouteIndependence | None = None
+    independently_verified: bool | None = None
+    route_reasons: list[str] = Field(
+        default_factory=list,
+    )
     status: Literal[
         "completed",
         "partial",
