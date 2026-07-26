@@ -268,7 +268,7 @@ class SecurityAnalyzer:
         if not scanner_evidence:
             print(
                 "3. No scanner evidence found. "
-                "The NVIDIA model was not called."
+                "The configured primary model was not called."
             )
 
             return AnalyzeCodeResponse(
@@ -309,9 +309,9 @@ class SecurityAnalyzer:
         print(
             "3. Security context prepared: "
             f"{relevant_line_count}/{original_line_count} lines "
-            "will be sent to the NVIDIA model."
+            "will be sent to the configured primary model."
         )
-        print("4. NVIDIA deep analysis starting...")
+        print("4. Primary model analysis starting...")
 
         active_primary_client = self.model_client
 

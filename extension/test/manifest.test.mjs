@@ -220,3 +220,29 @@ test(
     );
   },
 );
+
+
+
+test(
+  "manifest contributes security task plan preview",
+  () => {
+    const command =
+      manifest.contributes.commands.find(
+        (item) =>
+          item.command
+          === "aegis.previewSecurityTaskPlan",
+      );
+
+    assert.ok(command);
+
+    assert.equal(
+      command.title,
+      "Aegis: Preview Security Task Plan",
+    );
+
+    assert.equal(
+      command.category,
+      "Aegis",
+    );
+  },
+);

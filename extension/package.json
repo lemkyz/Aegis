@@ -53,6 +53,11 @@
         "category": "Aegis"
       },
       {
+        "command": "aegis.previewSecurityTaskPlan",
+        "title": "Aegis: Preview Security Task Plan",
+        "category": "Aegis"
+      },
+      {
         "command": "aegis.scanDependencies",
         "title": "Aegis: Scan Dependencies",
         "category": "Aegis"

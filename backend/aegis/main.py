@@ -42,6 +42,20 @@ from aegis.schemas.threat_model import (
     ThreatModelScanRequest,
     ThreatModelScanResponse,
 )
+from aegis.schemas.security_task_plan import (
+    SecurityTaskAggregation,
+    SecurityTaskAggregationRequest,
+    SecurityTaskExecution,
+    SecurityTaskExecutionCompleteRequest,
+    SecurityTaskExecutionCreateRequest,
+    SecurityTaskExecutionFailRequest,
+    SecurityTaskExecutionSkipRequest,
+    SecurityTaskExecutionStartRequest,
+    SecurityTaskPlanRequest,
+    SecurityTaskPlanResponse,
+    SecurityTaskStateResolutionRequest,
+)
+
 from aegis.schemas.validation import (
     ValidationAuthorizationRequest,
     ValidationAuthorizationResponse,
@@ -75,6 +89,20 @@ from aegis.security.attack_surface import AttackSurfaceMapper
 from aegis.security.dependency_files import parse_dependency_file
 from aegis.security.osv import OsvDependencyScanner
 from aegis.security.threat_model import ThreatModeler
+from aegis.orchestrator.security_task_aggregator import (
+    SecurityTaskResultAggregator,
+)
+from aegis.orchestrator.security_task_execution import (
+    SecurityTaskExecutionMachine,
+    SecurityTaskTransitionError,
+)
+from aegis.orchestrator.security_task_planner import (
+    SecurityTaskPlanner,
+)
+from aegis.orchestrator.security_task_state import (
+    SecurityTaskStateResolver,
+)
+
 from aegis.security.authorization import (
     ValidationAuthorizer,
 )
@@ -146,6 +174,304 @@ validation_replay_orchestrator = (
 unified_fix_verification_evaluator = (
     UnifiedFixVerificationEvaluator()
 )
+
+
+security_task_state_resolver = (
+    SecurityTaskStateResolver()
+)
+security_task_planner = SecurityTaskPlanner(
+    authorizer=validation_authorizer,
+)
+security_task_execution_machine = (
+    SecurityTaskExecutionMachine(
+        resolver=security_task_state_resolver,
+    )
+)
+security_task_result_aggregator = (
+    SecurityTaskResultAggregator()
+)
+
+
+@app.post(
+    "/v1/security/tasks/plan",
+    response_model=SecurityTaskPlanResponse,
+)
+async def plan_security_tasks(
+    request: SecurityTaskPlanRequest,
+) -> SecurityTaskPlanResponse:
+    """
+    Build a deterministic, dependency-safe security
+    task graph without executing scanners, models,
+    patches, or validation commands.
+    """
+    try:
+        return security_task_planner.plan(request)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Security task planning failed: "
+                f"{exc}"
+            ),
+        ) from exc
+
+
+@app.post(
+    "/v1/security/tasks/resolve",
+    response_model=SecurityTaskPlanResponse,
+)
+async def resolve_security_task_states(
+    request: SecurityTaskStateResolutionRequest,
+) -> SecurityTaskPlanResponse:
+    """
+    Recalculate task readiness from supplied dependency
+    states and satisfied execution gates.
+    """
+    try:
+        return security_task_state_resolver.resolve(
+            request.plan,
+            completed_task_ids=(
+                request.completed_task_ids
+            ),
+            failed_task_ids=request.failed_task_ids,
+            skipped_task_ids=request.skipped_task_ids,
+            satisfied_gates=request.satisfied_gates,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Security task state resolution failed: "
+                f"{exc}"
+            ),
+        ) from exc
+
+
+@app.post(
+    "/v1/security/tasks/execution/create",
+    response_model=SecurityTaskExecution,
+)
+async def create_security_task_execution(
+    request: SecurityTaskExecutionCreateRequest,
+) -> SecurityTaskExecution:
+    """
+    Create an inspectable stateless execution contract
+    from a previously generated task plan.
+    """
+    try:
+        return security_task_execution_machine.create(
+            request.plan,
+            satisfied_gates=set(
+                request.satisfied_gates
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Security task execution creation "
+                f"failed: {exc}"
+            ),
+        ) from exc
+
+
+@app.post(
+    "/v1/security/tasks/execution/start",
+    response_model=SecurityTaskExecution,
+)
+async def start_security_task(
+    request: SecurityTaskExecutionStartRequest,
+) -> SecurityTaskExecution:
+    """
+    Transition one ready task into the running state.
+    No scanner, model, shell, or container is invoked.
+    """
+    try:
+        return security_task_execution_machine.start_task(
+            request.execution,
+            request.task_id,
+            satisfied_gates=set(
+                request.satisfied_gates
+            ),
+        )
+    except (
+        SecurityTaskTransitionError,
+        KeyError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Security task start transition failed: "
+                f"{exc}"
+            ),
+        ) from exc
+
+
+@app.post(
+    "/v1/security/tasks/execution/complete",
+    response_model=SecurityTaskExecution,
+)
+async def complete_security_task(
+    request: SecurityTaskExecutionCompleteRequest,
+) -> SecurityTaskExecution:
+    """
+    Record successful task output and resolve newly
+    available downstream tasks.
+    """
+    try:
+        return (
+            security_task_execution_machine
+            .complete_task(
+                request.execution,
+                request.task_id,
+                output=request.output,
+                satisfied_gates=set(
+                    request.satisfied_gates
+                ),
+            )
+        )
+    except (
+        SecurityTaskTransitionError,
+        KeyError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Security task completion transition "
+                f"failed: {exc}"
+            ),
+        ) from exc
+
+
+@app.post(
+    "/v1/security/tasks/execution/fail",
+    response_model=SecurityTaskExecution,
+)
+async def fail_security_task(
+    request: SecurityTaskExecutionFailRequest,
+) -> SecurityTaskExecution:
+    """
+    Record a task failure and deterministically block
+    dependent tasks where required.
+    """
+    try:
+        return security_task_execution_machine.fail_task(
+            request.execution,
+            request.task_id,
+            error=request.error,
+            output=request.output,
+            satisfied_gates=set(
+                request.satisfied_gates
+            ),
+        )
+    except (
+        SecurityTaskTransitionError,
+        KeyError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Security task failure transition "
+                f"failed: {exc}"
+            ),
+        ) from exc
+
+
+@app.post(
+    "/v1/security/tasks/execution/skip",
+    response_model=SecurityTaskExecution,
+)
+async def skip_security_task(
+    request: SecurityTaskExecutionSkipRequest,
+) -> SecurityTaskExecution:
+    """
+    Record an explicit skip decision and propagate it
+    through required dependency edges.
+    """
+    try:
+        return security_task_execution_machine.skip_task(
+            request.execution,
+            request.task_id,
+            reason=request.reason,
+            satisfied_gates=set(
+                request.satisfied_gates
+            ),
+        )
+    except (
+        SecurityTaskTransitionError,
+        KeyError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Security task skip transition failed: "
+                f"{exc}"
+            ),
+        ) from exc
+
+
+@app.post(
+    "/v1/security/tasks/aggregate",
+    response_model=SecurityTaskAggregation,
+)
+async def aggregate_security_task_execution(
+    request: SecurityTaskAggregationRequest,
+) -> SecurityTaskAggregation:
+    """
+    Produce a deterministic summary of task states,
+    outputs, artifacts, failures, and audit history.
+    """
+    try:
+        return security_task_result_aggregator.aggregate(
+            request.execution
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Security task aggregation failed: "
+                f"{exc}"
+            ),
+        ) from exc
 
 
 @app.get("/health")

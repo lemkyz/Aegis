@@ -492,3 +492,132 @@ test(
     );
   },
 );
+
+
+
+test(
+  "security task plan preview uses the safe planner endpoint",
+  () => {
+    assert.ok(
+      source.includes(
+        '"aegis.previewSecurityTaskPlan"',
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        '"/v1/security/tasks/plan"',
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "requestSecurityTaskPlan",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "buildSecurityTaskPlanReport",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        '"security-task-plan"',
+      ),
+    );
+  },
+);
+
+
+test(
+  "security task plan preview does not invoke execution transitions",
+  () => {
+    const previewStart =
+      source.indexOf(
+        "async function previewSecurityTaskPlan",
+      );
+
+    const nextFunction =
+      source.indexOf(
+        "\n\nasync function requestAttackSurfaceScan",
+        previewStart,
+      );
+
+    assert.ok(
+      previewStart >= 0,
+      "Security task plan preview was not found.",
+    );
+
+    assert.ok(
+      nextFunction > previewStart,
+      "Security task plan preview boundary was not found.",
+    );
+
+    const previewSource =
+      source.slice(
+        previewStart,
+        nextFunction,
+      );
+
+    for (const forbiddenEndpoint of [
+      "/v1/security/tasks/execution/create",
+      "/v1/security/tasks/execution/start",
+      "/v1/security/tasks/execution/complete",
+      "/v1/security/tasks/execution/fail",
+      "/v1/security/tasks/execution/skip",
+      "/v1/security/tasks/aggregate",
+    ]) {
+      assert.ok(
+        !previewSource.includes(
+          forbiddenEndpoint,
+        ),
+        (
+          "Plan preview must not call "
+          + forbiddenEndpoint
+        ),
+      );
+    }
+  },
+);
+
+
+test(
+  "security task plan report exposes graph and safety metadata",
+  () => {
+    for (const marker of [
+      "# Aegis Security Task Plan",
+      "## Execution Order",
+      "## Task Details",
+      "## Plan Decisions",
+      "## Blocked Tasks",
+      "## Skipped Tasks",
+      "## Safety Boundary",
+      "Dynamic validation still requires explicit structured authorization.",
+    ]) {
+      assert.ok(
+        source.includes(marker),
+        `Missing task-plan report marker: ${marker}`,
+      );
+    }
+  },
+);
+
+
+test(
+  "task-plan report escapes evidence Markdown safely",
+  () => {
+    assert.ok(
+      source.includes(
+        'evidence.replaceAll("`", "\\\\`")',
+      ),
+    );
+
+    assert.ok(
+      !source.includes(
+        'evidence.replaceAll("`", "\\`")',
+      ),
+    );
+  },
+);

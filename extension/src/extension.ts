@@ -29,7 +29,8 @@ type AegisReportKind =
   | "dependencies"
   | "fix-verification"
   | "attack-surface"
-  | "threat-model";
+  | "threat-model"
+  | "security-task-plan";
 
 class AegisReportContentProvider
   implements vscode.TextDocumentContentProvider {
@@ -887,6 +888,77 @@ interface ThreatModelScanResponse {
   summary: ThreatModelSummary;
 }
 
+
+type SecurityTaskState =
+  | "planned"
+  | "ready"
+  | "waiting"
+  | "blocked"
+  | "skipped"
+  | "running"
+  | "completed"
+  | "failed";
+
+type SecurityTaskPlanStatus =
+  | "ready"
+  | "partial"
+  | "blocked"
+  | "invalid";
+
+interface SecurityTaskDependency {
+  task_id: string;
+  required_states: SecurityTaskState[];
+}
+
+interface SecurityTaskNode {
+  task_id: string;
+  kind: string;
+  state: SecurityTaskState;
+  required: boolean;
+  dependencies: SecurityTaskDependency[];
+  gates: string[];
+  reasons: string[];
+  produces: string[];
+}
+
+interface SecurityTaskPlanResponse {
+  planner: string;
+  operation: string;
+  status: SecurityTaskPlanStatus;
+  tasks: SecurityTaskNode[];
+  entry_task_ids: string[];
+  terminal_task_ids: string[];
+  execution_order: string[];
+  reasons: string[];
+  errors: string[];
+}
+
+interface SecurityTaskPlanRequest {
+  operation:
+    | "fast_scan"
+    | "deep_analysis"
+    | "repository_review"
+    | "fix_and_verify";
+  language: string;
+  has_scanner_evidence: boolean;
+  has_proposed_patch: boolean;
+  authorization_confirmed: boolean;
+  human_approval_confirmed: boolean;
+  include_dynamic_validation: boolean;
+  highest_severity:
+    | "none"
+    | "info"
+    | "low"
+    | "medium"
+    | "high"
+    | "critical";
+  finding_confidence: number;
+  has_proven_data_flow: boolean;
+  independently_verified: boolean;
+  include_security_memory: boolean;
+  include_policy_evaluation: boolean;
+}
+
 let lastAnalysis: LastAnalysis | undefined;
 let authorizedDynamicBaseline:
   | AuthorizedDynamicBaseline
@@ -972,6 +1044,12 @@ export function activate(context: vscode.ExtensionContext): void {
       generateWorkspaceThreatModel,
     );
 
+  const previewSecurityTaskPlanCommand =
+    vscode.commands.registerCommand(
+      "aegis.previewSecurityTaskPlan",
+      previewSecurityTaskPlan,
+    );
+
   const scanDependenciesCommand =
     vscode.commands.registerCommand(
       "aegis.scanDependencies",
@@ -1046,6 +1124,7 @@ export function activate(context: vscode.ExtensionContext): void {
     scanWorkspaceCommand,
     mapAttackSurfaceCommand,
     generateThreatModelCommand,
+    previewSecurityTaskPlanCommand,
     scanDependenciesCommand,
     scanUncommittedChangesCommand,
     scanStagedChangesCommand,
@@ -2800,7 +2879,7 @@ function buildThreatModelReport(
 
         for (const evidence of threat.evidence) {
           lines.push(
-            `- \`${evidence.replaceAll("`", "\`")}\``,
+            `- \`${evidence.replaceAll("`", "\\`")}\``,
           );
         }
       }
@@ -3058,6 +3137,413 @@ function formatAttackSurfaceKind(
 
   return labels[kind];
 }
+
+function formatSecurityTaskLabel(
+  value: string,
+): string {
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map(
+      (part) =>
+        part.charAt(0).toUpperCase()
+        + part.slice(1),
+    )
+    .join(" ");
+}
+
+
+function formatSecurityTaskState(
+  state: SecurityTaskState,
+): string {
+  const labels:
+    Record<SecurityTaskState, string> = {
+      planned: "Planned",
+      ready: "Ready",
+      waiting: "Waiting",
+      blocked: "Blocked",
+      skipped: "Skipped",
+      running: "Running",
+      completed: "Completed",
+      failed: "Failed",
+    };
+
+  return labels[state];
+}
+
+
+async function requestSecurityTaskPlan(
+  backendUrl: string,
+  request: SecurityTaskPlanRequest,
+): Promise<SecurityTaskPlanResponse> {
+  return postBackendJson<
+    SecurityTaskPlanResponse
+  >({
+    backendUrl,
+    endpoint:
+      "/v1/security/tasks/plan",
+    body: request,
+    timeoutMilliseconds: 30_000,
+    timeoutMessage:
+      "Security task planning timed out after 30 seconds.",
+  });
+}
+
+
+function buildSecurityTaskPlanReport(
+  result: SecurityTaskPlanResponse,
+): string {
+  const tasksById = new Map(
+    result.tasks.map(
+      (task) => [
+        task.task_id,
+        task,
+      ],
+    ),
+  );
+
+  const lines: string[] = [
+    "# Aegis Security Task Plan",
+    "",
+    "> Preview only: this report does not execute scanners, models, patches, or validation commands.",
+    "",
+    `- **Planner:** \`${result.planner}\``,
+    `- **Operation:** ${formatSecurityTaskLabel(result.operation)}`,
+    `- **Plan status:** ${formatSecurityTaskLabel(result.status)}`,
+    `- **Tasks:** ${result.tasks.length}`,
+    "",
+    "## Execution Order",
+    "",
+  ];
+
+  if (result.execution_order.length === 0) {
+    lines.push(
+      "No security tasks were scheduled.",
+      "",
+    );
+  } else {
+    for (
+      const [
+        index,
+        taskId,
+      ]
+      of result.execution_order.entries()
+    ) {
+      const task = tasksById.get(taskId);
+
+      if (!task) {
+        lines.push(
+          `${index + 1}. \`${taskId}\` — Unknown task`,
+        );
+        continue;
+      }
+
+      lines.push(
+        (
+          `${index + 1}. `
+          + `**${formatSecurityTaskLabel(task.kind)}** `
+          + `— ${formatSecurityTaskState(task.state)}`
+        ),
+      );
+    }
+
+    lines.push("");
+  }
+
+  lines.push(
+    "## Task Details",
+    "",
+  );
+
+  if (result.tasks.length === 0) {
+    lines.push(
+      "No task details are available.",
+      "",
+    );
+  } else {
+    for (const taskId of result.execution_order) {
+      const task = tasksById.get(taskId);
+
+      if (!task) {
+        continue;
+      }
+
+      lines.push(
+        `### ${formatSecurityTaskLabel(task.kind)}`,
+        "",
+        `- **Task ID:** \`${task.task_id}\``,
+        `- **State:** ${formatSecurityTaskState(task.state)}`,
+        `- **Required:** ${task.required ? "Yes" : "No"}`,
+      );
+
+      if (task.dependencies.length === 0) {
+        lines.push(
+          "- **Dependencies:** None",
+        );
+      } else {
+        lines.push(
+          "- **Dependencies:**",
+        );
+
+        for (
+          const dependency
+          of task.dependencies
+        ) {
+          lines.push(
+            (
+              `  - \`${dependency.task_id}\` `
+              + `(required state: `
+              + `${dependency.required_states.join(", ")})`
+            ),
+          );
+        }
+      }
+
+      if (task.gates.length === 0) {
+        lines.push(
+          "- **Gates:** None",
+        );
+      } else {
+        lines.push(
+          "- **Gates:**",
+          ...task.gates.map(
+            (gate) =>
+              `  - \`${gate}\``,
+          ),
+        );
+      }
+
+      if (task.produces.length === 0) {
+        lines.push(
+          "- **Produces:** None",
+        );
+      } else {
+        lines.push(
+          "- **Produces:**",
+          ...task.produces.map(
+            (artifact) =>
+              `  - \`${artifact}\``,
+          ),
+        );
+      }
+
+      if (task.reasons.length > 0) {
+        lines.push(
+          "- **Task reasoning:**",
+          ...task.reasons.map(
+            (reason) =>
+              `  - ${reason}`,
+          ),
+        );
+      }
+
+      lines.push("");
+    }
+  }
+
+  const blockedTasks = result.tasks.filter(
+    (task) => task.state === "blocked",
+  );
+
+  const skippedTasks = result.tasks.filter(
+    (task) => task.state === "skipped",
+  );
+
+  lines.push(
+    "## Plan Decisions",
+    "",
+  );
+
+  if (result.reasons.length === 0) {
+    lines.push(
+      "No planner reasoning was provided.",
+    );
+  } else {
+    lines.push(
+      ...result.reasons.map(
+        (reason) => `- ${reason}`,
+      ),
+    );
+  }
+
+  lines.push(
+    "",
+    "## Blocked Tasks",
+    "",
+  );
+
+  if (blockedTasks.length === 0) {
+    lines.push("None.");
+  } else {
+    for (const task of blockedTasks) {
+      lines.push(
+        `- **${formatSecurityTaskLabel(task.kind)}**`,
+      );
+
+      for (const reason of task.reasons) {
+        lines.push(
+          `  - ${reason}`,
+        );
+      }
+    }
+  }
+
+  lines.push(
+    "",
+    "## Skipped Tasks",
+    "",
+  );
+
+  if (skippedTasks.length === 0) {
+    lines.push("None.");
+  } else {
+    for (const task of skippedTasks) {
+      lines.push(
+        `- **${formatSecurityTaskLabel(task.kind)}**`,
+      );
+
+      for (const reason of task.reasons) {
+        lines.push(
+          `  - ${reason}`,
+        );
+      }
+    }
+  }
+
+  if (result.errors.length > 0) {
+    lines.push(
+      "",
+      "## Planner Errors",
+      "",
+      ...result.errors.map(
+        (error) => `- ${error}`,
+      ),
+    );
+  }
+
+  lines.push(
+    "",
+    "## Safety Boundary",
+    "",
+    "- This preview did not start an execution.",
+    "- No scanner or AI model was invoked by this command.",
+    "- No patch was applied.",
+    "- No container or validation command was started.",
+    "- Dynamic validation still requires explicit structured authorization.",
+    "",
+  );
+
+  return lines.join("\n");
+}
+
+
+async function previewSecurityTaskPlan():
+  Promise<void> {
+  const editor =
+    vscode.window.activeTextEditor;
+
+  const language =
+    editor
+      ? normalizeLanguage(
+          editor.document.languageId,
+        )
+      : "python";
+
+  const backendUrl =
+    vscode.workspace
+      .getConfiguration("aegis")
+      .get<string>(
+        "backendUrl",
+        "http://127.0.0.1:8000",
+      )
+      .replace(/\/+$/, "");
+
+  const request: SecurityTaskPlanRequest = {
+    operation: "deep_analysis",
+    language,
+    has_scanner_evidence: false,
+    has_proposed_patch: false,
+    authorization_confirmed: false,
+    human_approval_confirmed: false,
+    include_dynamic_validation: false,
+    highest_severity: "none",
+    finding_confidence: 0,
+    has_proven_data_flow: false,
+    independently_verified: false,
+    include_security_memory: true,
+    include_policy_evaluation: true,
+  };
+
+  try {
+    const result =
+      await vscode.window.withProgress(
+        {
+          location:
+            vscode.ProgressLocation.Notification,
+          title:
+            "Aegis is planning the security workflow",
+          cancellable: false,
+        },
+        async () =>
+          requestSecurityTaskPlan(
+            backendUrl,
+            request,
+          ),
+      );
+
+    await showReusableAegisReport(
+      "security-task-plan",
+      buildSecurityTaskPlanReport(result),
+    );
+
+    const blockedCount =
+      result.tasks.filter(
+        (task) =>
+          task.state === "blocked",
+      ).length;
+
+    const skippedCount =
+      result.tasks.filter(
+        (task) =>
+          task.state === "skipped",
+      ).length;
+
+    const message =
+      (
+        `Aegis planned ${result.tasks.length} `
+        + `security task(s): `
+        + `${blockedCount} blocked, `
+        + `${skippedCount} skipped.`
+      );
+
+    if (
+      result.status === "blocked"
+      || result.status === "invalid"
+    ) {
+      void vscode.window.showWarningMessage(
+        message,
+        "Keep Report Open",
+      );
+    } else {
+      void vscode.window.showInformationMessage(
+        message,
+      );
+    }
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(error);
+
+    void vscode.window.showErrorMessage(
+      (
+        "Aegis Security Task Planning "
+        + `failed: ${message}`
+      ),
+    );
+  }
+}
+
 
 async function requestAttackSurfaceScan(
   backendUrl: string,
