@@ -1,14 +1,11 @@
-<div align="center">
-
-<img src="https://raw.githubusercontent.com/lemkyz/Aegis/main/extension/images/icon.png" alt="Aegis" width="112">
-
 # Aegis Security
 
-**Evidence-backed security analysis and fix verification inside VS Code.**
+## Evidence-backed security analysis and fix verification inside VS Code
 
-</div>
-
-Aegis keeps the whole security run visible: the scanner evidence, model routes, consensus, threat model, authorization boundary, patch, replay result, policy decision, and integrity hashes.
+Aegis is the interactive workspace for a local software-agent trust layer. It
+keeps the whole security run visible: scanner evidence, model routes,
+consensus, threat context, authorization boundaries, patches, replay results,
+policy decisions, project memory, and integrity hashes.
 
 ## Before you start
 
@@ -20,6 +17,11 @@ The extension uses the local Aegis backend. It does not start a hidden service o
 4. Run **Aegis: Run Trusted Analysis** from the Command Palette.
 
 Change the address with the `aegis.backendUrl` setting if your local service uses another port.
+
+Trusted Analysis has a 10-minute total workflow budget by default so primary
+and verifier routes do not compete for a single short request window. Adjust
+`aegis.trustedAnalysisTimeoutSeconds` between 60 and 900 seconds when a
+configured provider needs a different bound.
 
 ## Trusted Analysis
 

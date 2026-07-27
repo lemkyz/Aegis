@@ -56,34 +56,10 @@ test(
 
 test(
   "manifest is ready for a preview marketplace listing",
-  async () => {
+  () => {
     assert.equal(manifest.preview, true);
     assert.equal(manifest.pricing, "Free");
     assert.equal(manifest.markdown, "github");
-    assert.equal(
-      manifest.icon,
-      "images/icon.png",
-    );
-
-    assert.match(
-      manifest.galleryBanner.color,
-      /^#[0-9A-F]{6}$/iu,
-    );
-
-    const icon = await readFile(
-      new URL(
-        "../images/icon.png",
-        import.meta.url,
-      ),
-    );
-
-    assert.equal(
-      icon.subarray(1, 4).toString("ascii"),
-      "PNG",
-    );
-
-    assert.equal(icon.readUInt32BE(16), 512);
-    assert.equal(icon.readUInt32BE(20), 512);
   },
 );
 
@@ -222,6 +198,24 @@ test(
         "0.0.0.0",
       ),
     );
+  },
+);
+
+test(
+  "trusted analysis has a bounded production time budget",
+  () => {
+    const timeout =
+      manifest.contributes
+        .configuration
+        .properties[
+          "aegis.trustedAnalysisTimeoutSeconds"
+        ];
+
+    assert.equal(timeout.type, "number");
+    assert.equal(timeout.default, 600);
+    assert.equal(timeout.minimum, 60);
+    assert.equal(timeout.maximum, 900);
+    assert.equal(timeout.scope, "machine");
   },
 );
 

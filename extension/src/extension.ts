@@ -3668,8 +3668,12 @@ async function requestTrustedAnalysis(
     code: string;
     filename: string;
     language: string;
+    timeoutSeconds: number;
   },
 ): Promise<SecurityTaskRunResponse> {
+  const timeoutMilliseconds =
+    (input.timeoutSeconds + 15) * 1_000;
+
   return postBackendJson<
     SecurityTaskRunResponse
   >({
@@ -3687,11 +3691,15 @@ async function requestTrustedAnalysis(
       include_security_memory: true,
       include_policy_evaluation: true,
       policy_profile: "balanced",
-      timeout_seconds: 285,
+      timeout_seconds:
+        input.timeoutSeconds,
     },
-    timeoutMilliseconds: 300_000,
+    timeoutMilliseconds,
     timeoutMessage:
-      "Trusted Analysis timed out after five minutes.",
+      (
+        "Trusted Analysis timed out after "
+        + `${Math.ceil(input.timeoutSeconds / 60)} minutes.`
+      ),
   });
 }
 
@@ -3926,6 +3934,24 @@ async function runTrustedAnalysis():
       "http://127.0.0.1:8000",
     )
     .replace(/\/+$/u, "");
+  const configuredTimeoutSeconds =
+    configuration.get<number>(
+      "trustedAnalysisTimeoutSeconds",
+      600,
+    );
+  const timeoutSeconds = Math.min(
+    900,
+    Math.max(
+      60,
+      Number.isFinite(
+        configuredTimeoutSeconds,
+      )
+        ? Math.round(
+            configuredTimeoutSeconds,
+          )
+        : 600,
+    ),
+  );
 
   try {
     const repositoryRoot =
@@ -3976,6 +4002,7 @@ async function runTrustedAnalysis():
               code,
               filename,
               language,
+              timeoutSeconds,
             },
           ),
       );

@@ -596,7 +596,7 @@ test(
       "security_memory",
       "policy_decision",
       "audit_event_count",
-      "timeout_seconds: 285",
+      "timeout_seconds:",
       "artifact_manifest_sha256",
       "createHash",
       "sourceDigest",
@@ -646,6 +646,41 @@ test(
     assert.ok(
       source.includes(
         "matches repository provenance",
+      ),
+    );
+  },
+);
+
+test(
+  "trusted analysis reserves time for both model routes",
+  () => {
+    assert.ok(
+      source.includes(
+        '"trustedAnalysisTimeoutSeconds"',
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "timeout_seconds:\n        input.timeoutSeconds",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "(input.timeoutSeconds + 15) * 1_000",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "Math.min(\n    900",
+      ),
+    );
+
+    assert.ok(
+      source.includes(
+        "Math.max(\n      60",
       ),
     );
   },

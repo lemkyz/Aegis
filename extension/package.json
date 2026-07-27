@@ -5,11 +5,6 @@
   "version": "0.2.0",
   "publisher": "aegis",
   "preview": true,
-  "icon": "images/icon.png",
-  "galleryBanner": {
-    "color": "#0B1220",
-    "theme": "dark"
-  },
   "pricing": "Free",
   "markdown": "github",
   "qna": "https://github.com/lemkyz/Aegis/issues",
@@ -189,6 +184,14 @@
           "type": "string",
           "default": "http://127.0.0.1:8000",
           "description": "Address of the local Aegis backend."
+        },
+        "aegis.trustedAnalysisTimeoutSeconds": {
+          "type": "number",
+          "default": 600,
+          "minimum": 60,
+          "maximum": 900,
+          "scope": "machine",
+          "description": "Total time budget for the production Trusted Analysis workflow, including primary and verifier model routes."
         },
         "aegis.showModelRouteMetadata": {
           "type": "boolean",
