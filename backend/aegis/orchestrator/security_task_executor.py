@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 from aegis.orchestrator.security_task_execution import (
     SecurityTaskExecutionMachine,
@@ -10,8 +12,10 @@ from aegis.orchestrator.security_task_execution import (
 from aegis.orchestrator.security_task_handler import (
     SecurityTaskArtifact,
     SecurityTaskArtifactStore,
-    SecurityTaskExecutionCancelled,
+    SecurityTaskExecutionTimedOut,
+    SecurityTaskHandler,
     SecurityTaskHandlerContext,
+    SecurityTaskHandlerResult,
     SecurityTaskHandlerRegistry,
 )
 from aegis.schemas.security_task_plan import (
@@ -127,14 +131,6 @@ class SecurityTaskExecutor:
                 "not match the selected task kind."
             )
 
-        context.raise_if_cancelled()
-
-        inputs = (
-            artifact_store.resolve_inputs(
-                handler.capability
-            )
-        )
-
         gates = set(satisfied_gates)
 
         running_execution = (
@@ -151,10 +147,17 @@ class SecurityTaskExecutor:
         )
 
         try:
-            result = await handler.execute(
-                task=running_task.model_copy(
-                    deep=True
-                ),
+            context.raise_if_cancelled()
+
+            inputs = (
+                artifact_store.resolve_inputs(
+                    handler.capability
+                )
+            )
+
+            result = await self._execute_handler(
+                handler=handler,
+                task=running_task,
                 context=context,
                 inputs=inputs,
             )
@@ -190,10 +193,7 @@ class SecurityTaskExecutor:
                 success=True,
             )
 
-        except (
-            SecurityTaskExecutionCancelled,
-            Exception,
-        ) as exc:
+        except Exception as exc:
             error = self._error_message(exc)
 
             failed_execution = (
@@ -212,6 +212,71 @@ class SecurityTaskExecutor:
                 success=False,
                 error=error,
             )
+
+    @staticmethod
+    async def _execute_handler(
+        *,
+        handler: SecurityTaskHandler,
+        task: SecurityTaskNode,
+        context: SecurityTaskHandlerContext,
+        inputs: Mapping[str, Any],
+    ) -> SecurityTaskHandlerResult:
+        async def invoke(
+        ) -> SecurityTaskHandlerResult:
+            return await handler.execute(
+                task=task.model_copy(
+                    deep=True
+                ),
+                context=context,
+                inputs=inputs,
+            )
+
+        handler_task = asyncio.create_task(
+            invoke()
+        )
+
+        try:
+            while True:
+                context.raise_if_cancelled()
+                remaining = (
+                    context.remaining_seconds()
+                )
+                poll_seconds = 0.1
+
+                if remaining is not None:
+                    if remaining <= 0:
+                        raise (
+                            SecurityTaskExecutionTimedOut(
+                                "Security task "
+                                "execution exceeded "
+                                "its time budget."
+                            )
+                        )
+
+                    poll_seconds = min(
+                        poll_seconds,
+                        remaining,
+                    )
+
+                done, _pending = (
+                    await asyncio.wait(
+                        {handler_task},
+                        timeout=poll_seconds,
+                    )
+                )
+
+                if done:
+                    return await handler_task
+        except BaseException:
+            if not handler_task.done():
+                handler_task.cancel()
+
+                with suppress(
+                    asyncio.CancelledError
+                ):
+                    await handler_task
+
+            raise
 
     @staticmethod
     def _task(

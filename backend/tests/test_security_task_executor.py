@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any, Mapping
 
 import pytest
@@ -144,6 +145,25 @@ class MutatingTaskHandler:
             output={
                 "repository_context": {},
             },
+        )
+
+
+class SlowContextHandler(
+    RepositoryContextHandler
+):
+    async def execute(
+        self,
+        *,
+        task: SecurityTaskNode,
+        context: SecurityTaskHandlerContext,
+        inputs: Mapping[str, Any],
+    ) -> SecurityTaskHandlerResult:
+        await asyncio.sleep(0.1)
+
+        return await super().execute(
+            task=task,
+            context=context,
+            inputs=inputs,
         )
 
 
@@ -436,23 +456,129 @@ def test_cancelled_execution_marks_task_failed() -> None:
         machine=machine,
     )
 
-    with pytest.raises(
-        Exception,
-        match="cancelled",
-    ):
-        execute(
-            executor.execute_task(
-                execution=execution,
-                task_id="repository_context",
-                context=context(
-                    execution.execution_id,
-                    cancelled=True,
-                ),
-                artifact_store=(
-                    SecurityTaskArtifactStore()
-                ),
-            )
+    step = execute(
+        executor.execute_task(
+            execution=execution,
+            task_id="repository_context",
+            context=context(
+                execution.execution_id,
+                cancelled=True,
+            ),
+            artifact_store=(
+                SecurityTaskArtifactStore()
+            ),
         )
+    )
+
+    assert step.success is False
+    assert step.error == (
+        "Security task execution was cancelled."
+    )
+    assert task_state(
+        step.execution,
+        "repository_context",
+    ) == "failed"
+    assert any(
+        event.event_type == "task_failed"
+        and event.task_id
+        == "repository_context"
+        for event in step.execution.events
+    )
+
+
+def test_execution_budget_timeout_is_audited(
+) -> None:
+    machine = SecurityTaskExecutionMachine(
+        id_factory=lambda: "execution:test",
+    )
+    execution = machine.create(plan())
+    executor = SecurityTaskExecutor(
+        registry=registry(
+            SlowContextHandler(),
+        ),
+        machine=machine,
+    )
+    timed_context = SecurityTaskHandlerContext(
+        execution_id=execution.execution_id,
+        operation="fast_scan",
+        deadline_monotonic=(
+            time.monotonic() + 0.01
+        ),
+    )
+
+    step = execute(
+        executor.execute_task(
+            execution=execution,
+            task_id="repository_context",
+            context=timed_context,
+            artifact_store=(
+                SecurityTaskArtifactStore()
+            ),
+        )
+    )
+
+    assert step.success is False
+    assert step.error == (
+        "Security task execution exceeded "
+        "its time budget."
+    )
+    assert task_state(
+        step.execution,
+        "repository_context",
+    ) == "failed"
+    assert any(
+        event.event_type == "task_failed"
+        for event in step.execution.events
+    )
+
+
+def test_mid_handler_cancellation_is_audited(
+) -> None:
+    machine = SecurityTaskExecutionMachine(
+        id_factory=lambda: "execution:test",
+    )
+    execution = machine.create(plan())
+    executor = SecurityTaskExecutor(
+        registry=registry(
+            SlowContextHandler(),
+        ),
+        machine=machine,
+    )
+    cancel_at = time.monotonic() + 0.01
+    cancelled_context = (
+        SecurityTaskHandlerContext(
+            execution_id=(
+                execution.execution_id
+            ),
+            operation="fast_scan",
+            cancellation_requested=(
+                lambda: (
+                    time.monotonic()
+                    >= cancel_at
+                )
+            ),
+        )
+    )
+
+    step = execute(
+        executor.execute_task(
+            execution=execution,
+            task_id="repository_context",
+            context=cancelled_context,
+            artifact_store=(
+                SecurityTaskArtifactStore()
+            ),
+        )
+    )
+
+    assert step.success is False
+    assert step.error == (
+        "Security task execution was cancelled."
+    )
+    assert task_state(
+        step.execution,
+        "repository_context",
+    ) == "failed"
 
 
 def test_handler_receives_task_copy() -> None:

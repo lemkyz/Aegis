@@ -596,6 +596,11 @@ test(
       "security_memory",
       "policy_decision",
       "audit_event_count",
+      "timeout_seconds: 285",
+      "artifact_manifest_sha256",
+      "createHash",
+      "sourceDigest",
+      "backend integrity attestation",
       "Security Memory is present only when scanner coverage",
     ]) {
       assert.ok(

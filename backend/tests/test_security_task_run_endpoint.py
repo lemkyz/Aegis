@@ -31,6 +31,7 @@ from aegis.schemas.security_task_plan import (
     SecurityTaskPlanRequest,
 )
 from aegis.schemas.security_task_run import (
+    SecurityTaskRunIntegrity,
     SecurityTaskRunResponse,
 )
 
@@ -45,7 +46,10 @@ class FakeProductionRunner:
     async def run(
         self,
         request,
+        *,
+        cancellation_requested=None,
     ) -> SecurityTaskRunResponse:
+        assert cancellation_requested is not None
         self.requests.append(request)
         plan = SecurityTaskPlanner().plan(
             SecurityTaskPlanRequest(
@@ -79,6 +83,18 @@ class FakeProductionRunner:
                 findings=[],
                 claims=[],
             ),
+            integrity=SecurityTaskRunIntegrity(
+                source_sha256="0" * 64,
+                repository_revision=(
+                    "working-tree:test"
+                ),
+                plan_sha256="1" * 64,
+                audit_sha256="2" * 64,
+                artifact_manifest_sha256=(
+                    "3" * 64
+                ),
+                verified=True,
+            ),
         )
 
 
@@ -86,8 +102,11 @@ class FailingProductionRunner:
     async def run(
         self,
         request,
+        *,
+        cancellation_requested=None,
     ) -> SecurityTaskRunResponse:
         del request
+        del cancellation_requested
         raise RuntimeError(
             "sensitive-provider-detail"
         )

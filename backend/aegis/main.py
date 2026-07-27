@@ -1,7 +1,15 @@
+import asyncio
+from contextlib import suppress
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+    Request,
+)
 
 from aegis.config.settings import get_settings
 from aegis.dependencies import (
@@ -535,17 +543,37 @@ async def aggregate_security_task_execution(
     response_model=SecurityTaskRunResponse,
 )
 async def run_security_task_workflow(
-    request: SecurityTaskRunRequest,
+    payload: SecurityTaskRunRequest,
+    request: Request,
 ) -> SecurityTaskRunResponse:
     """
     Execute the production deep-analysis task graph
     through registered handlers and return its audit,
     evidence, memory, and policy artifacts.
     """
+    cancellation = asyncio.Event()
+
+    async def watch_disconnect() -> None:
+        while not cancellation.is_set():
+            if await request.is_disconnected():
+                cancellation.set()
+                return
+
+            await asyncio.sleep(0.1)
+
+    watcher = asyncio.create_task(
+        watch_disconnect()
+    )
+
     try:
         return (
             await security_task_production_runner
-            .run(request)
+            .run(
+                payload,
+                cancellation_requested=(
+                    cancellation.is_set
+                ),
+            )
         )
     except (
         SecurityTaskProductionError,
@@ -563,6 +591,14 @@ async def run_security_task_workflow(
                 "failed safely."
             ),
         ) from exc
+    finally:
+        cancellation.set()
+        watcher.cancel()
+
+        with suppress(
+            asyncio.CancelledError
+        ):
+            await watcher
 
 
 @app.get("/health")

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TypeVar
+import time
+from typing import Callable, TypeVar
 
 from pydantic import BaseModel
 
@@ -15,6 +16,9 @@ from aegis.orchestrator.security_task_handler import (
     SecurityTaskArtifactStore,
     SecurityTaskHandlerContext,
     SecurityTaskHandlerRegistry,
+)
+from aegis.orchestrator.security_task_integrity import (
+    SecurityTaskIntegrityVerifier,
 )
 from aegis.orchestrator.security_task_planner import (
     SecurityTaskPlanner,
@@ -44,6 +48,7 @@ from aegis.schemas.security_task_plan import (
     SecurityTaskPlanRequest,
 )
 from aegis.schemas.security_task_run import (
+    SecurityTaskRunIntegrity,
     SecurityTaskRunRequest,
     SecurityTaskRunResponse,
 )
@@ -52,6 +57,9 @@ from aegis.schemas.threat_model import (
 )
 from aegis.security.claim_adapter import (
     finding_to_claim,
+)
+from aegis.security.project_identity import (
+    ProjectIdentityResolver,
 )
 
 
@@ -86,6 +94,14 @@ class SecurityTaskProductionRunner:
             SecurityTaskWorkflowRunner
             | None
         ) = None,
+        integrity_verifier: (
+            SecurityTaskIntegrityVerifier
+            | None
+        ) = None,
+        identity_resolver: (
+            ProjectIdentityResolver
+            | None
+        ) = None,
     ) -> None:
         self._planner = (
             planner
@@ -107,13 +123,33 @@ class SecurityTaskProductionRunner:
                 ),
             )
         )
+        self._integrity = (
+            integrity_verifier
+            or SecurityTaskIntegrityVerifier()
+        )
+        self._identity = (
+            identity_resolver
+            or ProjectIdentityResolver()
+        )
 
     async def run(
         self,
         request: SecurityTaskRunRequest,
+        *,
+        cancellation_requested: (
+            Callable[[], bool]
+            | None
+        ) = None,
     ) -> SecurityTaskRunResponse:
+        deadline = (
+            time.monotonic()
+            + request.timeout_seconds
+        )
         repository_root = self._repository_root(
             request
+        )
+        repository = self._identity.resolve(
+            repository_root
         )
         plan = self._planner.plan(
             SecurityTaskPlanRequest(
@@ -203,6 +239,13 @@ class SecurityTaskProductionRunner:
                     ],
                 },
             },
+            cancellation_requested=(
+                cancellation_requested
+                if cancellation_requested
+                is not None
+                else lambda: False
+            ),
+            deadline_monotonic=deadline,
         )
         result = await self._workflow.run(
             execution=execution,
@@ -210,11 +253,26 @@ class SecurityTaskProductionRunner:
             artifact_store=artifact_store,
             satisfied_gates=gates,
         )
+        observed_repository = (
+            self._identity.resolve(
+                repository_root
+            )
+        )
+        integrity = self._integrity.attest(
+            source_code=request.code,
+            result=result,
+            artifacts=artifact_store,
+            expected_repository=repository,
+            observed_repository=(
+                observed_repository
+            ),
+        )
 
         return self._response(
             request=request,
             result=result,
             artifacts=artifact_store,
+            integrity=integrity,
         )
 
     @staticmethod
@@ -327,6 +385,7 @@ class SecurityTaskProductionRunner:
         request: SecurityTaskRunRequest,
         result: SecurityTaskWorkflowResult,
         artifacts: SecurityTaskArtifactStore,
+        integrity: SecurityTaskRunIntegrity,
     ) -> SecurityTaskRunResponse:
         verified_findings = (
             self._findings(
@@ -442,6 +501,7 @@ class SecurityTaskProductionRunner:
                     SecurityPolicyTaskArtifact,
                 )
             ),
+            integrity=integrity,
             errors=list(result.errors),
         )
 

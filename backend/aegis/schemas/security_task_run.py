@@ -47,6 +47,11 @@ class SecurityTaskRunRequest(BaseModel):
     include_security_memory: bool = True
     include_policy_evaluation: bool = True
     policy_profile: PolicyProfile = "balanced"
+    timeout_seconds: float = Field(
+        default=300.0,
+        ge=1.0,
+        le=900.0,
+    )
 
     @model_validator(mode="after")
     def validate_run_request(
@@ -113,6 +118,27 @@ class SecurityTaskRunRequest(BaseModel):
         return self
 
 
+class SecurityTaskRunIntegrity(BaseModel):
+    algorithm: Literal["sha256"] = "sha256"
+    source_sha256: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    repository_revision: str = Field(
+        min_length=1,
+        max_length=300,
+    )
+    plan_sha256: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    audit_sha256: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    artifact_manifest_sha256: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    verified: bool
+
+
 class SecurityTaskRunResponse(BaseModel):
     runner: str
     workflow_status: Literal[
@@ -137,6 +163,7 @@ class SecurityTaskRunResponse(BaseModel):
         SecurityPolicyTaskArtifact
         | None
     ) = None
+    integrity: SecurityTaskRunIntegrity
     errors: list[str] = Field(
         default_factory=list,
     )

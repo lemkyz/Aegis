@@ -43,6 +43,9 @@ from aegis.security.dynamic_claim_evidence import (
 from aegis.security.memory_policy import (
     MemoryAwarePolicyEngine,
 )
+from aegis.security.project_identity import (
+    ProjectIdentityResolver,
+)
 from aegis.security.redaction import (
     RedactionSession,
     SecretRedactor,
@@ -122,6 +125,10 @@ class SecurityMemoryTaskHandler:
         ) = None,
         redactor: SecretRedactor
         | None = None,
+        identity_resolver: (
+            ProjectIdentityResolver
+            | None
+        ) = None,
     ) -> None:
         if (
             memory_service is not None
@@ -144,6 +151,10 @@ class SecurityMemoryTaskHandler:
             redactor
             if redactor is not None
             else SecretRedactor()
+        )
+        self._identity = (
+            identity_resolver
+            or ProjectIdentityResolver()
         )
 
     async def execute(
@@ -230,6 +241,8 @@ class SecurityMemoryTaskHandler:
         if (
             memory.repository.project_id
             != repository.project_id
+            or memory.repository.revision
+            != repository.revision
             or Path(
                 memory.repository.repository_root
             ).resolve()
@@ -477,8 +490,8 @@ class SecurityMemoryTaskHandler:
                 "contains an invalid claim."
             ) from exc
 
-    @staticmethod
     def _repository(
+        self,
         *,
         context: SecurityTaskHandlerContext,
         inputs: Mapping[str, Any],
@@ -530,6 +543,21 @@ class SecurityMemoryTaskHandler:
                 "Security-memory repository "
                 "provenance does not match the "
                 "active repository."
+            )
+
+        current = self._identity.resolve(
+            active_root
+        )
+
+        if (
+            current.project_id
+            != repository.project_id
+            or current.revision
+            != repository.revision
+        ):
+            raise SecurityTaskInputError(
+                "Repository revision changed before "
+                "security memory could be recorded."
             )
 
         return repository

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
+import time
 from types import MappingProxyType
 from typing import (
     Any,
@@ -53,6 +54,12 @@ class DuplicateSecurityTaskArtifactError(
 
 
 class SecurityTaskExecutionCancelled(
+    SecurityTaskHandlerError
+):
+    pass
+
+
+class SecurityTaskExecutionTimedOut(
     SecurityTaskHandlerError
 ):
     pass
@@ -155,6 +162,19 @@ class SecurityTaskHandlerContext:
         repr=False,
         compare=False,
     )
+    deadline_monotonic: float | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
+    monotonic_clock: Callable[
+        [],
+        float,
+    ] = field(
+        default=time.monotonic,
+        repr=False,
+        compare=False,
+    )
 
     def __post_init__(self) -> None:
         if not self.execution_id.strip():
@@ -184,9 +204,30 @@ class SecurityTaskHandlerContext:
     def raise_if_cancelled(self) -> None:
         if self.cancellation_requested():
             raise SecurityTaskExecutionCancelled(
-                "Security task execution was "
-                "cancelled before handler invocation."
+                "Security task execution was cancelled."
             )
+
+        remaining = self.remaining_seconds()
+
+        if (
+            remaining is not None
+            and remaining <= 0
+        ):
+            raise SecurityTaskExecutionTimedOut(
+                "Security task execution exceeded "
+                "its time budget."
+            )
+
+    def remaining_seconds(
+        self,
+    ) -> float | None:
+        if self.deadline_monotonic is None:
+            return None
+
+        return (
+            self.deadline_monotonic
+            - self.monotonic_clock()
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -404,6 +445,11 @@ class SecurityTaskArtifactStore:
         name: str,
     ) -> bool:
         return name in self._artifacts
+
+    def names(self) -> tuple[str, ...]:
+        return tuple(
+            sorted(self._artifacts)
+        )
 
     def artifact(
         self,

@@ -21,6 +21,7 @@ def test_release_smoke_covers_live_backend() -> None:
     assert "uvicorn" in text
     assert "/health" in text
     assert "/openapi.json" in text
+    assert "/v1/security/tasks/run" in text
     assert "process.terminate()" in text
     assert "process.kill()" in text
 

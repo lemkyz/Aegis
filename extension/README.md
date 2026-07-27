@@ -29,6 +29,9 @@ security-task graph and opens one report containing:
 - immutable project security memory
 - the final allow, review, or block policy decision
 - append-only execution audit metadata
+- verified source, plan, audit, and artifact-manifest hashes
 
 Partial scanner or consensus coverage is reported as incomplete
 and is never persisted as a clean project baseline.
+The extension also checks that the returned source hash matches
+the saved file before displaying a trusted result.

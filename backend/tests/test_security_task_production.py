@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -385,6 +386,21 @@ def test_production_run_completes_trust_pipeline(
         result.aggregation.audit_event_count
         == 33
     )
+    assert result.integrity.verified is True
+    assert (
+        result.integrity.source_sha256
+        == hashlib.sha256(
+            request(root).code.encode("utf-8")
+        ).hexdigest()
+    )
+    assert (
+        result.integrity.repository_revision
+        == result.security_memory
+        .memory.repository.revision
+    )
+    assert len(
+        result.integrity.audit_sha256
+    ) == 64
     assert len(memory.history(root)) == 1
 
 
@@ -432,6 +448,21 @@ def test_run_request_rejects_unsafe_filename(
         )
 
 
+def test_run_request_bounds_execution_timeout(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(
+        ValidationError,
+        match="less than or equal to 900",
+    ):
+        SecurityTaskRunRequest(
+            repository_path=str(tmp_path),
+            code="print('safe')",
+            filename="app.py",
+            timeout_seconds=901,
+        )
+
+
 def test_production_run_rejects_stale_source(
     tmp_path: Path,
 ) -> None:
@@ -455,3 +486,39 @@ def test_production_run_rejects_stale_source(
                 )
             ).run(stale_request)
         )
+
+
+def test_cancelled_production_run_fails_with_audit(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    memory = memory_service(tmp_path)
+    result = run(
+        SecurityTaskProductionRunner(
+            registry=registry(
+                scanner=ProductionScanner(),
+                memory=memory,
+            )
+        ).run(
+            request(root),
+            cancellation_requested=(
+                lambda: True
+            ),
+        )
+    )
+
+    assert result.workflow_status == "failed"
+    assert result.integrity.verified is True
+    assert (
+        result.aggregation.failed_task_ids
+        == ["repository_context"]
+    )
+    assert any(
+        event.event_type == "task_failed"
+        and event.task_id
+        == "repository_context"
+        for event in result.execution.events
+    )
+    assert result.security_memory is None
+    assert result.policy_decision is None
+    assert memory.history(root) == []

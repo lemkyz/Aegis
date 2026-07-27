@@ -122,7 +122,10 @@ The patch failed verification because at least one of the following occurred:
 - claim lifecycle reconciliation
 - deterministic allow, review, or block policy output
 - production security-task execution with append-only audit events
+- SHA-256 attestations for source, plan, audit, and artifact manifests
+- execution deadlines and client-disconnect cancellation
 - Trusted Analysis reports spanning evidence, threat, memory, and policy
+- real Git repository acceptance coverage for block, fix, and resolution
 - persistent reports inside VS Code
 
 ## Safety model
@@ -283,6 +286,15 @@ Compile the extension:
 cd extension
 npm run compile
 ```
+
+Run the complete pre-release gate:
+
+```bash
+./scripts/run-release-readiness.sh
+```
+
+See [the release checklist](docs/RELEASE_CHECKLIST.md) for the manual checks
+that remain after the automated gate passes.
 
 ## Dynamic replay smoke fixture
 

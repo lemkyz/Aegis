@@ -197,6 +197,7 @@ def validate_live_backend(
             "/v1/analyze/deep",
             "/v1/attack-surface/scan",
             "/v1/threat-model/scan",
+            "/v1/security/tasks/run",
         }
 
         missing = required_paths - set(paths)

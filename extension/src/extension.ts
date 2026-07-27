@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import * as path from "node:path";
 import { readdir, stat } from "node:fs/promises";
 import { promisify } from "node:util";
@@ -1053,6 +1054,15 @@ interface SecurityTaskRunResponse {
     SecurityMemoryTaskArtifact | null;
   policy_decision:
     SecurityPolicyTaskArtifact | null;
+  integrity: {
+    algorithm: "sha256";
+    source_sha256: string;
+    repository_revision: string;
+    plan_sha256: string;
+    audit_sha256: string;
+    artifact_manifest_sha256: string;
+    verified: boolean;
+  };
   errors: string[];
 }
 
@@ -3677,6 +3687,7 @@ async function requestTrustedAnalysis(
       include_security_memory: true,
       include_policy_evaluation: true,
       policy_profile: "balanced",
+      timeout_seconds: 285,
     },
     timeoutMilliseconds: 300_000,
     timeoutMessage:
@@ -3731,6 +3742,7 @@ function buildTrustedAnalysisReport(
     `- **Execution ID:** \`${escapeMarkdownInlineCode(result.execution.execution_id)}\``,
     `- **Execution State:** ${result.execution.status.toUpperCase()}`,
     `- **Audit Events:** ${result.aggregation.audit_event_count}`,
+    `- **Integrity:** ${result.integrity.verified ? "VERIFIED" : "FAILED"}`,
     `- **Completed Tasks:** ${result.aggregation.completed_task_ids.length}`,
     `- **Failed Tasks:** ${result.aggregation.failed_task_ids.length}`,
     `- **Blocked Tasks:** ${result.aggregation.blocked_task_ids.length}`,
@@ -3835,6 +3847,14 @@ function buildTrustedAnalysisReport(
     "---",
     "",
     analysisReport,
+    "",
+    "## Integrity",
+    "",
+    `- **Repository revision:** \`${escapeMarkdownInlineCode(result.integrity.repository_revision)}\``,
+    `- **Source SHA-256:** \`${result.integrity.source_sha256}\``,
+    `- **Plan SHA-256:** \`${result.integrity.plan_sha256}\``,
+    `- **Audit SHA-256:** \`${result.integrity.audit_sha256}\``,
+    `- **Artifact manifest SHA-256:** \`${result.integrity.artifact_manifest_sha256}\``,
     "",
     "## Audit Boundary",
     "",
@@ -3959,6 +3979,24 @@ async function runTrustedAnalysis():
             },
           ),
       );
+    const sourceDigest = createHash(
+      "sha256",
+    ).update(
+      code,
+      "utf-8",
+    ).digest("hex");
+
+    if (
+      !result.integrity.verified
+      || result.integrity.algorithm
+      !== "sha256"
+      || result.integrity.source_sha256
+      !== sourceDigest
+    ) {
+      throw new Error(
+        "The backend integrity attestation does not match the saved source file.",
+      );
+    }
 
     lastAnalysis = {
       documentUri:
