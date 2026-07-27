@@ -19,6 +19,9 @@ from aegis.schemas.model_verification import (
     FindingVerification,
     VerifierReviewResult,
 )
+from aegis.security.secure_fix import (
+    SecureFixTransactionStore,
+)
 
 
 class FakeResolvedProject:
@@ -201,10 +204,12 @@ def test_deep_analysis_registry_contains_full_pipeline() -> None:
         "dependency_scan",
         "deterministic_scan",
         "dynamic_validation",
+        "fix_verification",
         "model_consensus",
         "primary_model_review",
         "repository_context",
         "secret_analysis",
+        "secure_fix",
         "threat_model",
         "verifier_review",
     )
@@ -265,6 +270,52 @@ def test_deep_registry_rejects_blank_fingerprint_key() -> None:
                 FakeVerifierClient()
             ),
         )
+
+
+def test_fix_handlers_share_transaction_store() -> None:
+    transactions = SecureFixTransactionStore(
+        id_factory=lambda: (
+            "fix:registry-test"
+        ),
+    )
+    registry = (
+        create_deep_analysis_security_task_registry(
+            project_identity_resolver=(
+                FakeProjectIdentityResolver()
+            ),
+            scanner_orchestrator=(
+                FakeScannerOrchestrator()
+            ),
+            primary_client=(
+                FakePrimaryClient()
+            ),
+            verifier_client=(
+                FakeVerifierClient()
+            ),
+            secure_fix_transaction_store=(
+                transactions
+            ),
+        )
+    )
+
+    assert (
+        registry.resolve(
+            "secure_fix"
+        )._transactions
+        is transactions
+    )
+    assert (
+        registry.resolve(
+            "fix_verification"
+        )._transactions
+        is transactions
+    )
+    assert (
+        registry.resolve(
+            "dynamic_validation"
+        )._transactions
+        is transactions
+    )
 
 
 import asyncio

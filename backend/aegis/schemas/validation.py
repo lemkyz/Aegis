@@ -369,6 +369,15 @@ class DynamicValidationTaskArtifact(BaseModel):
     authorization: ValidationAuthorizationResponse
     execution_plan: ValidationExecutionPlanResponse
     replay: ValidationReplayResponse
+    fix_verification: (
+        "UnifiedFixVerificationResponse"
+    )
+    transaction_state: Literal[
+        "pending",
+        "committed",
+        "rolled_back",
+        "rollback_blocked",
+    ]
     outputs_redacted: bool
 
 
@@ -443,3 +452,6 @@ class UnifiedFixVerificationResponse(BaseModel):
     failed_checks: list[str] = Field(
         default_factory=list,
     )
+
+
+DynamicValidationTaskArtifact.model_rebuild()

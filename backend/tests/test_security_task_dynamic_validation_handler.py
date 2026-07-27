@@ -17,6 +17,14 @@ from aegis.orchestrator.security_task_handlers import (
 from aegis.schemas.security_task_plan import (
     SecurityTaskNode,
 )
+from aegis.schemas.change_policy import (
+    ChangePolicyDecisionResponse,
+    ChangePolicySummary,
+)
+from aegis.schemas.fixes import (
+    AppliedPatchArtifact,
+    StaticFixVerificationArtifact,
+)
 from aegis.schemas.validation import (
     DynamicValidationEvidenceRequest,
     DynamicValidationTaskArtifact,
@@ -33,6 +41,9 @@ from aegis.security.validation_evidence import (
 )
 from aegis.security.validation_replay import (
     ValidationReplayComparator,
+)
+from aegis.security.secure_fix import (
+    SecureFixTransactionStore,
 )
 
 
@@ -263,11 +274,150 @@ def context(
 
 
 def inputs() -> dict:
+    policy = ChangePolicyDecisionResponse(
+        engine="test-policy",
+        policy_version="1.0",
+        profile="balanced",
+        decision="allow",
+        risk_score=0,
+        risk_level="none",
+        blocking_paths=[],
+        review_paths=[],
+        assessments=[],
+        summary=ChangePolicySummary(
+            files_evaluated=0,
+            allowed=0,
+            review_required=0,
+            blocked=0,
+            highest_risk_score=0,
+            highest_risk_level="none",
+            sensitive_files=0,
+            dangerous_patterns=0,
+            truncated_files=0,
+            binary_files=0,
+        ),
+        reasons=[],
+    )
+    applied = AppliedPatchArtifact(
+        handler="test-secure-fix",
+        transaction_id="fix:test",
+        claim_id="claim-command-001",
+        target_path="app.py",
+        approval_id="approval:test",
+        patch_sha256="0" * 64,
+        before_sha256="1" * 64,
+        after_sha256="2" * 64,
+        changed_characters=10,
+        policy=policy,
+        transaction_state="pending",
+        outputs_redacted=True,
+    )
+    verification = (
+        StaticFixVerificationArtifact(
+            handler="test-fix-verification",
+            source_artifacts=[
+                "applied_patch",
+            ],
+            applied_patch=applied,
+            verifier="test-static-verifier",
+            project_checks=[
+                {
+                    "name": "Tests",
+                    "status": "passed",
+                    "details": "Passed.",
+                }
+            ],
+            security_delta={
+                "scanner": "test-scanner",
+                "before_scan_sha256": (
+                    "3" * 64
+                ),
+                "after_scan_sha256": (
+                    "4" * 64
+                ),
+                "target_finding_ids": [
+                    "finding:target",
+                ],
+                "remaining_target_finding_ids": [],
+                "introduced_finding_ids": [],
+            },
+            static_target_resolved=True,
+            static_regression_free=True,
+            verdict="awaiting_dynamic",
+            ready_for_dynamic=True,
+            transaction_state="pending",
+            reasons=[],
+            outputs_redacted=True,
+        )
+    )
+
     return {
-        "fix_verification_result": {
-            "status": "completed",
-        },
+        "fix_verification_result": (
+            verification.model_dump(
+                mode="json"
+            )
+        ),
     }
+
+
+def pending_transaction_inputs(
+    repository_root: Path,
+    store: SecureFixTransactionStore,
+) -> tuple[dict, str]:
+    target = repository_root / "app.py"
+    original = b"unsafe = True\n"
+    updated = b"unsafe = False\n"
+    target.write_bytes(original)
+    transaction = store.begin(
+        target=target,
+        original_content=original,
+        updated_content=updated,
+        file_mode=target.stat().st_mode,
+    )
+    store.atomic_write(
+        target,
+        updated,
+        file_mode=target.stat().st_mode,
+    )
+    verification = (
+        StaticFixVerificationArtifact
+        .model_validate(
+            inputs()[
+                "fix_verification_result"
+            ]
+        )
+    )
+    applied = (
+        verification.applied_patch
+        .model_copy(
+            deep=True,
+            update={
+                "transaction_id": (
+                    transaction.transaction_id
+                ),
+                "before_sha256": (
+                    transaction.before_sha256
+                ),
+                "after_sha256": (
+                    transaction.after_sha256
+                ),
+            },
+        )
+    )
+    resolved = verification.model_copy(
+        deep=True,
+        update={
+            "applied_patch": applied,
+        },
+    )
+
+    return {
+        "fix_verification_result": (
+            resolved.model_dump(
+                mode="json"
+            )
+        ),
+    }, transaction.transaction_id
 
 
 def test_authorized_replay_emits_auditable_artifact(
@@ -330,6 +480,13 @@ def test_authorized_replay_emits_auditable_artifact(
     ) is True
     assert artifact.replay.comparison.verdict == (
         "fixed"
+    )
+    assert (
+        artifact.fix_verification.verdict
+        == "verified"
+    )
+    assert artifact.transaction_state == (
+        "pending"
     )
     assert artifact.outputs_redacted is True
     assert artifact.source_artifacts == [
@@ -499,6 +656,10 @@ def test_runtime_failure_remains_inconclusive(
         artifact.replay.comparison.verdict
     ) == "inconclusive"
     assert artifact.replay.comparison.fixed is False
+    assert (
+        artifact.fix_verification.verdict
+        == "inconclusive"
+    )
 
 
 def test_handler_redacts_injected_replay_output(
@@ -562,3 +723,177 @@ def test_handler_redacts_injected_replay_output(
     assert "<AEGIS_REDACTED_SECRET_" in (
         serialized
     )
+
+
+def test_verified_replay_commits_pending_fix(
+    tmp_path: Path,
+) -> None:
+    request = replay_request(
+        tmp_path
+    )
+    store = SecureFixTransactionStore(
+        id_factory=lambda: "fix:dynamic",
+    )
+    fix_inputs, transaction_id = (
+        pending_transaction_inputs(
+            tmp_path,
+            store,
+        )
+    )
+    handler = DynamicValidationTaskHandler(
+        replay_orchestrator=(
+            RecordingReplayOrchestrator()
+        ),
+        transactions=store,
+    )
+
+    result = run(
+        handler.execute(
+            task=task(),
+            context=context(
+                tmp_path,
+                request,
+            ),
+            inputs=fix_inputs,
+        )
+    )
+    artifact = (
+        DynamicValidationTaskArtifact
+        .model_validate(
+            result.output[
+                "dynamic_validation_evidence"
+            ]
+        )
+    )
+
+    assert artifact.fix_verification.verified
+    assert artifact.transaction_state == (
+        "committed"
+    )
+    assert not store.contains(
+        transaction_id
+    )
+    assert (
+        tmp_path / "app.py"
+    ).read_bytes() == b"unsafe = False\n"
+
+
+def test_still_exploitable_replay_rolls_back_fix(
+    tmp_path: Path,
+) -> None:
+    request = replay_request(
+        tmp_path
+    )
+    store = SecureFixTransactionStore(
+        id_factory=lambda: "fix:dynamic",
+    )
+    fix_inputs, transaction_id = (
+        pending_transaction_inputs(
+            tmp_path,
+            store,
+        )
+    )
+
+    def response_factory(
+        value: ValidationReplayRequest,
+    ) -> ValidationReplayResponse:
+        return replay_response(
+            value,
+            after_execution=execution(
+                stdout=(
+                    f"{EXPLOIT_MARKER}\n"
+                ),
+            ),
+        )
+
+    handler = DynamicValidationTaskHandler(
+        replay_orchestrator=(
+            RecordingReplayOrchestrator(
+                response_factory=(
+                    response_factory
+                ),
+            )
+        ),
+        transactions=store,
+    )
+
+    result = run(
+        handler.execute(
+            task=task(),
+            context=context(
+                tmp_path,
+                request,
+            ),
+            inputs=fix_inputs,
+        )
+    )
+    artifact = (
+        DynamicValidationTaskArtifact
+        .model_validate(
+            result.output[
+                "dynamic_validation_evidence"
+            ]
+        )
+    )
+
+    assert (
+        artifact.fix_verification.verdict
+        == "still_exploitable"
+    )
+    assert artifact.transaction_state == (
+        "rolled_back"
+    )
+    assert not store.contains(
+        transaction_id
+    )
+    assert (
+        tmp_path / "app.py"
+    ).read_bytes() == b"unsafe = True\n"
+
+
+def test_invalid_replay_contract_rolls_back_fix(
+    tmp_path: Path,
+) -> None:
+    store = SecureFixTransactionStore(
+        id_factory=lambda: "fix:dynamic",
+    )
+    fix_inputs, transaction_id = (
+        pending_transaction_inputs(
+            tmp_path,
+            store,
+        )
+    )
+    invalid_context = (
+        SecurityTaskHandlerContext(
+            execution_id=(
+                "execution:dynamic-validation"
+            ),
+            operation="fix_and_verify",
+            language="python",
+            repository_root=str(
+                tmp_path
+            ),
+            metadata={},
+        )
+    )
+
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="requires a valid",
+    ):
+        run(
+            DynamicValidationTaskHandler(
+                transactions=store,
+            ).execute(
+                task=task(),
+                context=invalid_context,
+                inputs=fix_inputs,
+            )
+        )
+
+    assert not store.contains(
+        transaction_id
+    )
+    assert (
+        tmp_path / "app.py"
+    ).read_bytes() == b"unsafe = True\n"

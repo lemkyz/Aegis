@@ -94,7 +94,14 @@ def test_dry_run_blocks_execution_but_preserves_scope() -> None:
         "dynamic_validation",
     )
 
-    assert result.status == "partial"
+    assert result.status == "blocked"
+    assert (
+        task_by_id(
+            result,
+            "secure_fix",
+        ).state
+        == "blocked"
+    )
     assert validation.state == "blocked"
     assert any(
         "Dry-run mode prevents execution" in reason

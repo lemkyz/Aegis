@@ -21,6 +21,10 @@ from aegis.orchestrator.security_task_dynamic_validation_handler import (
     DynamicValidationTaskHandler,
     ValidationReplayExecutor,
 )
+from aegis.orchestrator.security_task_fix_handlers import (
+    FixVerificationTaskHandler,
+    SecureFixTaskHandler,
+)
 from aegis.orchestrator.security_task_model_handlers import (
     ModelConsensusTaskHandler,
     PrimaryModelReviewTaskHandler,
@@ -60,6 +64,12 @@ from aegis.security.threat_model import ThreatModeler
 from aegis.security.validation_plan import (
     ValidationPlanBuilder,
 )
+from aegis.security.change_policy import (
+    ChangeAwarePolicyEngine,
+)
+from aegis.security.secure_fix import (
+    SecureFixTransactionStore,
+)
 from aegis.orchestrator.security_task_handler import (
     SecurityTaskHandlerContractError,
 )
@@ -98,6 +108,14 @@ def create_deep_analysis_security_task_registry(
     ) = None,
     validation_replay_orchestrator: (
         ValidationReplayExecutor
+        | None
+    ) = None,
+    secure_fix_transaction_store: (
+        SecureFixTransactionStore
+        | None
+    ) = None,
+    change_policy_engine: (
+        ChangeAwarePolicyEngine
         | None
     ) = None,
     primary_client: (
@@ -177,6 +195,12 @@ def create_deep_analysis_security_task_registry(
         route_policy
         or ModelRoutePolicy()
     )
+    resolved_fix_transactions = (
+        secure_fix_transaction_store
+        if secure_fix_transaction_store
+        is not None
+        else SecureFixTransactionStore()
+    )
 
     registry = (
         SecurityTaskHandlerRegistry()
@@ -227,10 +251,32 @@ def create_deep_analysis_security_task_registry(
     )
 
     registry.register(
+        SecureFixTaskHandler(
+            transactions=(
+                resolved_fix_transactions
+            ),
+            policy_engine=(
+                change_policy_engine
+            ),
+        )
+    )
+
+    registry.register(
+        FixVerificationTaskHandler(
+            transactions=(
+                resolved_fix_transactions
+            ),
+        )
+    )
+
+    registry.register(
         DynamicValidationTaskHandler(
             planner=validation_plan_builder,
             replay_orchestrator=(
                 validation_replay_orchestrator
+            ),
+            transactions=(
+                resolved_fix_transactions
             ),
         )
     )

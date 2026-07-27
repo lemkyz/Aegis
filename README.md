@@ -109,6 +109,8 @@ The patch failed verification because at least one of the following occurred:
 - reviewable secure patches
 - syntax, test, and build verification
 - static before-and-after comparison
+- exact patch-digest approval and stale-file rejection
+- atomic secure-fix writes with guarded rollback
 - explicit validation authorization
 - isolated Podman or Docker execution
 - read-only repository mounts
@@ -140,6 +142,10 @@ process limits
 execution timeout
 bounded stdout and stderr
 no shell-based container command construction
+exact human-approved patch digest
+target and selection hash revalidation
+atomic source replacement
+rollback without overwriting newer user work
 ```
 
 Validation is designed for repositories and systems you own or are authorized to test.

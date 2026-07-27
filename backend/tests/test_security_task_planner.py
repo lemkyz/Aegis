@@ -164,7 +164,14 @@ def test_dynamic_validation_requires_authorization() -> None:
         )
     )
 
-    assert result.status == "partial"
+    assert result.status == "blocked"
+    assert (
+        task_by_id(
+            result,
+            "secure_fix",
+        ).state
+        == "blocked"
+    )
 
     validation = task_by_id(
         result,

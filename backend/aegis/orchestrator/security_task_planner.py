@@ -592,6 +592,32 @@ class SecurityTaskPlanner:
                 )
             )
 
+            if (
+                secure_fix_state == "ready"
+                and (
+                    not authorization[
+                        "authorized"
+                    ]
+                    or not authorization[
+                        "execution_allowed"
+                    ]
+                )
+            ):
+                secure_fix_state = "blocked"
+                tasks[1].state = "blocked"
+                tasks[1].reasons.append(
+                    "The patch was not applied "
+                    "because the requested dynamic "
+                    "verification cannot execute."
+                )
+                tasks[2].state = "blocked"
+                tasks[2].reasons.append(
+                    "Static fix verification cannot "
+                    "start until the complete "
+                    "requested verification chain is "
+                    "authorized."
+                )
+
             if secure_fix_state != "ready":
                 validation_state = "blocked"
                 validation_reasons = [
@@ -599,6 +625,25 @@ class SecurityTaskPlanner:
                     "until the secure fix is approved.",
                     *authorization["reasons"],
                     *authorization["denials"],
+                    *(
+                        [
+                            (
+                                "Validation scope is "
+                                "authorized, but "
+                                "execution is not "
+                                "allowed."
+                            )
+                        ]
+                        if (
+                            authorization[
+                                "authorized"
+                            ]
+                            and not authorization[
+                                "execution_allowed"
+                            ]
+                        )
+                        else []
+                    ),
                 ]
             elif not authorization["authorized"]:
                 validation_state = "blocked"

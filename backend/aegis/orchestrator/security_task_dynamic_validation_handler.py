@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Protocol
 
 from pydantic import ValidationError
@@ -16,9 +16,13 @@ from aegis.orchestrator.security_task_handlers import (
 from aegis.schemas.security_task_plan import (
     SecurityTaskNode,
 )
+from aegis.schemas.fixes import (
+    StaticFixVerificationArtifact,
+)
 from aegis.schemas.validation import (
     DynamicValidationEvidenceRequest,
     DynamicValidationTaskArtifact,
+    UnifiedFixVerificationRequest,
     ValidationExecutionResult,
     ValidationExecutionPlanResponse,
     ValidationReplayCompareRequest,
@@ -28,6 +32,13 @@ from aegis.schemas.validation import (
 from aegis.security.redaction import (
     RedactionSession,
     SecretRedactor,
+)
+from aegis.security.fix_verification import (
+    UnifiedFixVerificationEvaluator,
+)
+from aegis.security.secure_fix import (
+    SecureFixTransactionError,
+    SecureFixTransactionStore,
 )
 from aegis.security.validation_plan import (
     ValidationPlanBuilder,
@@ -84,6 +95,14 @@ class DynamicValidationTaskHandler:
         | None = None,
         comparator: ValidationReplayComparator
         | None = None,
+        fix_evaluator: (
+            UnifiedFixVerificationEvaluator
+            | None
+        ) = None,
+        transactions: (
+            SecureFixTransactionStore
+            | None
+        ) = None,
     ) -> None:
         self._planner = (
             planner
@@ -110,6 +129,12 @@ class DynamicValidationTaskHandler:
             if comparator is not None
             else ValidationReplayComparator()
         )
+        self._fix_evaluator = (
+            fix_evaluator
+            if fix_evaluator is not None
+            else UnifiedFixVerificationEvaluator()
+        )
+        self._transactions = transactions
 
     async def execute(
         self,
@@ -120,143 +145,386 @@ class DynamicValidationTaskHandler:
     ) -> SecurityTaskHandlerResult:
         del task
 
-        context.raise_if_cancelled()
+        verification = (
+            self._require_fix_verification(
+                inputs
+            )
+        )
+        fix_target = (
+            self._fix_target(
+                context=context,
+                verification=verification,
+            )
+            if self._transactions is not None
+            else Path(
+                context.repository_root
+                or "."
+            )
+        )
+        transaction_active = (
+            self._transactions is not None
+        )
 
-        if context.operation != "fix_and_verify":
-            raise SecurityTaskInputError(
-                "Dynamic validation only supports "
-                "the fix_and_verify operation."
+        try:
+            if (
+                context.operation
+                != "fix_and_verify"
+            ):
+                raise SecurityTaskInputError(
+                    "Dynamic validation only supports "
+                    "the fix_and_verify operation."
+                )
+
+            context.raise_if_cancelled()
+            request = self._replay_request(
+                context
             )
 
-        self._require_fix_verification(inputs)
+            if request.claim_id != (
+                verification
+                .applied_patch
+                .claim_id
+            ):
+                raise SecurityTaskInputError(
+                    "Dynamic validation claim "
+                    "identity does not match static "
+                    "fix verification."
+                )
 
-        request = self._replay_request(context)
-        execution_plan = self._planner.build(
-            request.plan
-        )
+            if self._transactions is not None:
+                self._transactions.verify_pending(
+                    verification
+                    .applied_patch
+                    .transaction_id,
+                    expected_target=fix_target,
+                    expected_after_sha256=(
+                        verification
+                        .applied_patch
+                        .after_sha256
+                    ),
+                )
 
-        self._require_ready_plan(
-            execution_plan
-        )
-        self._require_repository_target(
-            context=context,
-            execution_plan=execution_plan,
-        )
+            execution_plan = (
+                self._planner.build(
+                    request.plan
+                )
+            )
 
-        replay = (
-            await self._replay_orchestrator
-            .replay(request)
-        )
+            self._require_ready_plan(
+                execution_plan
+            )
+            self._require_repository_target(
+                context=context,
+                execution_plan=(
+                    execution_plan
+                ),
+            )
 
-        context.raise_if_cancelled()
+            replay = (
+                await self._replay_orchestrator
+                .replay(request)
+            )
 
-        self._require_replay_identity(
-            request=request,
-            replay=replay,
-        )
-        safe_replay = self._reconcile_replay(
-            request=request,
-            replay=self._redact_replay(
-                replay
-            ),
-        )
-        authorization = (
-            execution_plan.authorization
-        )
+            context.raise_if_cancelled()
 
-        artifact = DynamicValidationTaskArtifact(
-            handler=self.handler,
-            source_artifacts=[
-                "fix_verification_result",
-            ],
-            authorization=authorization,
-            execution_plan=execution_plan,
-            replay=safe_replay,
-            outputs_redacted=True,
-        )
-        comparison = (
-            safe_replay.comparison
-        )
-
-        return SecurityTaskHandlerResult(
-            output={
-                "dynamic_validation_evidence": (
-                    artifact.model_dump(
-                        mode="json"
+            self._require_replay_identity(
+                request=request,
+                replay=replay,
+            )
+            safe_replay = (
+                self._reconcile_replay(
+                    request=request,
+                    replay=self._redact_replay(
+                        replay
+                    ),
+                )
+            )
+            unified = (
+                self._fix_evaluator.evaluate(
+                    UnifiedFixVerificationRequest(
+                        replay=(
+                            safe_replay
+                            .comparison
+                        ),
+                        project_checks=(
+                            verification
+                            .project_checks
+                        ),
+                        static_target_resolved=(
+                            verification
+                            .static_target_resolved
+                        ),
+                        static_regression_free=(
+                            verification
+                            .static_regression_free
+                        ),
                     )
+                )
+            )
+            transaction_state = (
+                self._close_transaction(
+                    verification=(
+                        verification
+                    ),
+                    target=fix_target,
+                    verdict=unified.verdict,
+                )
+            )
+            transaction_active = False
+            authorization = (
+                execution_plan.authorization
+            )
+
+            artifact = (
+                DynamicValidationTaskArtifact(
+                    handler=self.handler,
+                    source_artifacts=[
+                        "fix_verification_result",
+                    ],
+                    authorization=authorization,
+                    execution_plan=(
+                        execution_plan
+                    ),
+                    replay=safe_replay,
+                    fix_verification=unified,
+                    transaction_state=(
+                        transaction_state
+                    ),
+                    outputs_redacted=True,
+                )
+            )
+            comparison = (
+                safe_replay.comparison
+            )
+
+            return SecurityTaskHandlerResult(
+                output={
+                    "dynamic_validation_evidence": (
+                        artifact.model_dump(
+                            mode="json"
+                        )
+                    ),
+                },
+                metadata={
+                    "handler": self.handler,
+                    "authorization_contract": (
+                        authorization.contract
+                    ),
+                    "authorized": (
+                        authorization.authorized
+                    ),
+                    "execution_allowed": (
+                        authorization
+                        .execution_allowed
+                    ),
+                    "network": (
+                        execution_plan
+                        .sandbox.network
+                    ),
+                    "read_only_root": (
+                        execution_plan
+                        .sandbox.read_only_root
+                    ),
+                    "read_only_mount": (
+                        execution_plan.mounts[0]
+                        .read_only
+                    ),
+                    "before_verdict": (
+                        comparison.before_verdict
+                    ),
+                    "after_verdict": (
+                        comparison.after_verdict
+                    ),
+                    "replay_verdict": (
+                        comparison.verdict
+                    ),
+                    "fix_verdict": (
+                        unified.verdict
+                    ),
+                    "verified": unified.verified,
+                    "fixed": comparison.fixed,
+                    "transaction_state": (
+                        transaction_state
+                    ),
+                    "outputs_redacted": True,
+                },
+                reasons=(
+                    (
+                        "Structured authorization and "
+                        "repository scope were "
+                        "revalidated immediately "
+                        "before replay."
+                    ),
+                    (
+                        "The same authorized "
+                        "validation plan was replayed "
+                        "inside a read-only, "
+                        "network-disabled container "
+                        "sandbox."
+                    ),
+                    (
+                        "Unified fix-verification "
+                        f"verdict: {unified.verdict}."
+                    ),
                 ),
-            },
-            metadata={
-                "handler": self.handler,
-                "authorization_contract": (
-                    authorization.contract
-                ),
-                "authorized": (
-                    authorization.authorized
-                ),
-                "execution_allowed": (
-                    authorization
-                    .execution_allowed
-                ),
-                "network": (
-                    execution_plan
-                    .sandbox.network
-                ),
-                "read_only_root": (
-                    execution_plan
-                    .sandbox.read_only_root
-                ),
-                "read_only_mount": (
-                    execution_plan.mounts[0]
-                    .read_only
-                ),
-                "before_verdict": (
-                    comparison.before_verdict
-                ),
-                "after_verdict": (
-                    comparison.after_verdict
-                ),
-                "replay_verdict": (
-                    comparison.verdict
-                ),
-                "fixed": comparison.fixed,
-                "outputs_redacted": True,
-            },
-            reasons=(
-                (
-                    "Structured authorization and "
-                    "repository scope were revalidated "
-                    "immediately before replay."
-                ),
-                (
-                    "The same authorized validation "
-                    "plan was replayed inside a "
-                    "read-only, network-disabled "
-                    "container sandbox."
-                ),
-                (
-                    "Dynamic replay verdict: "
-                    f"{comparison.verdict}."
-                ),
-            ),
-        )
+            )
+
+        except Exception as exc:
+            if (
+                transaction_active
+                and self._transactions is not None
+            ):
+                try:
+                    self._transactions.rollback(
+                        verification
+                        .applied_patch
+                        .transaction_id,
+                        expected_target=(
+                            fix_target
+                        ),
+                        expected_after_sha256=(
+                            verification
+                            .applied_patch
+                            .after_sha256
+                        ),
+                    )
+                except SecureFixTransactionError as rollback_exc:
+                    raise SecurityTaskInputError(
+                        "Dynamic validation failed and "
+                        "automatic rollback was "
+                        f"blocked: {rollback_exc}"
+                    ) from exc
+
+            raise
 
     @staticmethod
     def _require_fix_verification(
         inputs: Mapping[str, Any],
-    ) -> None:
+    ) -> StaticFixVerificationArtifact:
         value = inputs.get(
             "fix_verification_result"
         )
 
+        try:
+            artifact = (
+                StaticFixVerificationArtifact
+                .model_validate(value)
+            )
+        except ValidationError as exc:
+            raise SecurityTaskInputError(
+                "Dynamic validation requires a valid "
+                "fix_verification_result artifact."
+            ) from exc
+
         if (
-            not isinstance(value, Mapping)
-            or not value
+            not artifact.ready_for_dynamic
+            or artifact.verdict
+            != "awaiting_dynamic"
+            or artifact.transaction_state
+            != "pending"
         ):
             raise SecurityTaskInputError(
-                "Dynamic validation requires a "
-                "fix_verification_result artifact."
+                "Static fix verification is not "
+                "ready for dynamic replay."
             )
+
+        return artifact
+
+    @staticmethod
+    def _fix_target(
+        *,
+        context: SecurityTaskHandlerContext,
+        verification: (
+            StaticFixVerificationArtifact
+        ),
+    ) -> Path:
+        repository_root = (
+            context.repository_root
+        )
+
+        if not isinstance(
+            repository_root,
+            str,
+        ):
+            raise SecurityTaskInputError(
+                "Dynamic validation requires the "
+                "active repository root."
+            )
+
+        try:
+            root = Path(
+                repository_root
+            ).expanduser().resolve(
+                strict=True
+            )
+            target = root.joinpath(
+                *PurePosixPath(
+                    verification
+                    .applied_patch
+                    .target_path
+                ).parts
+            ).resolve(strict=True)
+            target.relative_to(root)
+        except (
+            OSError,
+            ValueError,
+        ) as exc:
+            raise SecurityTaskInputError(
+                "The verified patch target no longer "
+                "matches the active repository."
+            ) from exc
+
+        return target
+
+    def _close_transaction(
+        self,
+        *,
+        verification: (
+            StaticFixVerificationArtifact
+        ),
+        target: Path,
+        verdict: str,
+    ) -> str:
+        if self._transactions is None:
+            return (
+                verification.transaction_state
+            )
+
+        applied = (
+            verification.applied_patch
+        )
+        hard_failures = {
+            "project_failed",
+            "target_not_resolved",
+            "regression_detected",
+            "still_exploitable",
+        }
+
+        try:
+            if verdict in hard_failures:
+                self._transactions.rollback(
+                    applied.transaction_id,
+                    expected_target=target,
+                    expected_after_sha256=(
+                        applied.after_sha256
+                    ),
+                )
+                return "rolled_back"
+
+            self._transactions.finalize(
+                applied.transaction_id,
+                expected_target=target,
+                expected_after_sha256=(
+                    applied.after_sha256
+                ),
+            )
+            return "committed"
+
+        except SecureFixTransactionError as exc:
+            raise SecurityTaskInputError(
+                "The secure-fix transaction could "
+                f"not be closed safely: {exc}"
+            ) from exc
 
     @staticmethod
     def _replay_request(
