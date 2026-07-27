@@ -27,6 +27,9 @@ from aegis.orchestrator.security_task_specialist_handlers import (
     DependencyScanTaskHandler,
     SecretAnalysisTaskHandler,
 )
+from aegis.orchestrator.security_task_threat_model_handler import (
+    ThreatModelTaskHandler,
+)
 from aegis.schemas.dependencies import (
     DependencyPackage,
     DependencyScanResponse,
@@ -323,6 +326,9 @@ def test_specialist_branches_preserve_artifact_provenance(
     registry.register(
         AttackSurfaceTaskHandler()
     )
+    registry.register(
+        ThreatModelTaskHandler()
+    )
     registry.freeze()
 
     plan = SecurityTaskPlanner().plan(
@@ -381,6 +387,7 @@ def test_specialist_branches_preserve_artifact_provenance(
         "secret_analysis",
         "dependency_scan",
         "attack_surface",
+        "threat_model",
     ):
         step = run(
             executor.execute_task(
@@ -403,6 +410,9 @@ def test_specialist_branches_preserve_artifact_provenance(
     assert store.artifact(
         "attack_surface_graph"
     ).producer_task_id == "attack_surface"
+    assert store.artifact(
+        "threat_model"
+    ).producer_task_id == "threat_model"
 
     threat_model = next(
         planned_task
@@ -411,4 +421,5 @@ def test_specialist_branches_preserve_artifact_provenance(
         == "threat_model"
     )
 
-    assert threat_model.state == "ready"
+    assert threat_model.state == "completed"
+    assert execution.status == "completed"

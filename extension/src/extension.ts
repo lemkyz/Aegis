@@ -809,6 +809,7 @@ type ThreatCategory =
   | "path_traversal"
   | "ssrf"
   | "secret_exposure"
+  | "vulnerable_dependency"
   | "authentication_bypass"
   | "unsafe_data_flow";
 
@@ -2981,6 +2982,7 @@ function formatThreatCategory(
     path_traversal: "Path Traversal",
     ssrf: "Server-Side Request Forgery",
     secret_exposure: "Secret Exposure",
+    vulnerable_dependency: "Vulnerable Dependency",
     authentication_bypass: "Authentication Bypass",
     unsafe_data_flow: "Unsafe Data Flow",
   };

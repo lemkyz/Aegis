@@ -5,6 +5,7 @@ from aegis.schemas.attack_surface import (
     AttackSurfaceEdge,
     AttackSurfaceFile,
     AttackSurfaceNode,
+    AttackSurfaceScanResponse,
 )
 from aegis.schemas.threat_model import (
     ThreatAsset,
@@ -33,6 +34,25 @@ class ThreatModeler:
     ) -> ThreatModelScanResponse:
         attack_surface = self.mapper.scan(files)
 
+        return self.compose(
+            files=files,
+            attack_surface=attack_surface,
+        )
+
+    def compose(
+        self,
+        *,
+        files: list[AttackSurfaceFile],
+        attack_surface: AttackSurfaceScanResponse,
+    ) -> ThreatModelScanResponse:
+        """
+        Build a threat model from an already-produced
+        attack-surface artifact.
+
+        This keeps task orchestration evidence-linked and
+        prevents a downstream threat-model task from silently
+        rescanning a different source snapshot.
+        """
         assets = self._build_assets(
             attack_surface.nodes,
         )

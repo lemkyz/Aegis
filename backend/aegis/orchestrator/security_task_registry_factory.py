@@ -28,6 +28,9 @@ from aegis.orchestrator.security_task_specialist_handlers import (
     DependencyScanner,
     SecretAnalysisTaskHandler,
 )
+from aegis.orchestrator.security_task_threat_model_handler import (
+    ThreatModelTaskHandler,
+)
 from aegis.security.attack_surface import (
     AttackSurfaceMapper,
 )
@@ -49,6 +52,7 @@ from aegis.security.orchestrator import (
 from aegis.security.secrets import (
     SecretIntelligenceEngine,
 )
+from aegis.security.threat_model import ThreatModeler
 from aegis.orchestrator.security_task_handler import (
     SecurityTaskHandlerContractError,
 )
@@ -75,6 +79,10 @@ def create_deep_analysis_security_task_registry(
     ) = None,
     attack_surface_mapper: (
         AttackSurfaceMapper
+        | None
+    ) = None,
+    threat_modeler: (
+        ThreatModeler
         | None
     ) = None,
     primary_client: (
@@ -194,6 +202,12 @@ def create_deep_analysis_security_task_registry(
     registry.register(
         AttackSurfaceTaskHandler(
             mapper=attack_surface_mapper,
+        )
+    )
+
+    registry.register(
+        ThreatModelTaskHandler(
+            modeler=threat_modeler,
         )
     )
 

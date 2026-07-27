@@ -7,6 +7,9 @@ from aegis.schemas.attack_surface import (
     AttackSurfaceFile,
     AttackSurfaceNode,
 )
+from aegis.schemas.dependencies import (
+    DependencyScanStatus,
+)
 
 
 ThreatCategory = Literal[
@@ -17,6 +20,7 @@ ThreatCategory = Literal[
     "secret_exposure",
     "authentication_bypass",
     "unsafe_data_flow",
+    "vulnerable_dependency",
 ]
 
 ThreatSeverity = Literal[
@@ -139,6 +143,20 @@ class ThreatModelSummary(BaseModel):
     info: int
 
 
+class ThreatModelEvidenceSummary(BaseModel):
+    source_artifacts: list[str] = Field(
+        default_factory=list,
+    )
+    secret_findings: int = Field(ge=0)
+    dependency_vulnerabilities: int = Field(
+        ge=0,
+    )
+    dependency_scan_status: DependencyScanStatus
+    dependency_coverage_complete: bool
+    attack_surface_nodes: int = Field(ge=0)
+    attack_surface_edges: int = Field(ge=0)
+
+
 class ThreatModelScanResponse(BaseModel):
     modeler: str
 
@@ -150,3 +168,6 @@ class ThreatModelScanResponse(BaseModel):
     threats: list[ThreatFinding]
 
     summary: ThreatModelSummary
+    evidence_summary: (
+        ThreatModelEvidenceSummary | None
+    ) = None

@@ -1120,6 +1120,7 @@ function formatThreatCategory(category) {
         path_traversal: "Path Traversal",
         ssrf: "Server-Side Request Forgery",
         secret_exposure: "Secret Exposure",
+        vulnerable_dependency: "Vulnerable Dependency",
         authentication_bypass: "Authentication Bypass",
         unsafe_data_flow: "Unsafe Data Flow",
     };
