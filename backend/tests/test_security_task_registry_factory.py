@@ -197,10 +197,13 @@ def test_deep_analysis_registry_contains_full_pipeline() -> None:
     assert registry.frozen is True
 
     assert registry.registered_kinds() == (
+        "attack_surface",
+        "dependency_scan",
         "deterministic_scan",
         "model_consensus",
         "primary_model_review",
         "repository_context",
+        "secret_analysis",
         "verifier_review",
     )
 

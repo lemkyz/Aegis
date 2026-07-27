@@ -22,6 +22,18 @@ from aegis.orchestrator.security_task_model_handlers import (
     PrimaryModelReviewTaskHandler,
     VerifierReviewTaskHandler,
 )
+from aegis.orchestrator.security_task_specialist_handlers import (
+    AttackSurfaceTaskHandler,
+    DependencyScanTaskHandler,
+    DependencyScanner,
+    SecretAnalysisTaskHandler,
+)
+from aegis.security.attack_surface import (
+    AttackSurfaceMapper,
+)
+from aegis.security.config_secrets import (
+    ConfigSecretScanner,
+)
 from aegis.security.project_identity import (
     ProjectIdentityResolver,
 )
@@ -51,6 +63,18 @@ def create_deep_analysis_security_task_registry(
     ) = None,
     scanner_orchestrator: (
         SecurityScannerOrchestrator
+        | None
+    ) = None,
+    config_secret_scanner: (
+        ConfigSecretScanner
+        | None
+    ) = None,
+    dependency_scanner: (
+        DependencyScanner
+        | None
+    ) = None,
+    attack_surface_mapper: (
+        AttackSurfaceMapper
         | None
     ) = None,
     primary_client: (
@@ -149,6 +173,27 @@ def create_deep_analysis_security_task_registry(
                 scanner_orchestrator
             ),
             secret_engine=secret_engine,
+        )
+    )
+
+    registry.register(
+        SecretAnalysisTaskHandler(
+            config_scanner=(
+                config_secret_scanner
+            ),
+            secret_engine=secret_engine,
+        )
+    )
+
+    registry.register(
+        DependencyScanTaskHandler(
+            scanner=dependency_scanner,
+        )
+    )
+
+    registry.register(
+        AttackSurfaceTaskHandler(
+            mapper=attack_surface_mapper,
         )
     )
 
