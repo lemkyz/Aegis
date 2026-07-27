@@ -1008,3 +1008,395 @@ def test_verifier_rejects_negative_context_lines() -> None:
             ),
             context_lines=-1,
         )
+
+
+from aegis.orchestrator.security_task_model_handlers import (
+    ModelConsensusTaskHandler,
+)
+
+
+def consensus_task() -> SecurityTaskNode:
+    return SecurityTaskNode(
+        task_id="model_consensus",
+        kind="model_consensus",
+        state="ready",
+        produces=[
+            "consensus_decisions",
+        ],
+    )
+
+
+def consensus_inputs(
+    *,
+    primary_route: dict[
+        str,
+        Any,
+    ] | None = None,
+    verifier_route: dict[
+        str,
+        Any,
+    ] | None = None,
+    verifier_status: str = "completed",
+) -> dict[str, Any]:
+    primary = scanner_findings()
+
+    primary[0][
+        "primary_model"
+    ] = "primary/active"
+
+    verifier_result = (
+        VerifierReviewResult(
+            model="verifier/active",
+            status=verifier_status,
+            verifications=(
+                [
+                    FindingVerification(
+                        finding_index=0,
+                        verdict="supported",
+                        confidence=0.94,
+                        reasoning=(
+                            "The source confirms "
+                            "shell execution."
+                        ),
+                    )
+                ]
+                if verifier_status
+                == "completed"
+                else []
+            ),
+            error=(
+                None
+                if verifier_status
+                == "completed"
+                else "verifier timeout"
+            ),
+        )
+    )
+
+    return {
+        "primary_findings": primary,
+        "primary_model_route": (
+            primary_route
+            or {
+                "provider": "provider-a",
+                "model": "primary/active",
+                "base_url": (
+                    "https://primary.invalid/v1"
+                ),
+            }
+        ),
+        "verifier_decisions": (
+            verifier_result.model_dump(
+                mode="json"
+            )
+        ),
+        "verifier_model_route": (
+            verifier_route
+            or {
+                "provider": "provider-b",
+                "model": "verifier/active",
+                "base_url": (
+                    "https://verifier.invalid/v1"
+                ),
+            }
+        ),
+    }
+
+
+def test_primary_handler_emits_route_artifact() -> None:
+    result = run(
+        PrimaryModelReviewTaskHandler(
+            primary_client=(
+                RecordingPrimaryClient()
+            ),
+        ).execute(
+            task=task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=inputs(),
+        )
+    )
+
+    assert result.output[
+        "primary_model_route"
+    ] == {
+        "provider": "provider-a",
+        "model": "primary/active",
+        "base_url": (
+            "https://primary.invalid/v1"
+        ),
+    }
+
+
+def test_primary_fallback_route_artifact_is_selected() -> None:
+    result = run(
+        PrimaryModelReviewTaskHandler(
+            primary_client=(
+                FailingPrimaryClient()
+            ),
+            fallback_client=(
+                FallbackPrimaryClient()
+            ),
+        ).execute(
+            task=task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=inputs(),
+        )
+    )
+
+    assert result.output[
+        "primary_model_route"
+    ]["model"] == "primary/fallback"
+
+
+def test_verifier_handler_emits_route_artifact() -> None:
+    result = run(
+        VerifierReviewTaskHandler(
+            verifier_client=(
+                RecordingVerifierClient()
+            ),
+        ).execute(
+            task=verifier_task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=verifier_inputs(),
+        )
+    )
+
+    assert result.output[
+        "verifier_model_route"
+    ] == {
+        "provider": (
+            "provider-verifier-a"
+        ),
+        "model": "verifier/active",
+        "base_url": (
+            "https://verifier.invalid/v1"
+        ),
+    }
+
+
+def test_verifier_fallback_route_artifact_is_selected() -> None:
+    result = run(
+        VerifierReviewTaskHandler(
+            verifier_client=(
+                FailingVerifierClient()
+            ),
+            fallback_client=(
+                FallbackVerifierClient()
+            ),
+        ).execute(
+            task=verifier_task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=verifier_inputs(),
+        )
+    )
+
+    assert result.output[
+        "verifier_model_route"
+    ]["model"] == "verifier/fallback"
+
+
+def test_consensus_confirms_independent_support() -> None:
+    result = run(
+        ModelConsensusTaskHandler().execute(
+            task=consensus_task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=consensus_inputs(),
+        )
+    )
+
+    consensus = result.output[
+        "consensus_decisions"
+    ]
+
+    assert consensus[
+        "status"
+    ] == "completed"
+
+    assert consensus[
+        "decisions"
+    ][0]["verdict"] == "confirmed"
+
+    assert consensus[
+        "route_independence"
+    ] == "independent"
+
+    assert consensus[
+        "independently_verified"
+    ] is True
+
+
+def test_same_route_is_partial_and_capped() -> None:
+    same_route = {
+        "provider": "provider-a",
+        "model": "primary/active",
+        "base_url": (
+            "https://primary.invalid/v1"
+        ),
+    }
+
+    values = consensus_inputs(
+        verifier_route=same_route,
+    )
+
+    values[
+        "verifier_decisions"
+    ]["model"] = "primary/active"
+
+    result = run(
+        ModelConsensusTaskHandler().execute(
+            task=consensus_task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=values,
+        )
+    )
+
+    consensus = result.output[
+        "consensus_decisions"
+    ]
+
+    assert consensus[
+        "status"
+    ] == "partial"
+
+    assert consensus[
+        "route_independence"
+    ] == "same_route"
+
+    assert consensus[
+        "independently_verified"
+    ] is False
+
+    assert consensus[
+        "decisions"
+    ][0]["confidence"] <= 0.85
+
+
+def test_failed_verifier_preserves_primary() -> None:
+    result = run(
+        ModelConsensusTaskHandler().execute(
+            task=consensus_task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=consensus_inputs(
+                verifier_status="failed",
+            ),
+        )
+    )
+
+    consensus = result.output[
+        "consensus_decisions"
+    ]
+
+    assert consensus[
+        "status"
+    ] == "partial"
+
+    assert consensus[
+        "decisions"
+    ][0]["verdict"] == "unverified"
+
+    assert consensus[
+        "errors"
+    ] == ["verifier timeout"]
+
+
+def test_consensus_is_deterministic() -> None:
+    handler = ModelConsensusTaskHandler()
+    values = consensus_inputs()
+
+    first = run(
+        handler.execute(
+            task=consensus_task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=values,
+        )
+    )
+
+    second = run(
+        handler.execute(
+            task=consensus_task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=values,
+        )
+    )
+
+    assert (
+        first.output[
+            "consensus_decisions"
+        ]
+        == second.output[
+            "consensus_decisions"
+        ]
+    )
+
+
+def test_consensus_rejects_primary_route_mismatch() -> None:
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="does not match",
+    ):
+        run(
+            ModelConsensusTaskHandler()
+            .execute(
+                task=consensus_task(),
+                context=context(
+                    source_code=source()
+                ),
+                inputs=consensus_inputs(
+                    primary_route={
+                        "provider": (
+                            "provider-a"
+                        ),
+                        "model": "wrong/model",
+                        "base_url": (
+                            "https://"
+                            "primary.invalid/v1"
+                        ),
+                    },
+                ),
+            )
+        )
+
+
+def test_consensus_requires_complete_route() -> None:
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="base_url",
+    ):
+        run(
+            ModelConsensusTaskHandler()
+            .execute(
+                task=consensus_task(),
+                context=context(
+                    source_code=source()
+                ),
+                inputs=consensus_inputs(
+                    verifier_route={
+                        "provider": (
+                            "provider-b"
+                        ),
+                        "model": (
+                            "verifier/active"
+                        ),
+                        "base_url": None,
+                    },
+                ),
+            )
+        )

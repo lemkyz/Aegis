@@ -19,12 +19,22 @@ from aegis.schemas.analysis import (
     ScannerEvidence,
     SecurityFinding,
 )
+from aegis.schemas.model_consensus import (
+    ModelConsensusResult,
+)
 from aegis.schemas.model_verification import (
     FindingVerification,
     VerifierReviewResult,
 )
 from aegis.schemas.security_task_plan import (
     SecurityTaskNode,
+)
+from aegis.security.model_consensus import (
+    ModelConsensusEvaluator,
+)
+from aegis.security.model_route_policy import (
+    ModelRouteIdentity,
+    ModelRoutePolicy,
 )
 from aegis.security.redaction import (
     SecretRedactor,
@@ -64,6 +74,7 @@ class PrimaryModelReviewTaskHandler:
         }),
         produced_artifacts=frozenset({
             "primary_findings",
+            "primary_model_route",
         }),
         supports_retry=True,
         max_attempts=2,
@@ -128,6 +139,11 @@ class PrimaryModelReviewTaskHandler:
             return SecurityTaskHandlerResult(
                 output={
                     "primary_findings": [],
+                    "primary_model_route": (
+                        self._route(
+                            self._primary_client
+                        ).as_dict()
+                    ),
                 },
                 reasons=(
                     "Primary model review was not "
@@ -319,6 +335,11 @@ class PrimaryModelReviewTaskHandler:
                     )
                     for finding in safe_findings
                 ],
+                "primary_model_route": (
+                    self._route(
+                        active_client
+                    ).as_dict()
+                ),
             },
             reasons=tuple(reasons),
             metadata=metadata,
@@ -634,6 +655,7 @@ class VerifierReviewTaskHandler:
         }),
         produced_artifacts=frozenset({
             "verifier_decisions",
+            "verifier_model_route",
         }),
         supports_retry=True,
         max_attempts=2,
@@ -717,6 +739,9 @@ class VerifierReviewTaskHandler:
                         skipped.model_dump(
                             mode="json"
                         )
+                    ),
+                    "verifier_model_route": (
+                        active_route.as_dict()
                     ),
                 },
                 metadata={
@@ -959,6 +984,11 @@ class VerifierReviewTaskHandler:
                         mode="json"
                     )
                 ),
+                "verifier_model_route": (
+                    self._route(
+                        active_client
+                    ).as_dict()
+                ),
             },
             metadata=metadata,
             reasons=tuple(reasons),
@@ -1154,3 +1184,352 @@ class VerifierReviewTaskHandler:
                 else None
             ),
         )
+
+
+class ModelConsensusTaskHandler:
+    """
+    Deterministically combines primary findings and verifier decisions.
+
+    The selected model routes are consumed as provenance-bearing
+    artifacts. No model or network call occurs in this handler.
+    """
+
+    capability = SecurityTaskHandlerCapability(
+        kind="model_consensus",
+        required_artifacts=frozenset({
+            "primary_findings",
+            "primary_model_route",
+            "verifier_decisions",
+            "verifier_model_route",
+        }),
+        optional_artifacts=frozenset({
+            "repository_context",
+        }),
+        produced_artifacts=frozenset({
+            "consensus_decisions",
+        }),
+        supports_retry=False,
+        max_attempts=1,
+        side_effect_free=True,
+    )
+
+    def __init__(
+        self,
+        *,
+        evaluator: ModelConsensusEvaluator | None = None,
+        route_policy: ModelRoutePolicy | None = None,
+    ) -> None:
+        self._evaluator = (
+            evaluator
+            or ModelConsensusEvaluator()
+        )
+        self._route_policy = (
+            route_policy
+            or ModelRoutePolicy()
+        )
+
+    async def execute(
+        self,
+        *,
+        task: SecurityTaskNode,
+        context: SecurityTaskHandlerContext,
+        inputs: Mapping[str, Any],
+    ) -> SecurityTaskHandlerResult:
+        del task
+
+        context.raise_if_cancelled()
+
+        primary_findings = (
+            VerifierReviewTaskHandler
+            ._primary_findings(inputs)
+        )
+
+        verifier_result = (
+            self._verifier_result(inputs)
+        )
+
+        primary_route = self._route_identity(
+            inputs=inputs,
+            artifact_name=(
+                "primary_model_route"
+            ),
+        )
+
+        verifier_route = self._route_identity(
+            inputs=inputs,
+            artifact_name=(
+                "verifier_model_route"
+            ),
+        )
+
+        self._validate_primary_models(
+            primary_findings=(
+                primary_findings
+            ),
+            route=primary_route,
+        )
+
+        self._validate_model_identity(
+            artifact_name=(
+                "verifier_model_route"
+            ),
+            route=verifier_route,
+            expected_model=(
+                verifier_result.model
+            ),
+        )
+
+        route_assessment = (
+            self._route_policy.assess(
+                primary=primary_route,
+                verifier=verifier_route,
+            )
+        )
+
+        raw_consensus = (
+            self._evaluator.evaluate(
+                primary_provider=(
+                    primary_route.provider
+                ),
+                primary_model=(
+                    primary_route.model
+                ),
+                verifier_provider=(
+                    verifier_route.provider
+                ),
+                primary_findings=(
+                    primary_findings
+                ),
+                verifier_result=(
+                    verifier_result
+                ),
+                route_assessment=(
+                    route_assessment
+                ),
+            )
+        )
+
+        consensus = (
+            ModelConsensusResult
+            .model_validate(
+                raw_consensus.model_dump(
+                    mode="json"
+                )
+            )
+        )
+
+        reasons = [
+            (
+                "Deterministic model consensus "
+                f"produced "
+                f"{len(consensus.decisions)} "
+                "decision(s)."
+            ),
+            *consensus.route_reasons,
+        ]
+
+        if consensus.errors:
+            reasons.append(
+                "Consensus retained "
+                f"{len(consensus.errors)} "
+                "validation or verifier error(s)."
+            )
+
+        return SecurityTaskHandlerResult(
+            output={
+                "consensus_decisions": (
+                    consensus.model_dump(
+                        mode="json"
+                    )
+                ),
+            },
+            reasons=tuple(reasons),
+            metadata={
+                "status": consensus.status,
+                "evaluator": (
+                    self._evaluator.name
+                ),
+                "primary_finding_count": len(
+                    primary_findings
+                ),
+                "decision_count": len(
+                    consensus.decisions
+                ),
+                "error_count": len(
+                    consensus.errors
+                ),
+                "primary_route": (
+                    self._identity_dict(
+                        primary_route
+                    )
+                ),
+                "verifier_route": (
+                    self._identity_dict(
+                        verifier_route
+                    )
+                ),
+                "route_independence": (
+                    route_assessment
+                    .classification
+                ),
+                "independently_verified": (
+                    route_assessment
+                    .independently_verified
+                ),
+            },
+        )
+
+    @staticmethod
+    def _verifier_result(
+        inputs: Mapping[str, Any],
+    ) -> VerifierReviewResult:
+        value = inputs.get(
+            "verifier_decisions"
+        )
+
+        if isinstance(
+            value,
+            VerifierReviewResult,
+        ):
+            return value.model_copy(
+                deep=True
+            )
+
+        if not isinstance(
+            value,
+            Mapping,
+        ):
+            raise SecurityTaskInputError(
+                "verifier_decisions artifact "
+                "must be a mapping or "
+                "VerifierReviewResult."
+            )
+
+        return (
+            VerifierReviewResult
+            .model_validate(dict(value))
+        )
+
+    @staticmethod
+    def _route_identity(
+        *,
+        inputs: Mapping[str, Any],
+        artifact_name: str,
+    ) -> ModelRouteIdentity:
+        value = inputs.get(
+            artifact_name
+        )
+
+        if not isinstance(
+            value,
+            Mapping,
+        ):
+            raise SecurityTaskInputError(
+                f"{artifact_name} artifact "
+                "must be a mapping."
+            )
+
+        normalized: dict[str, str] = {}
+
+        for field_name in (
+            "provider",
+            "model",
+            "base_url",
+        ):
+            field_value = value.get(
+                field_name
+            )
+
+            if (
+                not isinstance(
+                    field_value,
+                    str,
+                )
+                or not field_value.strip()
+            ):
+                raise SecurityTaskInputError(
+                    f"{artifact_name}."
+                    f"{field_name} must be a "
+                    "non-empty string."
+                )
+
+            normalized[field_name] = (
+                field_value.strip()
+            )
+
+        return ModelRouteIdentity(
+            provider=normalized[
+                "provider"
+            ],
+            model=normalized["model"],
+            base_url=normalized[
+                "base_url"
+            ],
+        )
+
+    @classmethod
+    def _validate_primary_models(
+        cls,
+        *,
+        primary_findings: list[
+            SecurityFinding
+        ],
+        route: ModelRouteIdentity,
+    ) -> None:
+        models = {
+            finding.primary_model.strip()
+            for finding in primary_findings
+            if (
+                isinstance(
+                    finding.primary_model,
+                    str,
+                )
+                and finding.primary_model.strip()
+            )
+        }
+
+        if len(models) > 1:
+            raise SecurityTaskInputError(
+                "primary_findings contain "
+                "multiple primary model "
+                "identities."
+            )
+
+        if models:
+            cls._validate_model_identity(
+                artifact_name=(
+                    "primary_model_route"
+                ),
+                route=route,
+                expected_model=next(
+                    iter(models)
+                ),
+            )
+
+    @staticmethod
+    def _validate_model_identity(
+        *,
+        artifact_name: str,
+        route: ModelRouteIdentity,
+        expected_model: str,
+    ) -> None:
+        if (
+            route.model.strip().lower()
+            != expected_model.strip().lower()
+        ):
+            raise SecurityTaskInputError(
+                f"{artifact_name} model "
+                f"{route.model!r} does not "
+                "match result model "
+                f"{expected_model!r}."
+            )
+
+    @staticmethod
+    def _identity_dict(
+        route: ModelRouteIdentity,
+    ) -> dict[str, str]:
+        return {
+            "provider": route.provider,
+            "model": route.model,
+            "base_url": route.base_url,
+        }

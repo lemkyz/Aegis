@@ -237,6 +237,7 @@ class SecurityTaskPlanner:
                 ],
                 produces=[
                     "primary_findings",
+                    "primary_model_route",
                 ],
             ),
             SecurityTaskNode(
@@ -257,6 +258,7 @@ class SecurityTaskPlanner:
                 ],
                 produces=[
                     "verifier_decisions",
+                    "verifier_model_route",
                 ],
             ),
             SecurityTaskNode(
