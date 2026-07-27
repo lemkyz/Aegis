@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="brand/aegis-mark.svg" width="144" alt="Aegis">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/aegis-mark-reversed.svg">
+    <source media="(prefers-color-scheme: light)" srcset="brand/aegis-mark.svg">
+    <img src="brand/aegis-mark.svg" width="144" alt="Aegis">
+  </picture>
 </p>
 
 <h1 align="center">Aegis</h1>
