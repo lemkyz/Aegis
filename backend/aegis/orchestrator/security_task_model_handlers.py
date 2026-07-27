@@ -5,6 +5,7 @@ from typing import Any, Mapping
 
 from aegis.models.protocol import (
     SecurityModelClient,
+    SecurityVerifierClient,
 )
 from aegis.orchestrator.security_task_handler import (
     SecurityTaskHandlerCapability,
@@ -17,6 +18,10 @@ from aegis.orchestrator.security_task_handlers import (
 from aegis.schemas.analysis import (
     ScannerEvidence,
     SecurityFinding,
+)
+from aegis.schemas.model_verification import (
+    FindingVerification,
+    VerifierReviewResult,
 )
 from aegis.schemas.security_task_plan import (
     SecurityTaskNode,
@@ -593,3 +598,559 @@ class PrimaryModelReviewTaskHandler:
             )
 
         return "\n\n".join(sections)
+
+
+@dataclass(frozen=True, slots=True)
+class VerifierModelRoute:
+    provider: str | None
+    model: str
+    base_url: str | None
+
+    def as_dict(
+        self,
+    ) -> dict[str, str | None]:
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "base_url": self.base_url,
+        }
+
+
+class VerifierReviewTaskHandler:
+    """
+    Independently verifies primary-model findings.
+
+    Consensus evaluation remains a separate security task.
+    """
+
+    capability = SecurityTaskHandlerCapability(
+        kind="verifier_review",
+        required_artifacts=frozenset({
+            "scanner_evidence",
+            "primary_findings",
+        }),
+        optional_artifacts=frozenset({
+            "repository_context",
+        }),
+        produced_artifacts=frozenset({
+            "verifier_decisions",
+        }),
+        supports_retry=True,
+        max_attempts=2,
+        side_effect_free=True,
+    )
+
+    def __init__(
+        self,
+        *,
+        verifier_client: SecurityVerifierClient,
+        fallback_client: (
+            SecurityVerifierClient
+            | None
+        ) = None,
+        redactor: SecretRedactor | None = None,
+        context_lines: int = 20,
+    ) -> None:
+        if context_lines < 0:
+            raise ValueError(
+                "Verifier context_lines must "
+                "not be negative."
+            )
+
+        self._verifier_client = (
+            verifier_client
+        )
+        self._fallback_client = (
+            fallback_client
+        )
+        self._redactor = (
+            redactor
+            or SecretRedactor()
+        )
+        self._context_lines = context_lines
+
+    async def execute(
+        self,
+        *,
+        task: SecurityTaskNode,
+        context: SecurityTaskHandlerContext,
+        inputs: Mapping[str, Any],
+    ) -> SecurityTaskHandlerResult:
+        del task
+
+        context.raise_if_cancelled()
+
+        source_code = (
+            PrimaryModelReviewTaskHandler
+            ._source_code(context)
+        )
+
+        filename = (
+            PrimaryModelReviewTaskHandler
+            ._filename(context)
+        )
+
+        scanner_evidence = (
+            PrimaryModelReviewTaskHandler
+            ._scanner_evidence(inputs)
+        )
+
+        primary_findings = (
+            self._primary_findings(inputs)
+        )
+
+        active_route = self._route(
+            self._verifier_client
+        )
+
+        if not primary_findings:
+            skipped = VerifierReviewResult(
+                model=self._verifier_client.model,
+                status="skipped",
+                verifications=[],
+                additional_findings=[],
+            )
+
+            return SecurityTaskHandlerResult(
+                output={
+                    "verifier_decisions": (
+                        skipped.model_dump(
+                            mode="json"
+                        )
+                    ),
+                },
+                metadata={
+                    "status": "skipped",
+                    "active_route": (
+                        active_route.as_dict()
+                    ),
+                    "fallback_configured": (
+                        self._fallback_client
+                        is not None
+                    ),
+                    "scanner_evidence_count": len(
+                        scanner_evidence
+                    ),
+                    "primary_finding_count": 0,
+                    "verification_count": 0,
+                },
+                reasons=(
+                    "Verifier review was not called "
+                    "because primary findings were "
+                    "empty.",
+                ),
+            )
+
+        relevant_code = (
+            PrimaryModelReviewTaskHandler
+            ._build_relevant_context(
+                code=source_code,
+                scanner_evidence=(
+                    scanner_evidence
+                ),
+                context_lines=(
+                    self._context_lines
+                ),
+            )
+        )
+
+        redaction_session = (
+            self._redactor.create_session()
+        )
+
+        safe_code = (
+            redaction_session.redact_text(
+                relevant_code
+            )
+            or relevant_code
+        )
+
+        safe_evidence = (
+            redaction_session
+            .redact_evidence_list(
+                scanner_evidence
+            )
+        )
+
+        safe_primary_findings = (
+            redaction_session
+            .redact_findings(
+                primary_findings
+            )
+        )
+
+        active_client = (
+            self._verifier_client
+        )
+
+        fallback_used = False
+        primary_error: Exception | None = None
+        fallback_error: Exception | None = None
+
+        try:
+            result = await self._call_client(
+                client=active_client,
+                code=safe_code,
+                language=context.language,
+                filename=filename,
+                scanner_evidence=(
+                    safe_evidence
+                ),
+                primary_findings=(
+                    safe_primary_findings
+                ),
+            )
+        except Exception as exc:
+            primary_error = exc
+
+            if self._fallback_client is None:
+                result = VerifierReviewResult(
+                    model=active_client.model,
+                    status="failed",
+                    error=str(exc),
+                )
+            else:
+                context.raise_if_cancelled()
+
+                active_client = (
+                    self._fallback_client
+                )
+                fallback_used = True
+
+                try:
+                    result = (
+                        await self._call_client(
+                            client=active_client,
+                            code=safe_code,
+                            language=(
+                                context.language
+                            ),
+                            filename=filename,
+                            scanner_evidence=(
+                                safe_evidence
+                            ),
+                            primary_findings=(
+                                safe_primary_findings
+                            ),
+                        )
+                    )
+                except Exception as exc2:
+                    fallback_error = exc2
+
+                    result = VerifierReviewResult(
+                        model=active_client.model,
+                        status="failed",
+                        error=(
+                            f"{primary_error}; "
+                            f"{fallback_error}"
+                        ),
+                    )
+
+        context.raise_if_cancelled()
+
+        result = result.model_copy(
+            deep=True,
+            update={
+                "model": active_client.model,
+            },
+        )
+
+        normalized_result, rejected = (
+            self._normalize_result(
+                result=result,
+                primary_finding_count=len(
+                    primary_findings
+                ),
+                redaction_session=(
+                    redaction_session
+                ),
+            )
+        )
+
+        status = normalized_result.status
+
+        if (
+            fallback_used
+            and status == "completed"
+        ):
+            handler_status = "fallback"
+        else:
+            handler_status = status
+
+        reasons = [
+            (
+                "Verifier review produced "
+                f"{len(normalized_result.verifications)} "
+                "accepted decision(s)."
+            )
+        ]
+
+        if fallback_used:
+            if status == "completed":
+                reasons.append(
+                    "The active verifier route "
+                    "failed and the explicit "
+                    "fallback route completed."
+                )
+            else:
+                reasons.append(
+                    "Both the active verifier "
+                    "route and its explicit "
+                    "fallback failed safely."
+                )
+
+        if rejected:
+            reasons.append(
+                f"{rejected} malformed, duplicate, "
+                "or out-of-range verifier "
+                "decision(s) were rejected."
+            )
+
+        metadata: dict[str, Any] = {
+            "status": handler_status,
+            "active_route": (
+                active_route.as_dict()
+            ),
+            "selected_route": (
+                self._route(
+                    active_client
+                ).as_dict()
+            ),
+            "fallback_configured": (
+                self._fallback_client
+                is not None
+            ),
+            "fallback_used": fallback_used,
+            "scanner_evidence_count": len(
+                scanner_evidence
+            ),
+            "primary_finding_count": len(
+                primary_findings
+            ),
+            "verification_count": len(
+                normalized_result.verifications
+            ),
+            "additional_finding_count": len(
+                normalized_result
+                .additional_findings
+            ),
+            "rejected_decision_count": (
+                rejected
+            ),
+            "relevant_line_count": len(
+                safe_code.splitlines()
+            ),
+        }
+
+        if primary_error is not None:
+            metadata["verifier_error"] = str(
+                primary_error
+            )
+
+        if fallback_error is not None:
+            metadata[
+                "verifier_fallback_error"
+            ] = str(fallback_error)
+
+        return SecurityTaskHandlerResult(
+            output={
+                "verifier_decisions": (
+                    normalized_result.model_dump(
+                        mode="json"
+                    )
+                ),
+            },
+            metadata=metadata,
+            reasons=tuple(reasons),
+        )
+
+    @staticmethod
+    async def _call_client(
+        *,
+        client: SecurityVerifierClient,
+        code: str,
+        language: str,
+        filename: str,
+        scanner_evidence: list[
+            ScannerEvidence
+        ],
+        primary_findings: list[
+            SecurityFinding
+        ],
+    ) -> VerifierReviewResult:
+        raw_result = (
+            await client.verify_findings(
+                code=code,
+                language=language,
+                filename=filename,
+                scanner_evidence=(
+                    scanner_evidence
+                ),
+                primary_findings=(
+                    primary_findings
+                ),
+            )
+        )
+
+        if isinstance(
+            raw_result,
+            VerifierReviewResult,
+        ):
+            return raw_result.model_copy(
+                deep=True
+            )
+
+        return (
+            VerifierReviewResult
+            .model_validate(raw_result)
+        )
+
+    @staticmethod
+    def _primary_findings(
+        inputs: Mapping[str, Any],
+    ) -> list[SecurityFinding]:
+        value = inputs.get(
+            "primary_findings"
+        )
+
+        if not isinstance(value, list):
+            raise SecurityTaskInputError(
+                "primary_findings artifact "
+                "must be a list."
+            )
+
+        return [
+            (
+                item.model_copy(deep=True)
+                if isinstance(
+                    item,
+                    SecurityFinding,
+                )
+                else SecurityFinding
+                .model_validate(item)
+            )
+            for item in value
+        ]
+
+    @classmethod
+    def _normalize_result(
+        cls,
+        *,
+        result: VerifierReviewResult,
+        primary_finding_count: int,
+        redaction_session: Any,
+    ) -> tuple[
+        VerifierReviewResult,
+        int,
+    ]:
+        accepted: list[
+            FindingVerification
+        ] = []
+
+        seen_indices: set[int] = set()
+        rejected = 0
+
+        for verification in (
+            result.verifications
+        ):
+            index = (
+                verification.finding_index
+            )
+
+            if (
+                index >= primary_finding_count
+                or index in seen_indices
+            ):
+                rejected += 1
+                continue
+
+            seen_indices.add(index)
+
+            reasoning = (
+                redaction_session.redact_text(
+                    verification.reasoning
+                )
+                or verification.reasoning
+            )
+
+            evidence = [
+                (
+                    redaction_session
+                    .redact_text(item)
+                    or item
+                )
+                for item
+                in verification.evidence
+            ]
+
+            accepted.append(
+                verification.model_copy(
+                    deep=True,
+                    update={
+                        "reasoning": reasoning,
+                        "evidence": evidence,
+                    },
+                )
+            )
+
+        safe_additional_findings = (
+            redaction_session
+            .redact_findings(
+                result.additional_findings
+            )
+        )
+
+        safe_error = (
+            redaction_session.redact_text(
+                result.error
+            )
+        )
+
+        normalized = result.model_copy(
+            deep=True,
+            update={
+                "verifications": accepted,
+                "additional_findings": (
+                    safe_additional_findings
+                ),
+                "error": safe_error,
+            },
+        )
+
+        return normalized, rejected
+
+    @staticmethod
+    def _route(
+        client: SecurityVerifierClient,
+    ) -> VerifierModelRoute:
+        provider = getattr(
+            client,
+            "provider",
+            None,
+        )
+
+        transport = getattr(
+            client,
+            "transport",
+            None,
+        )
+
+        base_url = getattr(
+            transport,
+            "base_url",
+            None,
+        )
+
+        return VerifierModelRoute(
+            provider=(
+                str(provider)
+                if provider is not None
+                else None
+            ),
+            model=client.model,
+            base_url=(
+                str(base_url)
+                if base_url is not None
+                else None
+            ),
+        )

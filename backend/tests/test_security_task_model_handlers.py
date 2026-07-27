@@ -516,3 +516,495 @@ def test_rejects_negative_context_lines() -> None:
             ),
             context_lines=-1,
         )
+
+
+from aegis.orchestrator.security_task_model_handlers import (
+    VerifierReviewTaskHandler,
+)
+from aegis.schemas.model_verification import (
+    FindingVerification,
+    VerifierReviewResult,
+)
+
+
+class RecordingVerifierClient:
+    provider = "provider-verifier-a"
+    model = "verifier/active"
+    transport = SimpleNamespace(
+        base_url=(
+            "https://verifier.invalid/v1"
+        ),
+    )
+
+    def __init__(self) -> None:
+        self.calls: list[
+            dict[str, Any]
+        ] = []
+
+    async def verify_findings(
+        self,
+        *,
+        code: str,
+        language: str,
+        filename: str,
+        scanner_evidence: list[
+            ScannerEvidence
+        ],
+        primary_findings: list[
+            SecurityFinding
+        ],
+    ) -> VerifierReviewResult:
+        self.calls.append({
+            "code": code,
+            "language": language,
+            "filename": filename,
+            "scanner_evidence": (
+                scanner_evidence
+            ),
+            "primary_findings": (
+                primary_findings
+            ),
+        })
+
+        return VerifierReviewResult(
+            model=self.model,
+            status="completed",
+            verifications=[
+                FindingVerification(
+                    finding_index=0,
+                    verdict="supported",
+                    confidence=0.94,
+                    reasoning=(
+                        "The source confirms "
+                        "shell execution."
+                    ),
+                    evidence=[
+                        "os.system(user_input)",
+                    ],
+                )
+            ],
+        )
+
+
+class FailingVerifierClient:
+    provider = "provider-verifier-a"
+    model = "verifier/failing"
+    transport = SimpleNamespace(
+        base_url=(
+            "https://verifier.invalid/v1"
+        ),
+    )
+
+    async def verify_findings(
+        self,
+        **kwargs: Any,
+    ) -> VerifierReviewResult:
+        del kwargs
+
+        raise TimeoutError(
+            "verifier timeout"
+        )
+
+
+class FallbackVerifierClient(
+    RecordingVerifierClient
+):
+    provider = "provider-verifier-b"
+    model = "verifier/fallback"
+    transport = SimpleNamespace(
+        base_url=(
+            "https://verifier-fallback.invalid/v1"
+        ),
+    )
+
+
+class InvalidDecisionVerifier(
+    RecordingVerifierClient
+):
+    async def verify_findings(
+        self,
+        **kwargs: Any,
+    ) -> VerifierReviewResult:
+        del kwargs
+
+        return VerifierReviewResult(
+            model=self.model,
+            status="completed",
+            verifications=[
+                FindingVerification(
+                    finding_index=0,
+                    verdict="supported",
+                    confidence=0.91,
+                    reasoning="Valid decision.",
+                ),
+                FindingVerification(
+                    finding_index=0,
+                    verdict="uncertain",
+                    confidence=0.50,
+                    reasoning=(
+                        "Duplicate decision."
+                    ),
+                ),
+                FindingVerification(
+                    finding_index=99,
+                    verdict="refuted",
+                    confidence=0.90,
+                    reasoning=(
+                        "Out-of-range decision."
+                    ),
+                ),
+            ],
+        )
+
+
+def verifier_task() -> SecurityTaskNode:
+    return SecurityTaskNode(
+        task_id="verifier_review",
+        kind="verifier_review",
+        state="ready",
+        produces=[
+            "verifier_decisions",
+        ],
+    )
+
+
+def verifier_inputs(
+    *,
+    primary: list[
+        dict[str, Any]
+    ] | None = None,
+) -> dict[str, Any]:
+    return {
+        "repository_context": {
+            "project_id": "project:test",
+        },
+        "scanner_evidence": evidence(),
+        "primary_findings": (
+            scanner_findings()
+            if primary is None
+            else primary
+        ),
+    }
+
+
+def test_verifier_handler_calls_client() -> None:
+    client = RecordingVerifierClient()
+
+    result = run(
+        VerifierReviewTaskHandler(
+            verifier_client=client,
+        ).execute(
+            task=verifier_task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=verifier_inputs(),
+        )
+    )
+
+    assert len(client.calls) == 1
+
+    payload = result.output[
+        "verifier_decisions"
+    ]
+
+    assert payload[
+        "status"
+    ] == "completed"
+
+    assert payload[
+        "model"
+    ] == "verifier/active"
+
+    assert len(
+        payload["verifications"]
+    ) == 1
+
+    assert payload[
+        "verifications"
+    ][0]["verdict"] == "supported"
+
+
+def test_empty_primary_findings_skip_verifier() -> None:
+    client = RecordingVerifierClient()
+
+    result = run(
+        VerifierReviewTaskHandler(
+            verifier_client=client,
+        ).execute(
+            task=verifier_task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=verifier_inputs(
+                primary=[],
+            ),
+        )
+    )
+
+    assert client.calls == []
+
+    payload = result.output[
+        "verifier_decisions"
+    ]
+
+    assert payload[
+        "status"
+    ] == "skipped"
+
+    assert payload[
+        "verifications"
+    ] == []
+
+
+def test_verifier_receives_redacted_inputs() -> None:
+    client = RecordingVerifierClient()
+
+    secret_value = (
+        "sk-abcdefghijklmnop123456"
+    )
+
+    unsafe_evidence = [
+        ScannerEvidence(
+            tool="test",
+            rule_id="test.secret",
+            message=(
+                f"Token {secret_value} found."
+            ),
+            severity="HIGH",
+            file="app.py",
+            line_start=1,
+            line_end=1,
+            code=(
+                f'api_key = "{secret_value}"'
+            ),
+        ).model_dump(
+            mode="json"
+        )
+    ]
+
+    unsafe_finding = SecurityFinding(
+        title="Exposed token",
+        severity="high",
+        confidence=0.90,
+        summary=(
+            f"Token {secret_value} is exposed."
+        ),
+        evidence=[
+            f"Observed {secret_value}",
+        ],
+        scanner_evidence=[
+            ScannerEvidence.model_validate(
+                unsafe_evidence[0]
+            )
+        ],
+        recommended_fix=(
+            "Remove the token."
+        ),
+    )
+
+    run(
+        VerifierReviewTaskHandler(
+            verifier_client=client,
+            context_lines=5,
+        ).execute(
+            task=verifier_task(),
+            context=context(
+                source_code=(
+                    f'api_key = "{secret_value}"\n'
+                    "os.system(user_input)\n"
+                )
+            ),
+            inputs={
+                "scanner_evidence": (
+                    unsafe_evidence
+                ),
+                "primary_findings": [
+                    unsafe_finding.model_dump(
+                        mode="json"
+                    )
+                ],
+            },
+        )
+    )
+
+    call = client.calls[0]
+
+    assert secret_value not in (
+        call["code"]
+    )
+
+    assert secret_value not in (
+        call["scanner_evidence"][0]
+        .message
+    )
+
+    assert secret_value not in (
+        call["primary_findings"][0]
+        .summary
+    )
+
+
+def test_verifier_fallback_is_used() -> None:
+    fallback = (
+        FallbackVerifierClient()
+    )
+
+    result = run(
+        VerifierReviewTaskHandler(
+            verifier_client=(
+                FailingVerifierClient()
+            ),
+            fallback_client=fallback,
+        ).execute(
+            task=verifier_task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=verifier_inputs(),
+        )
+    )
+
+    assert len(fallback.calls) == 1
+
+    assert result.metadata[
+        "status"
+    ] == "fallback"
+
+    assert result.metadata[
+        "fallback_used"
+    ] is True
+
+    assert result.output[
+        "verifier_decisions"
+    ]["model"] == "verifier/fallback"
+
+
+def test_verifier_failure_is_artifact_not_crash() -> None:
+    result = run(
+        VerifierReviewTaskHandler(
+            verifier_client=(
+                FailingVerifierClient()
+            ),
+        ).execute(
+            task=verifier_task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=verifier_inputs(),
+        )
+    )
+
+    payload = result.output[
+        "verifier_decisions"
+    ]
+
+    assert payload[
+        "status"
+    ] == "failed"
+
+    assert "verifier timeout" in (
+        payload["error"]
+    )
+
+
+def test_both_verifier_routes_fail_safely() -> None:
+    result = run(
+        VerifierReviewTaskHandler(
+            verifier_client=(
+                FailingVerifierClient()
+            ),
+            fallback_client=(
+                FailingVerifierClient()
+            ),
+        ).execute(
+            task=verifier_task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=verifier_inputs(),
+        )
+    )
+
+    payload = result.output[
+        "verifier_decisions"
+    ]
+
+    assert payload[
+        "status"
+    ] == "failed"
+
+    assert result.metadata[
+        "fallback_used"
+    ] is True
+
+    assert (
+        "verifier_fallback_error"
+        in result.metadata
+    )
+
+
+def test_invalid_and_duplicate_decisions_rejected() -> None:
+    result = run(
+        VerifierReviewTaskHandler(
+            verifier_client=(
+                InvalidDecisionVerifier()
+            ),
+        ).execute(
+            task=verifier_task(),
+            context=context(
+                source_code=source()
+            ),
+            inputs=verifier_inputs(),
+        )
+    )
+
+    payload = result.output[
+        "verifier_decisions"
+    ]
+
+    assert len(
+        payload["verifications"]
+    ) == 1
+
+    assert result.metadata[
+        "rejected_decision_count"
+    ] == 2
+
+
+def test_verifier_requires_primary_findings_list() -> None:
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="primary_findings",
+    ):
+        run(
+            VerifierReviewTaskHandler(
+                verifier_client=(
+                    RecordingVerifierClient()
+                ),
+            ).execute(
+                task=verifier_task(),
+                context=context(
+                    source_code=source()
+                ),
+                inputs={
+                    "scanner_evidence": (
+                        evidence()
+                    ),
+                    "primary_findings": {},
+                },
+            )
+        )
+
+
+def test_verifier_rejects_negative_context_lines() -> None:
+    with pytest.raises(
+        ValueError,
+        match="must not be negative",
+    ):
+        VerifierReviewTaskHandler(
+            verifier_client=(
+                RecordingVerifierClient()
+            ),
+            context_lines=-1,
+        )
