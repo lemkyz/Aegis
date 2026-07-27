@@ -1,6 +1,8 @@
 from pathlib import PurePosixPath
 
 from aegis.schemas.validation import (
+    ValidationAuthorizationRequest,
+    ValidationAuthorizationResponse,
     ValidationExecutionPlanResponse,
     ValidationMount,
     ValidationPlanRequest,
@@ -34,7 +36,7 @@ class ValidationPlanBuilder:
         self,
         request: ValidationPlanRequest,
     ) -> ValidationExecutionPlanResponse:
-        authorization = self._authorizer.authorize(
+        authorization = self.authorize(
             request.authorization
         )
 
@@ -79,6 +81,8 @@ class ValidationPlanBuilder:
 
         sandbox = ValidationSandboxPolicy(
             read_only_root=True,
+            host_path_relabeling=False,
+            image_pull_policy="never",
             network=network,
             drop_capabilities=["ALL"],
             no_new_privileges=True,
@@ -139,6 +143,7 @@ class ValidationPlanBuilder:
 
         return ValidationExecutionPlanResponse(
             planner=self.planner,
+            authorization=authorization,
             authorized=authorization.authorized,
             execution_allowed=(
                 authorization.execution_allowed
@@ -151,6 +156,14 @@ class ValidationPlanBuilder:
             mounts=mounts,
             reasons=reasons,
             denials=denials,
+        )
+
+    def authorize(
+        self,
+        request: ValidationAuthorizationRequest,
+    ) -> ValidationAuthorizationResponse:
+        return self._authorizer.authorize(
+            request
         )
 
     @staticmethod

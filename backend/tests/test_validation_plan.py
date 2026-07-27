@@ -69,6 +69,19 @@ def test_builds_hardened_python_plan() -> None:
     ]
 
     assert result.sandbox.read_only_root is True
+    assert result.authorization.authorized is True
+    assert (
+        result.authorization.execution_allowed
+        is True
+    )
+    assert (
+        result.sandbox.host_path_relabeling
+        is False
+    )
+    assert (
+        result.sandbox.image_pull_policy
+        == "never"
+    )
     assert result.sandbox.network == "none"
     assert result.sandbox.drop_capabilities == [
         "ALL"

@@ -54,6 +54,9 @@ def test_builds_hardened_podman_argv() -> None:
         "run",
         "--rm",
     ]
+    assert argv[
+        argv.index("--pull") + 1
+    ] == "never"
     assert "--read-only" in argv
     assert argv[
         argv.index("--network") + 1
@@ -65,6 +68,7 @@ def test_builds_hardened_podman_argv() -> None:
         "no-new-privileges"
         in argv
     )
+    assert "label=disable" in argv
     assert argv[
         argv.index("--user") + 1
     ] == "65532:65532"
@@ -79,8 +83,10 @@ def test_builds_hardened_podman_argv() -> None:
 
     assert volume == (
         "/tmp/aegis-project:"
-        "/workspace:ro,Z"
+        "/workspace:ro"
     )
+    assert ":Z" not in volume
+    assert ":z" not in volume
     assert "sh" not in argv
     assert "bash" not in argv
     assert "/bin/sh" not in argv

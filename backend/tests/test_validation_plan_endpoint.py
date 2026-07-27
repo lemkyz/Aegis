@@ -49,6 +49,9 @@ def test_validation_plan_endpoint_returns_plan() -> None:
         "aegis-isolated-validation-plan-v1"
     )
     assert payload["ready"] is True
+    assert payload["authorization"][
+        "authorized"
+    ] is True
     assert payload["image"] == "python:3.14-slim"
     assert payload["command"] == [
         "python",

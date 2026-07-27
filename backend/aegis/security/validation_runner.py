@@ -206,6 +206,8 @@ class ValidationRunner:
             runtime_executable,
             "run",
             "--rm",
+            "--pull",
+            plan.sandbox.image_pull_policy,
             "--read-only",
             "--network",
             plan.sandbox.network,
@@ -213,6 +215,8 @@ class ValidationRunner:
             "ALL",
             "--security-opt",
             "no-new-privileges",
+            "--security-opt",
+            "label=disable",
             "--user",
             plan.sandbox.user,
             "--memory",
@@ -240,7 +244,7 @@ class ValidationRunner:
                 "--volume",
                 (
                     f"{mount.source}:"
-                    f"{mount.target}:ro,Z"
+                    f"{mount.target}:ro"
                 ),
                 "--workdir",
                 "/workspace",

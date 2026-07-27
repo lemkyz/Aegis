@@ -202,3 +202,98 @@ def test_replay_uses_same_plan(
     )
 
     assert captured["plan"] == request.plan
+
+
+def test_replay_redacts_captured_secrets(
+    monkeypatch,
+) -> None:
+    synthetic_secret = (
+        'PASSWORD="'
+        'fixture-replay-secret-value"'
+    )
+
+    async def fake_run(
+        self,
+        request,
+    ) -> ValidationExecutionResult:
+        del request
+        return _execution(
+            stdout=(
+                "SAFE_BEHAVIOR\n"
+                f"{synthetic_secret}\n"
+            ),
+        )
+
+    monkeypatch.setattr(
+        "aegis.security.validation_runner."
+        "ValidationRunner.run",
+        fake_run,
+    )
+
+    request = _request()
+    request.before_execution.stdout = (
+        f"AEGIS_EXPLOIT_CONFIRMED\n"
+        f"{synthetic_secret}\n"
+    )
+    request.before_execution.argv.append(
+        synthetic_secret
+    )
+    request.before_execution.reasons.append(
+        synthetic_secret
+    )
+    result = asyncio.run(
+        ValidationReplayOrchestrator()
+        .replay(request)
+    )
+    serialized = result.model_dump_json()
+
+    assert (
+        "fixture-replay-secret-value"
+        not in serialized
+    )
+    assert "<AEGIS_REDACTED_SECRET_" in (
+        serialized
+    )
+
+
+def test_unconfirmed_baseline_blocks_runtime(
+    monkeypatch,
+) -> None:
+    calls = 0
+
+    async def fake_run(
+        self,
+        request,
+    ) -> ValidationExecutionResult:
+        nonlocal calls
+        del request
+        calls += 1
+        return _execution(
+            stdout="SAFE_BEHAVIOR\n",
+        )
+
+    monkeypatch.setattr(
+        "aegis.security.validation_runner."
+        "ValidationRunner.run",
+        fake_run,
+    )
+
+    request = _request()
+    request.before_execution.stdout = (
+        "SAFE_BEHAVIOR\n"
+    )
+    result = asyncio.run(
+        ValidationReplayOrchestrator()
+        .replay(request)
+    )
+
+    assert calls == 0
+    assert result.before_evidence.verdict == (
+        "not_reproduced"
+    )
+    assert result.after_execution.status == (
+        "rejected"
+    )
+    assert result.comparison.verdict == (
+        "inconclusive"
+    )

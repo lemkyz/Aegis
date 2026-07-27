@@ -200,6 +200,7 @@ def test_deep_analysis_registry_contains_full_pipeline() -> None:
         "attack_surface",
         "dependency_scan",
         "deterministic_scan",
+        "dynamic_validation",
         "model_consensus",
         "primary_model_review",
         "repository_context",

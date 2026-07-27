@@ -129,6 +129,8 @@ The local sandbox currently applies:
 ```text
 read-only container root
 read-only repository mount
+no host repository relabeling
+no implicit container image pulls
 network disabled by default
 all Linux capabilities dropped
 no-new-privileges

@@ -17,6 +17,10 @@ from aegis.orchestrator.security_task_handlers import (
     DeterministicScanTaskHandler,
     RepositoryContextTaskHandler,
 )
+from aegis.orchestrator.security_task_dynamic_validation_handler import (
+    DynamicValidationTaskHandler,
+    ValidationReplayExecutor,
+)
 from aegis.orchestrator.security_task_model_handlers import (
     ModelConsensusTaskHandler,
     PrimaryModelReviewTaskHandler,
@@ -53,6 +57,9 @@ from aegis.security.secrets import (
     SecretIntelligenceEngine,
 )
 from aegis.security.threat_model import ThreatModeler
+from aegis.security.validation_plan import (
+    ValidationPlanBuilder,
+)
 from aegis.orchestrator.security_task_handler import (
     SecurityTaskHandlerContractError,
 )
@@ -83,6 +90,14 @@ def create_deep_analysis_security_task_registry(
     ) = None,
     threat_modeler: (
         ThreatModeler
+        | None
+    ) = None,
+    validation_plan_builder: (
+        ValidationPlanBuilder
+        | None
+    ) = None,
+    validation_replay_orchestrator: (
+        ValidationReplayExecutor
         | None
     ) = None,
     primary_client: (
@@ -208,6 +223,15 @@ def create_deep_analysis_security_task_registry(
     registry.register(
         ThreatModelTaskHandler(
             modeler=threat_modeler,
+        )
+    )
+
+    registry.register(
+        DynamicValidationTaskHandler(
+            planner=validation_plan_builder,
+            replay_orchestrator=(
+                validation_replay_orchestrator
+            ),
         )
     )
 

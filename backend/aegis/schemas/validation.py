@@ -115,6 +115,10 @@ class ValidationPlanRequest(BaseModel):
 
 class ValidationSandboxPolicy(BaseModel):
     read_only_root: bool
+    host_path_relabeling: bool
+    image_pull_policy: Literal[
+        "never",
+    ]
     network: Literal[
         "none",
         "loopback",
@@ -137,6 +141,7 @@ class ValidationMount(BaseModel):
 
 class ValidationExecutionPlanResponse(BaseModel):
     planner: str
+    authorization: ValidationAuthorizationResponse
 
     authorized: bool
     execution_allowed: bool
@@ -354,6 +359,17 @@ class ValidationReplayResponse(BaseModel):
     after_evidence: DynamicValidationEvidenceResponse
 
     comparison: ValidationReplayCompareResponse
+
+
+class DynamicValidationTaskArtifact(BaseModel):
+    handler: str
+    source_artifacts: list[str] = Field(
+        min_length=1,
+    )
+    authorization: ValidationAuthorizationResponse
+    execution_plan: ValidationExecutionPlanResponse
+    replay: ValidationReplayResponse
+    outputs_redacted: bool
 
 
 FixProjectCheckStatus = Literal[
