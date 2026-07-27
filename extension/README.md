@@ -1,6 +1,10 @@
-# Aegis Security
+<p align="center">
+  <img src="images/icon.png" width="128" alt="Aegis">
+</p>
 
-## Evidence-backed security analysis and fix verification inside VS Code
+<h1 align="center">Aegis Security</h1>
+
+<p align="center"><strong>Evidence-backed security analysis and fix verification inside VS Code</strong></p>
 
 Aegis is the interactive workspace for a local software-agent trust layer. It
 keeps the whole security run visible: scanner evidence, model routes,

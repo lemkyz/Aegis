@@ -23,23 +23,38 @@ scanner or generic security dashboard.
 - no generated imagery or marketplace mockups
 - icon and wordmark must work independently
 
-## Directions worth sketching
+## Selected mark
 
-### Gate glyph
+The Aegis mark is an open isometric control plane containing six trust nodes,
+three verification axes, and one attested center.
 
-A custom `A` or lambda-like form with one interrupted stroke. The interruption
-represents an action waiting at a permission boundary; the completed stroke
-represents an authorized action with evidence.
+- The open top and bottom keep the system extensible rather than sealed.
+- The six nodes represent independently inspectable ecosystem participants.
+- The three axes represent separate routes to verification.
+- The gold center is the invariant witness retained by Aegis.
+- The heavier outer plane distinguishes governance from the evidence graph it
+  contains.
 
-### Evidence knot
+The construction is deliberately geometric. Do not redraw it from a generated
+image, close the outer plane, add effects, or change node positions.
 
-Two paths converge, cross a verification point, and leave as one attested
-result. The mark should feel structural rather than decorative.
+## Palette
 
-### Witness mark
+| Token | Value | Use |
+|---|---|---|
+| Aegis Ink | `#111318` | Primary geometry and dark surfaces |
+| Evidence Paper | `#F5F1E8` | Light surfaces and reversed geometry |
+| Attestation Gold | `#C99A42` | Invariant witness only |
 
-An abstract registration or proof mark built from an origin, a verification
-point, and a retained trace. It should not resemble an eye.
+Color is not required for recognition. The monochrome mark replaces the gold
+center with the foreground color.
 
-No direction becomes the product mark until it works in black and white at
-16, 32, 128, and 512 pixels.
+## Assets
+
+- `aegis-mark.svg` — primary transparent vector
+- `aegis-mark-reversed.svg` — transparent vector for dark surfaces
+- `aegis-mark-mono.svg` — single-color reproduction
+- `../extension/images/icon.png` — packaged 512 px extension icon
+
+The mark has been checked at 16, 32, 64, 128, and 512 pixels. Use at least
+32 pixels when the internal evidence lattice must remain legible.

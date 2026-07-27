@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Aegis</title>
+  <desc id="desc">Six trust nodes and three verification axes held within an isometric control plane.</desc>
+  <defs>
+    <mask id="node-clearance" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#fff"/>
+      <circle cx="256" cy="112" r="31" fill="#000"/>
+      <circle cx="128" cy="186" r="31" fill="#000"/>
+      <circle cx="384" cy="186" r="31" fill="#000"/>
+      <circle cx="128" cy="326" r="31" fill="#000"/>
+      <circle cx="384" cy="326" r="31" fill="#000"/>
+      <circle cx="256" cy="400" r="31" fill="#000"/>
+      <circle cx="256" cy="256" r="29" fill="#000"/>
+    </mask>
+  </defs>
+
+  <path
+    d="M242 44 64 148V364L242 468M270 44 448 148V364L270 468"
+    fill="none"
+    stroke="#000"
+    stroke-width="24"
+    stroke-linejoin="miter"
+  />
+  <g
+    fill="none"
+    stroke="#000"
+    stroke-width="11"
+    stroke-linecap="butt"
+    stroke-linejoin="miter"
+    mask="url(#node-clearance)"
+  >
+    <path d="M64 148 128 186M448 148 384 186M64 364 128 326M448 364 384 326"/>
+    <path d="M256 112 128 186V326L256 400 384 326V186Z"/>
+    <path d="M256 112V400"/>
+    <path d="M128 186 384 326"/>
+    <path d="M384 186 128 326"/>
+  </g>
+  <g fill="#000">
+    <circle cx="256" cy="112" r="23"/>
+    <circle cx="128" cy="186" r="23"/>
+    <circle cx="384" cy="186" r="23"/>
+    <circle cx="128" cy="326" r="23"/>
+    <circle cx="384" cy="326" r="23"/>
+    <circle cx="256" cy="400" r="23"/>
+    <circle cx="256" cy="256" r="18"/>
+  </g>
+</svg>

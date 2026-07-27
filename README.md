@@ -1,6 +1,10 @@
-# Aegis
+<p align="center">
+  <img src="brand/aegis-mark.svg" width="144" alt="Aegis">
+</p>
 
-## Trust infrastructure for software agents
+<h1 align="center">Aegis</h1>
+
+<p align="center"><strong>Trust infrastructure for software agents</strong></p>
 
 AI agents can write code, call tools, modify repositories, and trigger real
 systems. The difficult question is no longer whether an agent can act. It is

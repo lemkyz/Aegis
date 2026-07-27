@@ -60,6 +60,10 @@ test(
     assert.equal(manifest.preview, true);
     assert.equal(manifest.pricing, "Free");
     assert.equal(manifest.markdown, "github");
+    assert.equal(
+      manifest.icon,
+      "images/icon.png",
+    );
   },
 );
 

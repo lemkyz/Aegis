@@ -111,6 +111,12 @@ const requiredFiles = [
     ],
   },
   {
+    label: "extension icon",
+    acceptedSuffixes: [
+      "extension/images/icon.png",
+    ],
+  },
+  {
     label: "compiled extension entry point",
     acceptedSuffixes: [
       "extension/dist/extension.js",
