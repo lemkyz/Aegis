@@ -13,6 +13,7 @@ from aegis.orchestrator.security_task_handler import (
 )
 from aegis.schemas.analysis import (
     ScannerEvidence,
+    ScannerCoverage,
     SecurityFinding,
 )
 from aegis.schemas.security_task_plan import (
@@ -193,6 +194,7 @@ class DeterministicScanTaskHandler:
             "repository_context",
         }),
         produced_artifacts=frozenset({
+            "scanner_coverage",
             "scanner_evidence",
             "scanner_findings",
         }),
@@ -338,6 +340,68 @@ class DeterministicScanTaskHandler:
             in orchestration.executions
             if execution.status == "completed"
         ]
+        selected_scanners = [
+            execution.name
+            for execution
+            in orchestration.executions
+        ]
+        completed_scanner_names = [
+            execution.name
+            for execution
+            in completed_scanners
+        ]
+        config_scan_applicable = (
+            self._config_scanner.supports(
+                filename=scan_input.filename,
+                language=scan_input.language,
+            )
+        )
+
+        if config_scan_applicable:
+            selected_scanners.append(
+                self._config_scanner.name
+            )
+            completed_scanner_names.append(
+                self._config_scanner.name
+            )
+
+        coverage_complete = (
+            bool(completed_scanner_names)
+            and not failed_scanners
+        )
+
+        if coverage_complete:
+            coverage_status = "completed"
+        elif selected_scanners:
+            coverage_status = "partial"
+        else:
+            coverage_status = (
+                "completed"
+                if config_scan_applicable
+                else "not_applicable"
+            )
+
+        coverage = ScannerCoverage(
+            status=coverage_status,
+            language=scan_input.language,
+            selected_scanners=(
+                selected_scanners
+            ),
+            completed_scanners=(
+                completed_scanner_names
+            ),
+            failed_scanners=[
+                execution.name
+                for execution
+                in failed_scanners
+            ],
+            configuration_scan_applicable=(
+                config_scan_applicable
+            ),
+            coverage_complete=(
+                coverage_complete
+            ),
+        )
 
         reasons = [
             (
@@ -353,12 +417,7 @@ class DeterministicScanTaskHandler:
                 "supported this input."
             )
 
-        if (
-            self._config_scanner.supports(
-                filename=scan_input.filename,
-                language=scan_input.language,
-            )
-        ):
+        if config_scan_applicable:
             reasons.append(
                 "Configuration secret scanning "
                 "was applicable."
@@ -373,6 +432,11 @@ class DeterministicScanTaskHandler:
 
         return SecurityTaskHandlerResult(
             output={
+                "scanner_coverage": (
+                    coverage.model_dump(
+                        mode="json"
+                    )
+                ),
                 "scanner_evidence": [
                     item.model_dump(
                         mode="json"
@@ -409,6 +473,12 @@ class DeterministicScanTaskHandler:
                     for execution
                     in failed_scanners
                 ],
+                "coverage_status": (
+                    coverage.status
+                ),
+                "coverage_complete": (
+                    coverage.coverage_complete
+                ),
                 "evidence_count": len(
                     safe_evidence
                 ),

@@ -246,3 +246,26 @@ test(
     );
   },
 );
+
+
+test(
+  "manifest contributes trusted analysis",
+  () => {
+    const command =
+      manifest.contributes.commands.find(
+        (item) =>
+          item.command
+          === "aegis.runTrustedAnalysis",
+      );
+
+    assert.ok(command);
+    assert.equal(
+      command.title,
+      "Aegis: Run Trusted Analysis",
+    );
+    assert.equal(
+      command.category,
+      "Aegis",
+    );
+  },
+);

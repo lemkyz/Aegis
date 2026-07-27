@@ -91,6 +91,7 @@ function activate(context) {
     const mapAttackSurfaceCommand = vscode.commands.registerCommand("aegis.mapAttackSurface", mapWorkspaceAttackSurface);
     const generateThreatModelCommand = vscode.commands.registerCommand("aegis.generateThreatModel", generateWorkspaceThreatModel);
     const previewSecurityTaskPlanCommand = vscode.commands.registerCommand("aegis.previewSecurityTaskPlan", previewSecurityTaskPlan);
+    const runTrustedAnalysisCommand = vscode.commands.registerCommand("aegis.runTrustedAnalysis", runTrustedAnalysis);
     const scanDependenciesCommand = vscode.commands.registerCommand("aegis.scanDependencies", scanDependencies);
     const scanUncommittedChangesCommand = vscode.commands.registerCommand("aegis.scanUncommittedChanges", () => scanGitChanges("uncommitted"));
     const scanStagedChangesCommand = vscode.commands.registerCommand("aegis.scanStagedChanges", () => scanGitChanges("staged"));
@@ -107,7 +108,7 @@ function activate(context) {
             vscode.CodeActionKind.QuickFix,
         ],
     });
-    context.subscriptions.push(diagnosticCollection, reportContentProvider, reportProviderRegistration, securityTreeView, openWorkspaceFindingCommand, openDependencyManifestCommand, openAttackSurfaceNodeCommand, refreshSecurityViewCommand, fastScanCommand, fastScanCurrentFileCommand, scanWorkspaceCommand, mapAttackSurfaceCommand, generateThreatModelCommand, previewSecurityTaskPlanCommand, scanDependenciesCommand, scanUncommittedChangesCommand, scanStagedChangesCommand, deepAnalysisCommand, applyFixCommand, runDynamicBaselineCommand, deepAnalyzeDiagnosticCommand, openLastReportCommand, codeActionProvider);
+    context.subscriptions.push(diagnosticCollection, reportContentProvider, reportProviderRegistration, securityTreeView, openWorkspaceFindingCommand, openDependencyManifestCommand, openAttackSurfaceNodeCommand, refreshSecurityViewCommand, fastScanCommand, fastScanCurrentFileCommand, scanWorkspaceCommand, mapAttackSurfaceCommand, generateThreatModelCommand, previewSecurityTaskPlanCommand, runTrustedAnalysisCommand, scanDependenciesCommand, scanUncommittedChangesCommand, scanStagedChangesCommand, deepAnalysisCommand, applyFixCommand, runDynamicBaselineCommand, deepAnalyzeDiagnosticCommand, openLastReportCommand, codeActionProvider);
 }
 class AegisSecurityTreeProvider {
     changeEmitter = new vscode.EventEmitter();
@@ -1368,6 +1369,7 @@ async function previewSecurityTaskPlan() {
         finding_confidence: 0,
         has_proven_data_flow: false,
         independently_verified: false,
+        include_threat_model: true,
         include_security_memory: true,
         include_policy_evaluation: true,
     };
@@ -1397,6 +1399,197 @@ async function previewSecurityTaskPlan() {
             ? error.message
             : String(error);
         void vscode.window.showErrorMessage(("Aegis Security Task Planning "
+            + `failed: ${message}`));
+    }
+}
+async function requestTrustedAnalysis(backendUrl, input) {
+    return (0, backendClient_1.postBackendJson)({
+        backendUrl,
+        endpoint: "/v1/security/tasks/run",
+        body: {
+            operation: "deep_analysis",
+            repository_path: input.repositoryPath,
+            code: input.code,
+            filename: input.filename,
+            language: input.language,
+            include_threat_model: true,
+            include_security_memory: true,
+            include_policy_evaluation: true,
+            policy_profile: "balanced",
+        },
+        timeoutMilliseconds: 300_000,
+        timeoutMessage: "Trusted Analysis timed out after five minutes.",
+    });
+}
+function trustedMemoryDisplay(result) {
+    if (result.security_memory
+        && result.policy_decision) {
+        return {
+            response: {
+                memory: result.security_memory.memory,
+                policy: result.policy_decision.decision,
+            },
+        };
+    }
+    return {
+        error: (result.errors[0]
+            ?? ("The trusted workflow did not "
+                + "produce both security-memory "
+                + "and policy artifacts.")),
+    };
+}
+function buildTrustedAnalysisReport(result) {
+    const policy = result.policy_decision?.decision;
+    const memory = trustedMemoryDisplay(result);
+    const lines = [
+        "# Aegis Trusted Analysis",
+        "",
+        "> Production orchestration executed registered security handlers; this is not a plan preview.",
+        "",
+        `- **Workflow:** ${result.workflow_status.replaceAll("_", " ").toUpperCase()}`,
+        `- **Execution ID:** \`${escapeMarkdownInlineCode(result.execution.execution_id)}\``,
+        `- **Execution State:** ${result.execution.status.toUpperCase()}`,
+        `- **Audit Events:** ${result.aggregation.audit_event_count}`,
+        `- **Completed Tasks:** ${result.aggregation.completed_task_ids.length}`,
+        `- **Failed Tasks:** ${result.aggregation.failed_task_ids.length}`,
+        `- **Blocked Tasks:** ${result.aggregation.blocked_task_ids.length}`,
+        `- **Skipped Tasks:** ${result.aggregation.skipped_task_ids.length}`,
+        "",
+        "## Trust Decision",
+        "",
+    ];
+    if (policy) {
+        lines.push(`- **Decision:** ${policy.decision.toUpperCase()}`, `- **Risk:** ${policy.risk_score} / 100 — ${policy.risk_level.toUpperCase()}`, `- **Policy:** \`${escapeMarkdownInlineCode(policy.policy_version)}\``, `- **Profile:** ${policy.profile}`, "");
+        for (const reason of policy.reasons) {
+            lines.push(`- ${sanitizeMarkdownText(reason)}`);
+        }
+    }
+    else {
+        lines.push("> No final policy decision was produced. Treat this workflow as incomplete.");
+    }
+    lines.push("", "## Executed Task Graph", "");
+    for (const summary of result.aggregation.task_summaries) {
+        const attemptLabel = summary.attempts === 1
+            ? "attempt"
+            : "attempts";
+        lines.push((`- **${formatSecurityTaskLabel(summary.kind)}:** `
+            + `${formatSecurityTaskState(summary.state)} `
+            + `(${summary.attempts} ${attemptLabel})`));
+        if (summary.error) {
+            lines.push(`  - ${sanitizeMarkdownText(summary.error)}`);
+        }
+    }
+    if (result.threat_model) {
+        lines.push("", "## Threat Model Summary", "", `- **Threats:** ${result.threat_model.summary.threats_found}`, `- **Critical:** ${result.threat_model.summary.critical}`, `- **High:** ${result.threat_model.summary.high}`, `- **Trust Boundaries:** ${result.threat_model.summary.trust_boundaries_found}`, `- **Assets:** ${result.threat_model.summary.assets_found}`);
+    }
+    const errors = [
+        ...result.errors,
+        ...result.aggregation.errors,
+    ];
+    if (errors.length > 0) {
+        lines.push("", "## Workflow Errors", "", ...errors.map((error) => `- ${sanitizeMarkdownText(error)}`));
+    }
+    const analysisReport = buildMarkdownReport(result.analysis, "deep", memory).replace(/^# /u, "## ");
+    lines.push("", "---", "", analysisReport, "", "## Audit Boundary", "", "- Security Memory is present only when scanner coverage and model consensus completed.", "- Policy output is derived from the immutable project snapshot.", "- Partial or failed workflows are never presented as a clean baseline.", "- Dynamic execution still requires separate explicit authorization.", "");
+    return lines.join("\n");
+}
+async function runTrustedAnalysis() {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor
+        || editor.document.uri.scheme !== "file") {
+        void vscode.window.showErrorMessage("Aegis: Open a local source file before running Trusted Analysis.");
+        return;
+    }
+    const document = editor.document;
+    const code = document.getText();
+    if (document.isDirty) {
+        void vscode.window.showWarningMessage(("Aegis: Save the current file before "
+            + "running Trusted Analysis so evidence "
+            + "matches repository provenance."));
+        return;
+    }
+    if (!code.trim()) {
+        void vscode.window.showWarningMessage("Aegis: The current file is empty.");
+        return;
+    }
+    if (Buffer.byteLength(code, "utf-8")
+        > workspaceSafety_1.MAX_MODEL_FILE_BYTES) {
+        void vscode.window.showErrorMessage(("Aegis: Trusted Analysis accepts files "
+            + `up to ${workspaceSafety_1.MAX_MODEL_FILE_BYTES} bytes.`));
+        return;
+    }
+    const configuration = vscode.workspace.getConfiguration("aegis");
+    const backendUrl = configuration
+        .get("backendUrl", "http://127.0.0.1:8000")
+        .replace(/\/+$/u, "");
+    try {
+        const repositoryRoot = await resolveVerificationProjectRoot(document);
+        const relativeFilename = path.relative(repositoryRoot, document.fileName);
+        if (!relativeFilename
+            || path.isAbsolute(relativeFilename)
+            || relativeFilename === ".."
+            || relativeFilename.startsWith(`..${path.sep}`)) {
+            throw new Error("The active file is outside the resolved repository.");
+        }
+        const filename = relativeFilename
+            .split(path.sep)
+            .join("/");
+        const language = normalizeLanguage(document.languageId);
+        const result = await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Aegis is running the trusted security workflow",
+            cancellable: false,
+        }, async () => requestTrustedAnalysis(backendUrl, {
+            repositoryPath: repositoryRoot,
+            code,
+            filename,
+            language,
+        }));
+        lastAnalysis = {
+            documentUri: document.uri.toString(),
+            documentVersion: document.version,
+            selection: new vscode.Range(document.positionAt(0), document.positionAt(code.length)),
+            response: result.analysis,
+            mode: "deep",
+        };
+        updateDiagnostics(document, result.analysis, 0);
+        await showReusableAegisReport("trusted-analysis", buildTrustedAnalysisReport(result));
+        const decision = result.policy_decision
+            ?.decision.decision;
+        const message = (`Aegis Trusted Analysis: `
+            + `${result.workflow_status.toUpperCase()}`
+            + (decision
+                ? ` — policy ${decision.toUpperCase()}.`
+                : " — no final policy decision."));
+        const patch = findFirstPatch(result.analysis);
+        if (result.workflow_status
+            !== "completed"
+            || decision === "block"
+            || decision === "review") {
+            const actions = patch
+                ? [
+                    "Apply Secure Fix",
+                    "Keep Report Open",
+                ]
+                : [
+                    "Keep Report Open",
+                ];
+            const action = await vscode.window
+                .showWarningMessage(message, ...actions);
+            if (action === "Apply Secure Fix") {
+                await applySecureFix();
+            }
+        }
+        else {
+            void vscode.window
+                .showInformationMessage(message);
+        }
+    }
+    catch (error) {
+        const message = error instanceof Error
+            ? error.message
+            : String(error);
+        void vscode.window.showErrorMessage(("Aegis Trusted Analysis "
             + `failed: ${message}`));
     }
 }

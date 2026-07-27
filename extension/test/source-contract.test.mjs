@@ -541,7 +541,7 @@ test(
 
     const nextFunction =
       source.indexOf(
-        "\n\nasync function requestAttackSurfaceScan",
+        "\n\nasync function requestTrustedAnalysis",
         previewStart,
       );
 
@@ -568,6 +568,7 @@ test(
       "/v1/security/tasks/execution/fail",
       "/v1/security/tasks/execution/skip",
       "/v1/security/tasks/aggregate",
+      "/v1/security/tasks/run",
     ]) {
       assert.ok(
         !previewSource.includes(
@@ -579,6 +580,69 @@ test(
         ),
       );
     }
+  },
+);
+
+
+test(
+  "trusted analysis executes the production workflow",
+  () => {
+    for (const marker of [
+      '"aegis.runTrustedAnalysis"',
+      '"/v1/security/tasks/run"',
+      '"trusted-analysis"',
+      "buildTrustedAnalysisReport",
+      "workflow_status",
+      "security_memory",
+      "policy_decision",
+      "audit_event_count",
+      "Security Memory is present only when scanner coverage",
+    ]) {
+      assert.ok(
+        source.includes(marker),
+        (
+          "Missing trusted-analysis marker: "
+          + marker
+        ),
+      );
+    }
+  },
+);
+
+
+test(
+  "trusted analysis preserves explicit safety gates",
+  () => {
+    assert.ok(
+      source.includes(
+        "Dynamic execution still requires separate explicit authorization.",
+      ),
+    );
+    assert.ok(
+      source.includes(
+        "Partial or failed workflows are never presented as a clean baseline.",
+      ),
+    );
+    assert.ok(
+      source.includes(
+        "resolveVerificationProjectRoot",
+      ),
+    );
+    assert.ok(
+      source.includes(
+        "MAX_MODEL_FILE_BYTES",
+      ),
+    );
+    assert.ok(
+      source.includes(
+        "document.isDirty",
+      ),
+    );
+    assert.ok(
+      source.includes(
+        "matches repository provenance",
+      ),
+    );
   },
 );
 

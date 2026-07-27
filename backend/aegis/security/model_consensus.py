@@ -26,6 +26,42 @@ class ModelConsensusEvaluator:
     ) -> ModelConsensusResult:
         errors: list[str] = []
 
+        if (
+            not primary_findings
+            and verifier_result.status
+            in {"completed", "skipped"}
+            and not verifier_result.verifications
+            and not (
+                verifier_result
+                .additional_findings
+            )
+        ):
+            return ModelConsensusResult(
+                primary_provider=primary_provider,
+                primary_model=primary_model,
+                verifier_provider=verifier_provider,
+                verifier_model=verifier_result.model,
+                route_independence=(
+                    route_assessment.classification
+                    if route_assessment
+                    else None
+                ),
+                independently_verified=(
+                    route_assessment
+                    .independently_verified
+                    if route_assessment
+                    else None
+                ),
+                route_reasons=(
+                    list(route_assessment.reasons)
+                    if route_assessment
+                    else []
+                ),
+                status="completed",
+                decisions=[],
+                errors=[],
+            )
+
         if verifier_result.status != "completed":
             error = (
                 verifier_result.error

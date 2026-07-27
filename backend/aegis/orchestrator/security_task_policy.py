@@ -47,8 +47,13 @@ class SecurityTaskPlanningPolicy:
 
         require_threat_model = (
             request.operation == "deep_analysis"
-            and elevated_risk
-            and request.has_scanner_evidence
+            and (
+                request.include_threat_model
+                or (
+                    elevated_risk
+                    and request.has_scanner_evidence
+                )
+            )
         )
 
         recommend_dynamic_validation = (
@@ -82,10 +87,16 @@ class SecurityTaskPlanningPolicy:
             )
 
         if require_threat_model:
-            reasons.append(
-                "Threat modeling is required for this "
-                "elevated-risk deep analysis."
-            )
+            if request.include_threat_model:
+                reasons.append(
+                    "Threat modeling was explicitly "
+                    "requested for this deep analysis."
+                )
+            else:
+                reasons.append(
+                    "Threat modeling is required for "
+                    "this elevated-risk deep analysis."
+                )
 
         if recommend_dynamic_validation:
             reasons.append(

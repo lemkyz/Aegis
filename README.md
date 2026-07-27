@@ -121,6 +121,8 @@ The patch failed verification because at least one of the following occurred:
 - immutable project security-memory snapshots
 - claim lifecycle reconciliation
 - deterministic allow, review, or block policy output
+- production security-task execution with append-only audit events
+- Trusted Analysis reports spanning evidence, threat, memory, and policy
 - persistent reports inside VS Code
 
 ## Safety model
@@ -155,6 +157,9 @@ Security memory records only explicitly complete results.
 Partial or failed analysis is never persisted as a clean
 baseline, and an empty snapshot requires explicit
 complete-scan confirmation.
+Trusted Analysis also requires an explicit completed
+scanner-coverage artifact before it can update the
+project baseline.
 
 Validation is designed for repositories and systems you own or are authorized to test.
 

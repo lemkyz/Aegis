@@ -104,6 +104,7 @@ class SecurityTaskPlanRequest(BaseModel):
     )
     has_proven_data_flow: bool = False
     independently_verified: bool = False
+    include_threat_model: bool = False
     include_security_memory: bool = True
     include_policy_evaluation: bool = True
 

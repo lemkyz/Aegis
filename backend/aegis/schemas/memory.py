@@ -285,6 +285,9 @@ class SecurityMemoryTaskInput(BaseModel):
         min_length=1,
         max_length=50,
     )
+    claims_artifact: Literal[
+        "consensus_claims",
+    ] | None = None
     allow_empty_snapshot: bool = False
 
     @model_validator(mode="after")
@@ -320,6 +323,25 @@ class SecurityMemoryTaskInput(BaseModel):
             raise ValueError(
                 "source_artifacts must not contain "
                 "blank names"
+            )
+
+        if (
+            self.claims_artifact is not None
+            and self.claims
+        ):
+            raise ValueError(
+                "claims and claims_artifact cannot "
+                "both supply security-memory claims"
+            )
+
+        if (
+            self.claims_artifact is not None
+            and self.claims_artifact
+            not in self.source_artifacts
+        ):
+            raise ValueError(
+                "claims_artifact must be named in "
+                "source_artifacts"
             )
 
         return self

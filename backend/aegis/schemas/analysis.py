@@ -55,6 +55,29 @@ class ScannerEvidence(BaseModel):
     )
 
 
+class ScannerCoverage(BaseModel):
+    status: Literal[
+        "completed",
+        "partial",
+        "not_applicable",
+    ]
+    language: str = Field(
+        min_length=1,
+        max_length=50,
+    )
+    selected_scanners: list[str] = Field(
+        default_factory=list,
+    )
+    completed_scanners: list[str] = Field(
+        default_factory=list,
+    )
+    failed_scanners: list[str] = Field(
+        default_factory=list,
+    )
+    configuration_scan_applicable: bool
+    coverage_complete: bool
+
+
 class SecurityFinding(BaseModel):
     title: str
     severity: Severity

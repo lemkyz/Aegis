@@ -99,8 +99,19 @@ from aegis.orchestrator.security_task_execution import (
 from aegis.orchestrator.security_task_planner import (
     SecurityTaskPlanner,
 )
+from aegis.orchestrator.security_task_production import (
+    SecurityTaskProductionError,
+    SecurityTaskProductionRunner,
+)
+from aegis.orchestrator.security_task_registry_factory import (
+    create_deep_analysis_security_task_registry,
+)
 from aegis.orchestrator.security_task_state import (
     SecurityTaskStateResolver,
+)
+from aegis.schemas.security_task_run import (
+    SecurityTaskRunRequest,
+    SecurityTaskRunResponse,
 )
 
 from aegis.security.authorization import (
@@ -189,6 +200,51 @@ security_task_execution_machine = (
 )
 security_task_result_aggregator = (
     SecurityTaskResultAggregator()
+)
+security_task_handler_registry = (
+    create_deep_analysis_security_task_registry(
+        fingerprint_key=(
+            settings.aegis_fingerprint_key
+        ),
+        scanner_orchestrator=(
+            analyzer.scanner_orchestrator
+        ),
+        primary_client=analyzer.model_client,
+        primary_fallback_client=(
+            analyzer.primary_fallback_client
+        ),
+        verifier_client=(
+            analyzer.verifier_client
+        ),
+        verifier_fallback_client=(
+            analyzer.verifier_fallback_client
+        ),
+        consensus_evaluator=(
+            analyzer.consensus_evaluator
+        ),
+        route_policy=analyzer.route_policy,
+        attack_surface_mapper=(
+            attack_surface_mapper
+        ),
+        threat_modeler=threat_modeler,
+        validation_plan_builder=(
+            validation_plan_builder
+        ),
+        validation_replay_orchestrator=(
+            validation_replay_orchestrator
+        ),
+    )
+)
+security_task_production_runner = (
+    SecurityTaskProductionRunner(
+        registry=(
+            security_task_handler_registry
+        ),
+        planner=security_task_planner,
+        execution_machine=(
+            security_task_execution_machine
+        ),
+    )
 )
 
 
@@ -470,6 +526,41 @@ async def aggregate_security_task_execution(
             detail=(
                 "Security task aggregation failed: "
                 f"{exc}"
+            ),
+        ) from exc
+
+
+@app.post(
+    "/v1/security/tasks/run",
+    response_model=SecurityTaskRunResponse,
+)
+async def run_security_task_workflow(
+    request: SecurityTaskRunRequest,
+) -> SecurityTaskRunResponse:
+    """
+    Execute the production deep-analysis task graph
+    through registered handlers and return its audit,
+    evidence, memory, and policy artifacts.
+    """
+    try:
+        return (
+            await security_task_production_runner
+            .run(request)
+        )
+    except (
+        SecurityTaskProductionError,
+        ValueError,
+    ) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Production security workflow "
+                "failed safely."
             ),
         ) from exc
 

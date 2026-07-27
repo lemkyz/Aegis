@@ -177,6 +177,7 @@ class SecurityTaskPlanner:
                     "security scanners only."
                 ],
                 produces=[
+                    "scanner_coverage",
                     "scanner_evidence",
                     "scanner_findings",
                 ],
@@ -215,6 +216,7 @@ class SecurityTaskPlanner:
                     )
                 ],
                 produces=[
+                    "scanner_coverage",
                     "scanner_evidence",
                     "scanner_findings",
                 ],
@@ -281,6 +283,8 @@ class SecurityTaskPlanner:
                 ],
                 produces=[
                     "consensus_decisions",
+                    "consensus_claims",
+                    "verified_findings",
                 ],
             ),
         ]

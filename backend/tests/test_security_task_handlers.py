@@ -150,6 +150,7 @@ def scan_task() -> SecurityTaskNode:
         kind="deterministic_scan",
         state="ready",
         produces=[
+            "scanner_coverage",
             "scanner_evidence",
             "scanner_findings",
         ],
@@ -315,6 +316,12 @@ def test_scan_handler_produces_real_contracts() -> None:
     assert finding[
         "cwe"
     ] == ["CWE-78"]
+    assert result.output[
+        "scanner_coverage"
+    ]["status"] == "completed"
+    assert result.output[
+        "scanner_coverage"
+    ]["coverage_complete"] is True
 
 
 def test_scan_handler_deduplicates_evidence() -> None:
@@ -412,6 +419,12 @@ def test_scanner_failure_is_metadata_not_crash() -> None:
     ][0]["name"] == (
         "fake-scanner"
     )
+    assert result.output[
+        "scanner_coverage"
+    ]["status"] == "partial"
+    assert result.output[
+        "scanner_coverage"
+    ]["coverage_complete"] is False
 
 
 def test_scan_handler_requires_source_code() -> None:

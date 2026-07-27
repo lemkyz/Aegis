@@ -58,6 +58,11 @@
         "category": "Aegis"
       },
       {
+        "command": "aegis.runTrustedAnalysis",
+        "title": "Aegis: Run Trusted Analysis",
+        "category": "Aegis"
+      },
+      {
         "command": "aegis.scanDependencies",
         "title": "Aegis: Scan Dependencies",
         "category": "Aegis"
@@ -112,14 +117,19 @@
           "group": "aegis@3"
         },
         {
-          "command": "aegis.runAuthorizedDynamicBaseline",
+          "command": "aegis.runTrustedAnalysis",
           "when": "editorTextFocus",
           "group": "aegis@4"
         },
         {
+          "command": "aegis.runAuthorizedDynamicBaseline",
+          "when": "editorTextFocus",
+          "group": "aegis@5"
+        },
+        {
           "command": "aegis.applySecureFix",
           "when": "editorHasSelection",
-          "group": "aegis@5"
+          "group": "aegis@6"
         }
       ],
       "explorer/context": [

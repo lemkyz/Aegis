@@ -205,6 +205,22 @@ def test_no_primary_findings_produces_empty_completed_consensus() -> None:
     assert result.errors == []
 
 
+def test_skipped_empty_verifier_is_clean_consensus() -> None:
+    result = ModelConsensusEvaluator().evaluate(
+        primary_model="fake/primary",
+        primary_findings=[],
+        verifier_result=VerifierReviewResult(
+            model="fake/verifier",
+            status="skipped",
+            verifications=[],
+        ),
+    )
+
+    assert result.status == "completed"
+    assert result.decisions == []
+    assert result.errors == []
+
+
 def test_verifier_decisions_cannot_confirm_unknown_findings() -> None:
     result = ModelConsensusEvaluator().evaluate(
         primary_model="fake/primary",

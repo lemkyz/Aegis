@@ -32,6 +32,9 @@ from aegis.schemas.security_task_plan import (
 from aegis.security.model_consensus import (
     ModelConsensusEvaluator,
 )
+from aegis.security.claim_adapter import (
+    finding_to_claim,
+)
 from aegis.security.model_route_policy import (
     ModelRouteIdentity,
     ModelRoutePolicy,
@@ -1207,6 +1210,8 @@ class ModelConsensusTaskHandler:
         }),
         produced_artifacts=frozenset({
             "consensus_decisions",
+            "consensus_claims",
+            "verified_findings",
         }),
         supports_retry=False,
         max_attempts=1,
@@ -1317,6 +1322,27 @@ class ModelConsensusTaskHandler:
                 )
             )
         )
+        verified_findings = (
+            self._verified_findings(
+                primary_findings=(
+                    primary_findings
+                ),
+                verifier_result=(
+                    verifier_result
+                ),
+                consensus=consensus,
+            )
+        )
+        claims = [
+            finding_to_claim(
+                finding,
+                filename=(
+                    PrimaryModelReviewTaskHandler
+                    ._filename(context)
+                ),
+            )
+            for finding in verified_findings
+        ]
 
         reasons = [
             (
@@ -1342,6 +1368,19 @@ class ModelConsensusTaskHandler:
                         mode="json"
                     )
                 ),
+                "verified_findings": [
+                    finding.model_dump(
+                        mode="json"
+                    )
+                    for finding
+                    in verified_findings
+                ],
+                "consensus_claims": [
+                    claim.model_dump(
+                        mode="json"
+                    )
+                    for claim in claims
+                ],
             },
             reasons=tuple(reasons),
             metadata={
@@ -1355,6 +1394,7 @@ class ModelConsensusTaskHandler:
                 "decision_count": len(
                     consensus.decisions
                 ),
+                "claim_count": len(claims),
                 "error_count": len(
                     consensus.errors
                 ),
@@ -1378,6 +1418,71 @@ class ModelConsensusTaskHandler:
                 ),
             },
         )
+
+    @staticmethod
+    def _verified_findings(
+        *,
+        primary_findings: list[
+            SecurityFinding
+        ],
+        verifier_result: VerifierReviewResult,
+        consensus: ModelConsensusResult,
+    ) -> list[SecurityFinding]:
+        findings = [
+            finding.model_copy(deep=True)
+            for finding in primary_findings
+        ]
+        verifications = {
+            item.finding_index: item
+            for item
+            in verifier_result.verifications
+        }
+
+        for decision in consensus.decisions:
+            if (
+                decision.finding_index
+                >= len(findings)
+            ):
+                continue
+
+            finding = findings[
+                decision.finding_index
+            ]
+            verification = verifications.get(
+                decision.finding_index
+            )
+
+            finding.primary_model = (
+                consensus.primary_model
+            )
+            finding.verifier_model = (
+                consensus.verifier_model
+            )
+            finding.consensus_verdict = (
+                decision.verdict
+            )
+            finding.consensus_confidence = (
+                decision.confidence
+            )
+            finding.consensus_reasons = list(
+                decision.reasons
+            )
+            finding.verifier_confidence = (
+                decision.verifier_confidence
+            )
+
+            if verification is not None:
+                finding.verifier_verdict = (
+                    verification.verdict
+                )
+                finding.verifier_reasoning = (
+                    verification.reasoning
+                )
+                finding.verifier_evidence = list(
+                    verification.evidence
+                )
+
+        return findings
 
     @staticmethod
     def _verifier_result(

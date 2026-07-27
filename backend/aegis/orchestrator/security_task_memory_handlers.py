@@ -73,9 +73,11 @@ def _default_memory_service(
 
 
 _MEMORY_SOURCE_ARTIFACTS = frozenset({
+    "scanner_coverage",
     "scanner_evidence",
     "primary_findings",
     "consensus_decisions",
+    "consensus_claims",
     "threat_model",
     "secret_findings",
     "dependency_findings",
@@ -163,8 +165,21 @@ class SecurityMemoryTaskHandler:
                 "failed analysis results."
             )
 
+        self._require_sources(
+            request=request,
+            inputs=inputs,
+        )
+        repository = self._repository(
+            context=context,
+            inputs=inputs,
+        )
+        claims = self._claims(
+            request=request,
+            inputs=inputs,
+        )
+
         if (
-            not request.claims
+            not claims
             and not request.allow_empty_snapshot
         ):
             raise SecurityTaskInputError(
@@ -175,7 +190,7 @@ class SecurityMemoryTaskHandler:
 
         if any(
             claim.state == "verified_fixed"
-            for claim in request.claims
+            for claim in claims
         ):
             raise SecurityTaskInputError(
                 "The verified_fixed state must be "
@@ -183,19 +198,6 @@ class SecurityMemoryTaskHandler:
                 "evidence, not supplied by the "
                 "caller."
             )
-
-        self._require_sources(
-            request=request,
-            inputs=inputs,
-        )
-        repository = self._repository(
-            context=context,
-            inputs=inputs,
-        )
-        claims = [
-            claim.model_copy(deep=True)
-            for claim in request.claims
-        ]
         fix_verification_applied = False
 
         if (
@@ -389,6 +391,31 @@ class SecurityMemoryTaskHandler:
                     "security-memory baseline."
                 )
 
+        if "scanner_coverage" in (
+            request.source_artifacts
+        ):
+            coverage = inputs[
+                "scanner_coverage"
+            ]
+
+            if (
+                not isinstance(
+                    coverage,
+                    Mapping,
+                )
+                or coverage.get("status")
+                != "completed"
+                or coverage.get(
+                    "coverage_complete"
+                )
+                is not True
+            ):
+                raise SecurityTaskInputError(
+                    "Incomplete scanner coverage "
+                    "cannot become a clean "
+                    "security-memory baseline."
+                )
+
         if "dependency_findings" in (
             request.source_artifacts
         ):
@@ -414,6 +441,41 @@ class SecurityMemoryTaskHandler:
                     "cannot become a clean "
                     "security-memory baseline."
                 )
+
+    @staticmethod
+    def _claims(
+        *,
+        request: SecurityMemoryTaskInput,
+        inputs: Mapping[str, Any],
+    ) -> list[SecurityClaim]:
+        if request.claims_artifact is None:
+            return [
+                claim.model_copy(deep=True)
+                for claim in request.claims
+            ]
+
+        value = inputs.get(
+            request.claims_artifact
+        )
+
+        if not isinstance(value, list):
+            raise SecurityTaskInputError(
+                "Security-memory claims artifact "
+                "must be a list."
+            )
+
+        try:
+            return [
+                SecurityClaim.model_validate(
+                    item
+                )
+                for item in value
+            ]
+        except ValidationError as exc:
+            raise SecurityTaskInputError(
+                "Security-memory claims artifact "
+                "contains an invalid claim."
+            ) from exc
 
     @staticmethod
     def _repository(

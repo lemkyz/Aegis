@@ -476,6 +476,7 @@ def test_task_api_routes_are_registered() -> None:
         "/v1/security/tasks/execution/fail",
         "/v1/security/tasks/execution/skip",
         "/v1/security/tasks/aggregate",
+        "/v1/security/tasks/run",
     }
 
     assert expected <= routes

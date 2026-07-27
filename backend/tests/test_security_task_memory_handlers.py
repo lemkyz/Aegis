@@ -429,6 +429,76 @@ def test_incomplete_dependency_coverage_is_not_clean(
     assert service.latest(root) is None
 
 
+def test_incomplete_scanner_coverage_is_not_clean(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    service = memory_service(tmp_path)
+
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="Incomplete scanner coverage",
+    ):
+        execute_memory(
+            root=root,
+            service=service,
+            request=memory_input(
+                [],
+                allow_empty=True,
+                sources=[
+                    "scanner_coverage",
+                ],
+            ),
+            extra_inputs={
+                "scanner_coverage": {
+                    "status": "partial",
+                    "coverage_complete": False,
+                },
+            },
+        )
+
+    assert service.latest(root) is None
+
+
+def test_claims_can_be_derived_from_consensus_artifact(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    service = memory_service(tmp_path)
+    request = SecurityMemoryTaskInput(
+        analysis_status="complete",
+        coverage="targeted_analysis",
+        claims=[],
+        claims_artifact=(
+            "consensus_claims"
+        ),
+        source_artifacts=[
+            "consensus_decisions",
+            "consensus_claims",
+        ],
+    )
+
+    artifact = execute_memory(
+        root=root,
+        service=service,
+        request=request,
+        extra_inputs={
+            "consensus_claims": [
+                claim().model_dump(
+                    mode="json"
+                )
+            ],
+        },
+    )
+
+    assert artifact.claims_recorded == 1
+    assert (
+        artifact.memory.snapshot.claims[0]
+        .claim_id
+        == "claim:critical"
+    )
+
+
 def test_caller_cannot_assert_verified_fixed(
     tmp_path: Path,
 ) -> None:

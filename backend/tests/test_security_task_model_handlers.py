@@ -1022,6 +1022,8 @@ def consensus_task() -> SecurityTaskNode:
         state="ready",
         produces=[
             "consensus_decisions",
+            "consensus_claims",
+            "verified_findings",
         ],
     )
 
@@ -1233,6 +1235,22 @@ def test_consensus_confirms_independent_support() -> None:
     assert consensus[
         "independently_verified"
     ] is True
+
+    verified = result.output[
+        "verified_findings"
+    ][0]
+    claim = result.output[
+        "consensus_claims"
+    ][0]
+
+    assert verified[
+        "consensus_verdict"
+    ] == "confirmed"
+    assert verified[
+        "verifier_verdict"
+    ] == "supported"
+    assert claim["state"] == "confirmed"
+    assert claim["evidence"]
 
 
 def test_same_route_is_partial_and_capped() -> None:

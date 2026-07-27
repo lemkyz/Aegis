@@ -105,6 +105,31 @@ def test_deep_analysis_without_evidence_skips_ai_tasks() -> None:
     )
 
 
+def test_deep_analysis_can_explicitly_include_threat_model() -> None:
+    result = SecurityTaskPlanner().plan(
+        SecurityTaskPlanRequest(
+            operation="deep_analysis",
+            has_scanner_evidence=True,
+            include_threat_model=True,
+            include_security_memory=False,
+            include_policy_evaluation=False,
+        )
+    )
+
+    assert (
+        task_by_id(
+            result,
+            "threat_model",
+        ).state
+        == "waiting"
+    )
+    assert any(
+        "explicitly requested"
+        in reason
+        for reason in result.reasons
+    )
+
+
 def test_repository_review_plans_parallel_inputs() -> None:
     result = SecurityTaskPlanner().plan(
         SecurityTaskPlanRequest(
