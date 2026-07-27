@@ -262,3 +262,77 @@ class SecurityMemoryLatestResponse(BaseModel):
 class SecurityMemorySnapshotResponse(BaseModel):
     snapshot: ProjectSecuritySnapshot
 
+
+SecurityMemoryCoverage = Literal[
+    "full_repository",
+    "targeted_analysis",
+    "fix_verification",
+]
+
+
+class SecurityMemoryTaskInput(BaseModel):
+    analysis_status: Literal[
+        "complete",
+        "partial",
+        "failed",
+    ]
+    coverage: SecurityMemoryCoverage
+    claims: list[SecurityClaim] = Field(
+        default_factory=list,
+        max_length=10_000,
+    )
+    source_artifacts: list[str] = Field(
+        min_length=1,
+        max_length=50,
+    )
+    allow_empty_snapshot: bool = False
+
+    @model_validator(mode="after")
+    def validate_task_input(
+        self,
+    ) -> "SecurityMemoryTaskInput":
+        claim_ids = [
+            claim.claim_id
+            for claim in self.claims
+        ]
+
+        if len(claim_ids) != len(
+            set(claim_ids)
+        ):
+            raise ValueError(
+                "security-memory claims must have "
+                "unique claim IDs"
+            )
+
+        if len(
+            self.source_artifacts
+        ) != len(
+            set(self.source_artifacts)
+        ):
+            raise ValueError(
+                "source_artifacts must be unique"
+            )
+
+        if any(
+            not name.strip()
+            for name in self.source_artifacts
+        ):
+            raise ValueError(
+                "source_artifacts must not contain "
+                "blank names"
+            )
+
+        return self
+
+
+class SecurityMemoryTaskArtifact(BaseModel):
+    handler: str
+    source_artifacts: list[str] = Field(
+        min_length=1,
+    )
+    analysis_status: Literal["complete"]
+    coverage: SecurityMemoryCoverage
+    memory: SecurityMemoryRecordResponse
+    claims_recorded: int = Field(ge=0)
+    fix_verification_applied: bool
+    outputs_redacted: bool

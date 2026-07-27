@@ -30,6 +30,11 @@ from aegis.orchestrator.security_task_model_handlers import (
     PrimaryModelReviewTaskHandler,
     VerifierReviewTaskHandler,
 )
+from aegis.orchestrator.security_task_memory_handlers import (
+    PolicyEvaluationTaskHandler,
+    SecurityMemoryRecorder,
+    SecurityMemoryTaskHandler,
+)
 from aegis.orchestrator.security_task_specialist_handlers import (
     AttackSurfaceTaskHandler,
     DependencyScanTaskHandler,
@@ -53,6 +58,9 @@ from aegis.security.model_consensus import (
 )
 from aegis.security.model_route_policy import (
     ModelRoutePolicy,
+)
+from aegis.security.memory_policy import (
+    MemoryAwarePolicyEngine,
 )
 from aegis.security.orchestrator import (
     SecurityScannerOrchestrator,
@@ -116,6 +124,14 @@ def create_deep_analysis_security_task_registry(
     ) = None,
     change_policy_engine: (
         ChangeAwarePolicyEngine
+        | None
+    ) = None,
+    security_memory_service: (
+        SecurityMemoryRecorder
+        | None
+    ) = None,
+    memory_policy_engine: (
+        MemoryAwarePolicyEngine
         | None
     ) = None,
     primary_client: (
@@ -277,6 +293,22 @@ def create_deep_analysis_security_task_registry(
             ),
             transactions=(
                 resolved_fix_transactions
+            ),
+        )
+    )
+
+    registry.register(
+        SecurityMemoryTaskHandler(
+            memory_service=(
+                security_memory_service
+            ),
+        )
+    )
+
+    registry.register(
+        PolicyEvaluationTaskHandler(
+            policy_engine=(
+                memory_policy_engine
             ),
         )
     )

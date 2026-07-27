@@ -152,3 +152,52 @@ class SecurityMemoryPolicyRecordRequest(
 class SecurityMemoryPolicyRecordResponse(BaseModel):
     memory: SecurityMemoryRecordResponse
     policy: MemoryPolicyDecisionResponse
+
+
+class SecurityPolicyTaskRequest(BaseModel):
+    profile: PolicyProfile = "balanced"
+    reconciliation: (
+        ClaimReconciliationResponse
+        | None
+    ) = None
+    source_artifacts: list[str] = Field(
+        default_factory=list,
+        max_length=50,
+    )
+
+    @model_validator(mode="after")
+    def validate_sources(
+        self,
+    ) -> "SecurityPolicyTaskRequest":
+        if len(
+            self.source_artifacts
+        ) != len(
+            set(self.source_artifacts)
+        ):
+            raise ValueError(
+                "source_artifacts must be unique"
+            )
+
+        if any(
+            not name.strip()
+            for name in self.source_artifacts
+        ):
+            raise ValueError(
+                "source_artifacts must not contain "
+                "blank names"
+            )
+
+        return self
+
+
+class SecurityPolicyTaskArtifact(BaseModel):
+    handler: str
+    source_artifacts: list[str] = Field(
+        min_length=1,
+    )
+    snapshot_id: str | None = Field(
+        default=None,
+        max_length=300,
+    )
+    decision: MemoryPolicyDecisionResponse
+    outputs_redacted: bool

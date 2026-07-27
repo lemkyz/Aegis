@@ -22,6 +22,9 @@ from aegis.schemas.model_verification import (
 from aegis.security.secure_fix import (
     SecureFixTransactionStore,
 )
+from aegis.security.memory_policy import (
+    MemoryAwarePolicyEngine,
+)
 
 
 class FakeResolvedProject:
@@ -206,10 +209,12 @@ def test_deep_analysis_registry_contains_full_pipeline() -> None:
         "dynamic_validation",
         "fix_verification",
         "model_consensus",
+        "policy_evaluation",
         "primary_model_review",
         "repository_context",
         "secret_analysis",
         "secure_fix",
+        "security_memory",
         "threat_model",
         "verifier_review",
     )
@@ -315,6 +320,48 @@ def test_fix_handlers_share_transaction_store() -> None:
             "dynamic_validation"
         )._transactions
         is transactions
+    )
+
+
+def test_memory_and_policy_services_are_injected() -> None:
+    memory_service = SimpleNamespace(
+        record=lambda request: request,
+    )
+    policy_engine = MemoryAwarePolicyEngine()
+    registry = (
+        create_deep_analysis_security_task_registry(
+            project_identity_resolver=(
+                FakeProjectIdentityResolver()
+            ),
+            scanner_orchestrator=(
+                FakeScannerOrchestrator()
+            ),
+            primary_client=(
+                FakePrimaryClient()
+            ),
+            verifier_client=(
+                FakeVerifierClient()
+            ),
+            security_memory_service=(
+                memory_service
+            ),
+            memory_policy_engine=(
+                policy_engine
+            ),
+        )
+    )
+
+    assert (
+        registry.resolve(
+            "security_memory"
+        )._memory_service
+        is memory_service
+    )
+    assert (
+        registry.resolve(
+            "policy_evaluation"
+        )._policy_engine
+        is policy_engine
     )
 
 

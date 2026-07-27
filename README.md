@@ -118,6 +118,9 @@ The patch failed verification because at least one of the following occurred:
 - dynamic evidence evaluation
 - before-and-after validation replay
 - unified fix-verification reports
+- immutable project security-memory snapshots
+- claim lifecycle reconciliation
+- deterministic allow, review, or block policy output
 - persistent reports inside VS Code
 
 ## Safety model
@@ -147,6 +150,11 @@ target and selection hash revalidation
 atomic source replacement
 rollback without overwriting newer user work
 ```
+
+Security memory records only explicitly complete results.
+Partial or failed analysis is never persisted as a clean
+baseline, and an empty snapshot requires explicit
+complete-scan confirmation.
 
 Validation is designed for repositories and systems you own or are authorized to test.
 
