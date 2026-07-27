@@ -49,7 +49,7 @@ if (packageStat.size < 1_000) {
 if (packageStat.size > 10_000_000) {
   throw new Error(
     "VSIX package exceeds the 10 MB "
-    + "alpha safety limit.",
+    + "release safety limit.",
   );
 }
 
@@ -96,6 +96,24 @@ const requiredFiles = [
     acceptedSuffixes: [
       "extension/license",
       "extension/license.txt",
+    ],
+  },
+  {
+    label: "extension changelog",
+    acceptedSuffixes: [
+      "extension/changelog.md",
+    ],
+  },
+  {
+    label: "extension support guide",
+    acceptedSuffixes: [
+      "extension/support.md",
+    ],
+  },
+  {
+    label: "marketplace icon",
+    acceptedSuffixes: [
+      "extension/images/icon.png",
     ],
   },
   {

@@ -30,7 +30,7 @@ def _default_security_memory_database_path() -> Path:
 
 class Settings(BaseSettings):
     app_name: str = "Aegis"
-    app_version: str = "0.1.0"
+    app_version: str = "0.2.0"
 
     security_memory_database_path: Path = Field(
         default_factory=(

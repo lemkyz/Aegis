@@ -21,11 +21,16 @@ cd "$backend_root"
 
 "$python_executable" -m pytest \
   -q \
+  tests/test_public_release_contract.py
+
+"$python_executable" -m pytest \
+  -q \
   -m acceptance
 
 "$python_executable" -m pytest \
   -q \
-  -m "not acceptance"
+  -m "not acceptance" \
+  --ignore=tests/test_public_release_contract.py
 
 "$python_executable" \
   scripts/release_smoke.py

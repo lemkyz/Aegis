@@ -41,6 +41,87 @@ test(
       manifest.license,
       "Apache-2.0",
     );
+
+    assert.equal(
+      manifest.version,
+      "0.2.0",
+    );
+
+    assert.equal(
+      Object.hasOwn(manifest, "private"),
+      false,
+    );
+  },
+);
+
+test(
+  "manifest is ready for a preview marketplace listing",
+  async () => {
+    assert.equal(manifest.preview, true);
+    assert.equal(manifest.pricing, "Free");
+    assert.equal(manifest.markdown, "github");
+    assert.equal(
+      manifest.icon,
+      "images/icon.png",
+    );
+
+    assert.match(
+      manifest.galleryBanner.color,
+      /^#[0-9A-F]{6}$/iu,
+    );
+
+    const icon = await readFile(
+      new URL(
+        "../images/icon.png",
+        import.meta.url,
+      ),
+    );
+
+    assert.equal(
+      icon.subarray(1, 4).toString("ascii"),
+      "PNG",
+    );
+
+    assert.equal(icon.readUInt32BE(16), 512);
+    assert.equal(icon.readUInt32BE(20), 512);
+  },
+);
+
+test(
+  "repository commands require a trusted local workspace",
+  () => {
+    assert.deepEqual(
+      manifest.extensionKind,
+      ["workspace"],
+    );
+
+    assert.equal(
+      manifest.capabilities
+        .untrustedWorkspaces
+        .supported,
+      false,
+    );
+
+    assert.equal(
+      manifest.capabilities
+        .virtualWorkspaces
+        .supported,
+      false,
+    );
+
+    for (
+      const command
+      of manifest.contributes.commands
+    ) {
+      assert.equal(
+        command.enablement,
+        "isWorkspaceTrusted",
+        (
+          "Command is missing the workspace "
+          + `trust boundary: ${command.command}`
+        ),
+      );
+    }
   },
 );
 
@@ -184,7 +265,7 @@ test(
 
     assert.ok(
       manifest.keywords.includes(
-        "sarif",
+        "trust-layer",
       ),
     );
   },

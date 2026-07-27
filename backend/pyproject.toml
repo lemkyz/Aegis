@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aegis-security-backend"
-version = "0.1.0"
-description = "Evidence-first secure fix verification backend for Aegis."
+version = "0.2.0"
+description = "Local trust and security orchestration backend for Aegis."
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 license = "Apache-2.0"

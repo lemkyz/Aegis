@@ -1,10 +1,18 @@
 {
   "name": "aegis-security",
   "displayName": "Aegis Security",
-  "description": "Evidence-first AI security engineering for VS Code.",
-  "version": "0.1.0",
+  "description": "Run evidence-backed security analysis, fixes, and verification without leaving VS Code.",
+  "version": "0.2.0",
   "publisher": "aegis",
-  "private": true,
+  "preview": true,
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#0B1220",
+    "theme": "dark"
+  },
+  "pricing": "Free",
+  "markdown": "github",
+  "qna": "https://github.com/lemkyz/Aegis/issues",
   "engines": {
     "vscode": "^1.100.0"
   },
@@ -13,6 +21,19 @@
     "Other"
   ],
   "activationEvents": [],
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Aegis reads repository source and can coordinate explicitly authorized local validation."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Aegis requires a local repository and local backend."
+    }
+  },
   "main": "./dist/extension.js",
   "scripts": {
     "clean": "node ./scripts/clean.mjs",
@@ -30,73 +51,87 @@
       {
         "command": "aegis.fastScanSelectedCode",
         "title": "Aegis: Fast Scan Selected Code",
-        "category": "Aegis"
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "aegis.fastScanCurrentFile",
         "title": "Aegis: Fast Scan Current File",
-        "category": "Aegis"
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "aegis.scanWorkspace",
         "title": "Aegis: Scan Entire Workspace",
-        "category": "Aegis"
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "aegis.mapAttackSurface",
         "title": "Aegis: Map Attack Surface",
-        "category": "Aegis"
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "aegis.generateThreatModel",
         "title": "Aegis: Generate Threat Model",
-        "category": "Aegis"
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "aegis.previewSecurityTaskPlan",
         "title": "Aegis: Preview Security Task Plan",
-        "category": "Aegis"
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "aegis.runTrustedAnalysis",
         "title": "Aegis: Run Trusted Analysis",
-        "category": "Aegis"
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "aegis.scanDependencies",
         "title": "Aegis: Scan Dependencies",
-        "category": "Aegis"
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "aegis.deepAnalyzeSelectedCode",
         "title": "Aegis: Deep Analysis Selected Code",
-        "category": "Aegis"
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "aegis.runAuthorizedDynamicBaseline",
         "title": "Aegis: Run Authorized Dynamic Baseline",
-        "category": "Aegis"
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "aegis.applySecureFix",
         "title": "Aegis: Apply Secure Fix",
-        "category": "Aegis"
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "aegis.refreshSecurityView",
         "title": "Aegis: Refresh Security View",
         "category": "Aegis",
+        "enablement": "isWorkspaceTrusted",
         "icon": "$(refresh)"
       },
       {
         "command": "aegis.scanUncommittedChanges",
         "title": "Aegis: Scan Uncommitted Changes",
-        "category": "Aegis"
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "aegis.scanStagedChanges",
         "title": "Aegis: Scan Staged Changes",
-        "category": "Aegis"
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted"
       }
     ],
     "menus": {
@@ -194,12 +229,13 @@
   },
   "keywords": [
     "security",
-    "sast",
+    "ai-agents",
+    "trust-layer",
+    "security-verification",
     "ai-security",
     "secure-coding",
     "code-analysis",
     "devsecops",
-    "vulnerability",
-    "sarif"
+    "vulnerability"
   ]
 }

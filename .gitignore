@@ -48,3 +48,9 @@ secrets.json
 # Extension local build and packaging artifacts
 /extension/node_modules/
 /extension/*.vsix
+
+# Backend package build artifacts
+/backend/build/
+
+# Local release bundles
+/release/

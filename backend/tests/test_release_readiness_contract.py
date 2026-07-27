@@ -36,6 +36,7 @@ def test_release_readiness_runs_package_checks(
     assert "npm test" in text
     assert "npm run package" in text
     assert "npm run verify:vsix" in text
+    assert "test_public_release_contract.py" in text
     assert "git diff --check" in text
 
 

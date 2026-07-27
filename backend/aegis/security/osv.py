@@ -147,7 +147,7 @@ class OsvDependencyScanner:
             method="POST",
             headers={
                 "Content-Type": "application/json",
-                "User-Agent": "Aegis-Security/0.1.0",
+                "User-Agent": "Aegis-Security/0.2.0",
             },
         )
 

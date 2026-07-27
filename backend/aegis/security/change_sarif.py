@@ -419,7 +419,7 @@ def build_change_sarif(
                         "informationUri": (
                             "https://github.com/lemkyz/aegis"
                         ),
-                        "semanticVersion": "0.1.0",
+                        "semanticVersion": "0.2.0",
                         "rules": [
                             sarif_rule(rule_id)
                             for rule_id in used_rule_ids

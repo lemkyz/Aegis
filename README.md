@@ -1,248 +1,85 @@
 <div align="center">
 
+<img src="extension/images/icon.png" alt="Aegis" width="112">
+
 # Aegis
 
-**Detect. Reproduce. Patch. Replay. Prove.**
+**Security work you can inspect, replay, and prove.**
 
-Security verification for VS Code.
-
-A finding is not fixed because the warning disappeared.
+[Get started](#get-started) · [How it works](#how-it-works) · [Safety](#safety-boundaries) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
----
+Aegis is a local trust layer for AI-assisted security work. It records what an analysis used, where a claim came from, which checks agreed, what changed, and whether the original behavior still reproduces after a fix.
 
-Aegis follows a vulnerability from the first piece of evidence to the final verification result.
+It is not another wrapper around “scan, generate a patch, call it done.” Aegis separates planning, evidence collection, model review, authorization, execution, and verification so one step cannot silently vouch for itself.
 
-It analyzes the code, records why a finding exists, runs explicitly authorized validation inside an isolated local container, applies a reviewable patch, checks the project, rescans the result, and replays the original validation.
+## What ships today
 
-The result is not a vague success message.
-
-It is one of three states:
-
-- **VERIFIED** — the evidence supports the fix
-- **PARTIAL** — the static result improved, but complete proof is missing
-- **FAILED** — the issue remains, the patch broke the project, or a regression appeared
-
-## The problem
-
-Most secure coding workflows end too early.
-
-A scanner reports a dangerous pattern.
-
-A patch removes the pattern.
-
-The warning disappears.
-Everyone moves on.
-
-But the original behavior may still be exploitable.
-
-Aegis treats detection, patching, and verification as separate stages. It does not let one stage silently prove another.
-
-```text
-detect
-  ↓
-collect evidence
-  ↓
-authorize validation
-  ↓
-reproduce in isolation
-  ↓
-apply a reviewable patch
-  ↓
-run project checks
-  ↓
-rescan
-  ↓
-replay the same validation
-  ↓
-prove the result
-```
-
-## What makes it different
-
-| Conventional workflow | Aegis |
+| Surface | Purpose |
 |---|---|
-| Reports a suspicious pattern | Records the finding and supporting evidence |
-| Suggests a replacement | Produces a reviewable patch |
-| Stops when the edit is applied | Runs syntax, tests, and build checks |
-| Assumes the warning disappearing means success | Rescans the patched code |
-| Tests something different after the patch | Replays the authorized baseline |
-| Returns a generic success state | Returns an evidence-based verdict |
+| VS Code extension | Run scans, inspect findings, authorize validation, review patches, and read Trusted Analysis reports |
+| GitHub Action | Evaluate pull-request changes as `ALLOW`, `REVIEW`, or `BLOCK` and emit JSON plus SARIF |
+| CLI | Run the same deterministic change gate locally or in another CI system |
+| Local backend | Coordinate scanners, model routes, threat models, validation, fixes, policy, memory, and audit records |
 
-## Verification states
+The VS Code backend and its security memory stay on your machine. Aegis does not include product telemetry. Model-backed analysis uses only the providers you configure.
 
-### `VERIFIED`
+## Get started
 
-Aegis uses this state only when:
+### Run the pull-request gate
 
-- configured project checks passed
-- the target finding disappeared
-- no new static regression was introduced
-- a previously confirmed dynamic baseline no longer reproduces
+```yaml
+name: Aegis
 
-### `PARTIAL`
+on:
+  pull_request:
 
-The patch passed the available static and project checks, but complete dynamic proof was unavailable or inconclusive.
+permissions:
+  contents: read
+  security-events: write
 
-Partial is intentionally not presented as verified.
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-### `FAILED`
-
-The patch failed verification because at least one of the following occurred:
-
-- project checks failed
-- the original finding remained
-- a new regression appeared
-- the authorized validation still reproduced
-- execution failed in a way that prevents a trustworthy conclusion
-
-## Current capabilities
-
-- source and workspace analysis
-- Git change scanning
-- scanner evidence correlation
-- dependency vulnerability detection
-- attack-surface mapping
-- threat modeling
-- exploitability classification
-- reviewable secure patches
-- syntax, test, and build verification
-- static before-and-after comparison
-- exact patch-digest approval and stale-file rejection
-- atomic secure-fix writes with guarded rollback
-- explicit validation authorization
-- isolated Podman or Docker execution
-- read-only repository mounts
-- disabled or loopback-only networking
-- dynamic evidence evaluation
-- before-and-after validation replay
-- unified fix-verification reports
-- immutable project security-memory snapshots
-- claim lifecycle reconciliation
-- deterministic allow, review, or block policy output
-- production security-task execution with append-only audit events
-- SHA-256 attestations for source, plan, audit, and artifact manifests
-- execution deadlines and client-disconnect cancellation
-- Trusted Analysis reports spanning evidence, threat, memory, and policy
-- real Git repository acceptance coverage for block, fix, and resolution
-- persistent reports inside VS Code
-
-## Safety model
-
-Dynamic validation must be explicitly authorized.
-
-Aegis does not silently execute validation commands and does not treat a blocked, failed, or timed-out run as proof of safety.
-
-The local sandbox currently applies:
-
-```text
-read-only container root
-read-only repository mount
-no host repository relabeling
-no implicit container image pulls
-network disabled by default
-all Linux capabilities dropped
-no-new-privileges
-unprivileged container user
-CPU and memory limits
-process limits
-execution timeout
-bounded stdout and stderr
-no shell-based container command construction
-exact human-approved patch digest
-target and selection hash revalidation
-atomic source replacement
-rollback without overwriting newer user work
+      - uses: lemkyz/Aegis@v0.2.0
+        with:
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.event.pull_request.head.sha }}
 ```
 
-Security memory records only explicitly complete results.
-Partial or failed analysis is never persisted as a clean
-baseline, and an empty snapshot requires explicit
-complete-scan confirmation.
-Trusted Analysis also requires an explicit completed
-scanner-coverage artifact before it can update the
-project baseline.
+The action does not execute repository code. It writes:
 
-Validation is designed for repositories and systems you own or are authorized to test.
+- `aegis-change-gate.json`
+- `aegis-policy-check.json`
+- `aegis-results.sarif`
 
-## Architecture
-
-```text
-┌──────────────────────────────┐
-│        VS Code Extension     │
-│                              │
-│ analysis • findings • diffs  │
-│ authorization • reports      │
-└──────────────┬───────────────┘
-               │
-               ▼
-┌──────────────────────────────┐
-│          Aegis API           │
-│                              │
-│ orchestration • evidence     │
-│ verification • replay        │
-└───────┬──────────────┬───────┘
-        │              │
-        ▼              ▼
-┌──────────────┐  ┌──────────────┐
-│ Static Layer │  │ Dynamic Layer│
-│              │  │              │
-│ scanners     │  │ authorization│
-│ data flow    │  │ sandbox plan │
-│ dependencies │  │ Podman/Docker│
-└──────┬───────┘  └──────┬───────┘
-       │                 │
-       └────────┬────────┘
-                ▼
-┌──────────────────────────────┐
-│      Fix Verification        │
-│                              │
-│ project checks               │
-│ static rescan                │
-│ baseline replay              │
-│ unified verdict              │
-└──────────────────────────────┘
-```
-
-## Repository structure
-
-```text
-aegis/
-├── backend/
-│   ├── aegis/
-│   │   ├── orchestrator/
-│   │   ├── schemas/
-│   │   └── security/
-│   └── tests/
-├── extension/
-│   ├── src/
-│   └── dist/
-├── docs/
-└── examples/
-```
-
-## Backend
+### Run Aegis locally
 
 Requirements:
 
 - Python 3.14
-- Podman or Docker
 - Semgrep
+- Podman or Docker for authorized dynamic validation
 
 ```bash
-cd backend
+git clone https://github.com/lemkyz/Aegis.git
+cd Aegis/backend
 
 python -m venv .venv
 source .venv/bin/activate
-
 pip install -e ".[dev]"
 
 export AEGIS_FINGERPRINT_KEY="$(
   python -c 'import secrets; print(secrets.token_urlsafe(48))'
 )"
 
-uvicorn aegis.main:app --reload
+uvicorn aegis.main:app --host 127.0.0.1 --port 8000
 ```
 
 Check the service:
@@ -251,114 +88,75 @@ Check the service:
 curl http://127.0.0.1:8000/health
 ```
 
-## VS Code extension
+The VS Code extension connects to `http://127.0.0.1:8000` by default. Install the release VSIX, open a trusted local workspace, and run **Aegis: Run Trusted Analysis** from the Command Palette.
 
-```bash
-cd extension
+Model routes are optional for deterministic workflows. Copy [`backend/.env.example`](backend/.env.example) when you want primary and verifier model review.
 
-npm install
-npm run compile
-```
-
-Open the extension directory in VS Code and launch the Extension Development Host.
-
-The extension uses the following backend address by default:
+## How it works
 
 ```text
-http://127.0.0.1:8000
+request
+  → policy and authorization
+  → deterministic evidence
+  → primary review
+  → independent verification
+  → consensus
+  → threat model
+  → controlled validation
+  → reviewable fix
+  → rescan and replay
+  → memory, decision, and attestations
 ```
 
-Change it through the `aegis.backendUrl` setting when needed.
+Every production run has a task graph and append-only audit trail. Trusted Analysis binds the source, plan, audit stream, and artifact manifest with SHA-256 digests. If the file changes during the run, required evidence is missing, verification is not independent, or repository state drifts, Aegis fails closed instead of presenting a clean result.
 
-## Tests
+### Verdicts
 
-Run the backend suite:
+- `VERIFIED`: project checks passed, the target finding disappeared, no static regression appeared, and the authorized baseline no longer reproduces.
+- `PARTIAL`: available checks passed, but the evidence is not strong enough for a verified claim.
+- `FAILED`: the issue remains, a check failed, a regression appeared, or execution could not support a trustworthy conclusion.
 
-```bash
-cd backend
-source .venv/bin/activate
-python -m pytest -q
-```
+### Policy decisions
 
-Compile the extension:
+- `ALLOW`: the configured policy accepts the evidence and risk.
+- `REVIEW`: a person must resolve incomplete evidence or a policy threshold.
+- `BLOCK`: the run found a blocking condition or could not preserve a required trust boundary.
 
-```bash
-cd extension
-npm run compile
-```
+## Safety boundaries
 
-Run the complete pre-release gate:
+Dynamic validation is never implicit. It requires an explicit plan and authorization and runs in a hardened local container with:
+
+- a read-only repository mount and container root
+- networking disabled by default
+- dropped Linux capabilities and `no-new-privileges`
+- an unprivileged user
+- CPU, memory, process, runtime, and output limits
+- no shell-based container command construction
+
+Secure fixes are tied to the exact reviewed patch digest and source selection. Aegis revalidates both before writing, replaces the source atomically, and avoids overwriting newer user work during rollback.
+
+A blocked, failed, cancelled, or timed-out run is not proof of safety. Partial analysis is never stored as a clean project baseline.
+
+Use validation only on repositories and systems you own or are explicitly authorized to test.
+
+## Development
+
+Run the full release gate from the repository root:
 
 ```bash
 ./scripts/run-release-readiness.sh
 ```
 
-See [the release checklist](docs/RELEASE_CHECKLIST.md) for the manual checks
-that remain after the automated gate passes.
+It covers the backend suite, real-repository acceptance tests, live API and installed-wheel smoke tests, CLI policy scenarios, extension tests, VSIX packaging, and package inspection.
 
-## Dynamic replay smoke fixture
+See [the release checklist](docs/RELEASE_CHECKLIST.md) for the manual checks and [CONTRIBUTING.md](CONTRIBUTING.md) for development guidance.
 
-A safe local fixture is included at:
+## Status
 
-```text
-examples/dynamic_replay_smoke
-```
+`0.2.0` is the first end-to-end preview of the Aegis trust workflow. Interfaces may still change before `1.0`.
 
-Run it with:
-
-```bash
-cd examples/dynamic_replay_smoke
-
-python validation.py
-PYTHONPATH=. python -m pytest tests -q
-```
-
-The vulnerable baseline reports:
-
-```text
-AEGIS_EXPLOIT_CONFIRMED
-```
-
-After a successful fix, the same validator should report:
-
-```text
-AEGIS_SAFE_BEHAVIOR
-```
-
-The fixture inspects command construction without executing the supplied payload through a shell.
-
-## Project status
-
-Aegis is under active development.
-
-The current milestone establishes the full verification chain:
-
-```text
-finding
-→ authorized reproduction
-→ patch
-→ project verification
-→ static rescan
-→ dynamic replay
-→ final verdict
-```
-
-Interfaces and schemas may change before the first stable release.
-
-## Responsible use
-
-Use Aegis only on code and systems you own or have explicit permission to test.
-
-Do not use its validation features against third-party infrastructure without authorization.
+The next milestones extend the same trust model to agent identity, capability-based permissions, action interception, egress control, rollback, and multi-agent oversight.
 
 ## License
 
-Aegis is licensed under the [Apache License 2.0](LICENSE).
-
----
-
-<div align="center">
-
-**Security claims are cheap. Evidence isn't.**
-
-</div>
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
