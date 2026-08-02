@@ -118,6 +118,49 @@ class SecureFixRequest(BaseModel):
     approval: SecureFixApproval
 
 
+FixVerificationCheckKind = Literal[
+    "project",
+    "static_security",
+    "dynamic_replay",
+]
+
+
+class FixVerificationCheck(BaseModel):
+    check_id: SafeEvidenceIdentifier
+    kind: FixVerificationCheckKind
+    name: str = Field(
+        min_length=1,
+        max_length=200,
+    )
+
+
+class FixVerificationPlan(BaseModel):
+    plan_id: SafeEvidenceIdentifier
+    claim_id: SafeEvidenceIdentifier
+    patch_sha256: Sha256Digest = Field(
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    checks: list[
+        FixVerificationCheck
+    ] = Field(
+        min_length=1,
+        max_length=20,
+    )
+    requires_dynamic_replay: bool = False
+
+    def plan_sha256(self) -> str:
+        canonical = json.dumps(
+            self.model_dump(mode="json"),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+
+        return hashlib.sha256(
+            canonical
+        ).hexdigest()
+
+
 FixTransactionState = Literal[
     "pending",
     "committed",
