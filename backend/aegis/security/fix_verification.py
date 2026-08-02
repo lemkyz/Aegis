@@ -11,6 +11,11 @@ class UnifiedFixVerificationEvaluator:
         self,
         request: UnifiedFixVerificationRequest,
     ) -> UnifiedFixVerificationResponse:
+        passed_checks = [
+            check.name
+            for check in request.project_checks
+            if check.status == "passed"
+        ]
         failed_checks = [
             check.name
             for check in request.project_checks
@@ -23,7 +28,7 @@ class UnifiedFixVerificationEvaluator:
         ]
 
         project_checks_passed = all(
-            check.status != "failed"
+            check.status == "passed"
             for check in request.project_checks
         )
 
@@ -41,6 +46,16 @@ class UnifiedFixVerificationEvaluator:
             reasons.append(
                 "One or more project verification "
                 "checks failed."
+            )
+
+        elif skipped_checks:
+            verdict = "inconclusive"
+            verified = False
+            confidence = 1.0
+            reasons.append(
+                "One or more configured project "
+                "verification checks were skipped; "
+                "verification is incomplete."
             )
 
         elif not request.static_target_resolved:
@@ -124,13 +139,6 @@ class UnifiedFixVerificationEvaluator:
                 "that the fix is effective."
             )
 
-        if skipped_checks:
-            reasons.append(
-                "Skipped project checks: "
-                + ", ".join(skipped_checks)
-                + "."
-            )
-
         return UnifiedFixVerificationResponse(
             evaluator=self.evaluator,
             threat_id=request.replay.threat_id,
@@ -152,5 +160,7 @@ class UnifiedFixVerificationEvaluator:
                 dynamic_replay_fixed
             ),
             reasons=reasons,
+            passed_checks=passed_checks,
             failed_checks=failed_checks,
+            skipped_checks=skipped_checks,
         )

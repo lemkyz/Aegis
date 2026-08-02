@@ -449,7 +449,13 @@ class UnifiedFixVerificationResponse(BaseModel):
     reasons: list[str] = Field(
         default_factory=list,
     )
+    passed_checks: list[str] = Field(
+        default_factory=list,
+    )
     failed_checks: list[str] = Field(
+        default_factory=list,
+    )
+    skipped_checks: list[str] = Field(
         default_factory=list,
     )
 
