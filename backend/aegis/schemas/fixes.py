@@ -5,7 +5,12 @@ import json
 from pathlib import PurePosixPath
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
+)
 
 from aegis.schemas.change_policy import (
     ChangePolicyDecisionResponse,
@@ -126,6 +131,11 @@ FixVerificationCheckKind = Literal[
 
 
 class FixVerificationCheck(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+    )
+
     check_id: SafeEvidenceIdentifier
     kind: FixVerificationCheckKind
     name: str = Field(
@@ -135,6 +145,11 @@ class FixVerificationCheck(BaseModel):
 
 
 class FixVerificationPlan(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+    )
+
     plan_id: SafeEvidenceIdentifier
     claim_id: SafeEvidenceIdentifier
     patch_sha256: Sha256Digest = Field(
@@ -147,6 +162,45 @@ class FixVerificationPlan(BaseModel):
         max_length=20,
     )
     requires_dynamic_replay: bool = False
+
+    @model_validator(mode="after")
+    def validate_plan(
+        self,
+    ) -> "FixVerificationPlan":
+        check_ids = [
+            check.check_id
+            for check in self.checks
+        ]
+
+        if len(check_ids) != len(set(check_ids)):
+            raise ValueError(
+                "verification check IDs must be unique"
+            )
+
+        has_dynamic_replay = any(
+            check.kind == "dynamic_replay"
+            for check in self.checks
+        )
+
+        if (
+            self.requires_dynamic_replay
+            and not has_dynamic_replay
+        ):
+            raise ValueError(
+                "requires_dynamic_replay requires a "
+                "dynamic_replay check"
+            )
+
+        if (
+            has_dynamic_replay
+            and not self.requires_dynamic_replay
+        ):
+            raise ValueError(
+                "requires_dynamic_replay must be true "
+                "when a dynamic_replay check is present"
+            )
+
+        return self
 
     def plan_sha256(self) -> str:
         canonical = json.dumps(
