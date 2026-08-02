@@ -647,6 +647,11 @@ class FixVerificationTaskHandler:
             for check in checks
             if check.status == "failed"
         ]
+        skipped_checks = [
+            check.name
+            for check in checks
+            if check.status == "skipped"
+        ]
         static_target_resolved = not (
             request.security_delta
             .remaining_target_finding_ids
@@ -657,6 +662,7 @@ class FixVerificationTaskHandler:
         )
         hard_failure = bool(
             failed_checks
+            or skipped_checks
             or not static_target_resolved
             or not static_regression_free
         )
@@ -666,6 +672,14 @@ class FixVerificationTaskHandler:
             reasons.append(
                 "Project verification failed: "
                 + ", ".join(failed_checks)
+                + "."
+            )
+
+        if skipped_checks:
+            reasons.append(
+                "Project verification is incomplete; "
+                "checks were skipped: "
+                + ", ".join(skipped_checks)
                 + "."
             )
 

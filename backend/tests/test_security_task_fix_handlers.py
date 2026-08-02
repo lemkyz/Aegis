@@ -611,6 +611,74 @@ def test_failed_project_check_rolls_back(
     )
 
 
+def test_skipped_project_check_rolls_back(
+    tmp_path: Path,
+) -> None:
+    target = setup_repository(
+        tmp_path
+    )
+    store = transaction_store()
+    applied, request = apply_fix(
+        tmp_path,
+        store=store,
+    )
+    verification = verification_request(
+        check_status="skipped",
+        details=(
+            "Project tests were not executed."
+        ),
+    )
+
+    result = run(
+        FixVerificationTaskHandler(
+            transactions=store,
+        ).execute(
+            task=verification_task(),
+            context=context(
+                tmp_path,
+                request,
+                verification=verification,
+            ),
+            inputs={
+                "applied_patch": (
+                    applied.model_dump(
+                        mode="json"
+                    )
+                ),
+            },
+        )
+    )
+    artifact = (
+        StaticFixVerificationArtifact
+        .model_validate(
+            result.output[
+                "fix_verification_result"
+            ]
+        )
+    )
+
+    assert artifact.verdict == "failed"
+    assert artifact.ready_for_dynamic is False
+    assert artifact.transaction_state == (
+        "rolled_back"
+    )
+    assert artifact.project_checks[0].status == (
+        "skipped"
+    )
+    assert any(
+        "skipped" in reason.lower()
+        or "incomplete" in reason.lower()
+        for reason in artifact.reasons
+    )
+
+    assert target.read_text(
+        encoding="utf-8"
+    ) == ORIGINAL
+    assert not store.contains(
+        applied.transaction_id
+    )
+
+
 def test_invalid_verification_contract_rolls_back(
     tmp_path: Path,
 ) -> None:
