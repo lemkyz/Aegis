@@ -2,8 +2,10 @@ import pytest
 from pydantic import ValidationError
 
 from aegis.schemas.fixes import (
+    FixPlan,
     FixVerificationCheck,
     FixVerificationPlan,
+    SecureFixProposal,
 )
 
 
@@ -23,6 +25,38 @@ def dynamic_replay_check() -> FixVerificationCheck:
         check_id="check:dynamic-replay",
         kind="dynamic_replay",
         name="Authorized dynamic replay",
+    )
+
+
+def fix_proposal() -> SecureFixProposal:
+    return SecureFixProposal(
+        claim_id="claim-command-001",
+        target_path="app.py",
+        expected_file_sha256="a" * 64,
+        expected_selection_sha256="b" * 64,
+        start_offset=10,
+        end_offset=20,
+        replacement="safe_call()",
+    )
+
+
+def fix_plan() -> FixPlan:
+    proposal = fix_proposal()
+
+    return FixPlan(
+        plan_id="fix-plan:claim-command-001",
+        proposal=proposal,
+        verification_plan=FixVerificationPlan(
+            plan_id=(
+                "verification-plan:"
+                "claim-command-001"
+            ),
+            claim_id=proposal.claim_id,
+            patch_sha256=proposal.patch_sha256(),
+            checks=[
+                project_check(),
+            ],
+        ),
     )
 
 
@@ -179,3 +213,118 @@ def test_dynamic_replay_check_requires_plan_flag() -> None:
             ],
             requires_dynamic_replay=False,
         )
+
+def test_fix_plan_round_trips_deterministically() -> None:
+    plan = fix_plan()
+
+    serialized = plan.model_dump_json()
+    restored = FixPlan.model_validate_json(
+        serialized
+    )
+
+    assert restored == plan
+    assert restored.model_dump_json() == serialized
+    assert restored.plan_sha256() == (
+        plan.plan_sha256()
+    )
+    assert restored.verification_plan.patch_sha256 == (
+        restored.proposal.patch_sha256()
+    )
+
+
+def test_fix_plan_rejects_claim_identity_mismatch() -> None:
+    proposal = fix_proposal()
+
+    with pytest.raises(
+        ValidationError,
+        match="claim identity must match",
+    ):
+        FixPlan(
+            plan_id="fix-plan:claim-command-001",
+            proposal=proposal,
+            verification_plan=FixVerificationPlan(
+                plan_id="verification-plan:other",
+                claim_id="claim-other",
+                patch_sha256=(
+                    proposal.patch_sha256()
+                ),
+                checks=[
+                    project_check(),
+                ],
+            ),
+        )
+
+
+def test_fix_plan_rejects_patch_digest_mismatch() -> None:
+    proposal = fix_proposal()
+
+    with pytest.raises(
+        ValidationError,
+        match="patch digest must match",
+    ):
+        FixPlan(
+            plan_id="fix-plan:claim-command-001",
+            proposal=proposal,
+            verification_plan=FixVerificationPlan(
+                plan_id=(
+                    "verification-plan:"
+                    "claim-command-001"
+                ),
+                claim_id=proposal.claim_id,
+                patch_sha256="f" * 64,
+                checks=[
+                    project_check(),
+                ],
+            ),
+        )
+
+
+def test_fix_plan_rejects_unknown_fields() -> None:
+    plan = fix_plan()
+    payload = plan.model_dump(
+        mode="json"
+    )
+    payload["verified"] = True
+
+    with pytest.raises(
+        ValidationError,
+        match="Extra inputs are not permitted",
+    ):
+        FixPlan.model_validate(payload)
+
+
+
+def test_fix_plan_rejects_unknown_proposal_fields() -> None:
+    plan = fix_plan()
+    payload = plan.model_dump(
+        mode="json"
+    )
+    payload["proposal"]["authorized"] = True
+
+    with pytest.raises(
+        ValidationError,
+        match="Extra inputs are not permitted",
+    ):
+        FixPlan.model_validate(payload)
+
+
+def test_fix_plan_rejects_coerced_proposal_offsets() -> None:
+    plan = fix_plan()
+    payload = plan.model_dump(
+        mode="json"
+    )
+    payload["proposal"]["start_offset"] = "10"
+
+    with pytest.raises(ValidationError):
+        FixPlan.model_validate(payload)
+
+
+def test_fix_plan_rejects_coerced_identifier() -> None:
+    plan = fix_plan()
+    payload = plan.model_dump(
+        mode="json"
+    )
+    payload["plan_id"] = 46
+
+    with pytest.raises(ValidationError):
+        FixPlan.model_validate(payload)

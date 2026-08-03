@@ -33,6 +33,11 @@ SafeEvidenceIdentifier = Annotated[
 
 
 class SecureFixProposal(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+    )
+
     claim_id: SafeEvidenceIdentifier
     target_path: str = Field(
         min_length=1,
@@ -198,6 +203,53 @@ class FixVerificationPlan(BaseModel):
             raise ValueError(
                 "requires_dynamic_replay must be true "
                 "when a dynamic_replay check is present"
+            )
+
+        return self
+
+    def plan_sha256(self) -> str:
+        canonical = json.dumps(
+            self.model_dump(mode="json"),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+
+        return hashlib.sha256(
+            canonical
+        ).hexdigest()
+
+
+class FixPlan(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+    )
+
+    plan_id: SafeEvidenceIdentifier
+    proposal: SecureFixProposal
+    verification_plan: FixVerificationPlan
+
+    @model_validator(mode="after")
+    def validate_plan(
+        self,
+    ) -> "FixPlan":
+        if (
+            self.proposal.claim_id
+            != self.verification_plan.claim_id
+        ):
+            raise ValueError(
+                "fix plan claim identity must match "
+                "across proposal and verification plan"
+            )
+
+        if (
+            self.proposal.patch_sha256()
+            != self.verification_plan.patch_sha256
+        ):
+            raise ValueError(
+                "fix plan patch digest must match "
+                "the exact proposed patch"
             )
 
         return self
