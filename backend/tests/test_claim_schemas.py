@@ -433,3 +433,119 @@ def test_claim_accepts_reverse_direction_epistemic_roles() -> None:
         "supports",
         "contradicts",
     ]
+
+
+def test_claim_rejects_two_node_provenance_cycle() -> None:
+    first = _graph_evidence("evidence:first")
+    second = _graph_evidence("evidence:second")
+
+    with pytest.raises(
+        ValidationError,
+        match="provenance cycle",
+    ):
+        _graph_claim(
+            evidence=[first, second],
+            relationships=[
+                EvidenceRelationship(
+                    relationship_id=(
+                        "relationship:first-derived-from-second"
+                    ),
+                    source_evidence_id=first.evidence_id,
+                    target_evidence_id=second.evidence_id,
+                    kind="derived_from",
+                ),
+                EvidenceRelationship(
+                    relationship_id=(
+                        "relationship:second-derived-from-first"
+                    ),
+                    source_evidence_id=second.evidence_id,
+                    target_evidence_id=first.evidence_id,
+                    kind="derived_from",
+                ),
+            ],
+        )
+
+
+def test_claim_rejects_transitive_provenance_cycle() -> None:
+    first = _graph_evidence("evidence:first")
+    second = _graph_evidence("evidence:second")
+    third = _graph_evidence("evidence:third")
+
+    with pytest.raises(
+        ValidationError,
+        match="provenance cycle",
+    ):
+        _graph_claim(
+            evidence=[first, second, third],
+            relationships=[
+                EvidenceRelationship(
+                    relationship_id=(
+                        "relationship:first-derived-from-second"
+                    ),
+                    source_evidence_id=first.evidence_id,
+                    target_evidence_id=second.evidence_id,
+                    kind="derived_from",
+                ),
+                EvidenceRelationship(
+                    relationship_id=(
+                        "relationship:second-derived-from-third"
+                    ),
+                    source_evidence_id=second.evidence_id,
+                    target_evidence_id=third.evidence_id,
+                    kind="derived_from",
+                ),
+                EvidenceRelationship(
+                    relationship_id=(
+                        "relationship:third-derived-from-first"
+                    ),
+                    source_evidence_id=third.evidence_id,
+                    target_evidence_id=first.evidence_id,
+                    kind="derived_from",
+                ),
+            ],
+        )
+
+
+def test_claim_accepts_acyclic_provenance_chain() -> None:
+    source = _graph_evidence("evidence:source")
+    intermediate = _graph_evidence("evidence:intermediate")
+    derived = _graph_evidence("evidence:derived")
+
+    claim = _graph_claim(
+        evidence=[source, intermediate, derived],
+        relationships=[
+            EvidenceRelationship(
+                relationship_id=(
+                    "relationship:intermediate-derived-from-source"
+                ),
+                source_evidence_id=intermediate.evidence_id,
+                target_evidence_id=source.evidence_id,
+                kind="derived_from",
+            ),
+            EvidenceRelationship(
+                relationship_id=(
+                    "relationship:derived-derived-from-intermediate"
+                ),
+                source_evidence_id=derived.evidence_id,
+                target_evidence_id=intermediate.evidence_id,
+                kind="derived_from",
+            ),
+        ],
+    )
+
+    assert [
+        (
+            relationship.source_evidence_id,
+            relationship.target_evidence_id,
+        )
+        for relationship in claim.relationships
+    ] == [
+        (
+            intermediate.evidence_id,
+            source.evidence_id,
+        ),
+        (
+            derived.evidence_id,
+            intermediate.evidence_id,
+        ),
+    ]

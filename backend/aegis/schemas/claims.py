@@ -206,4 +206,41 @@ class SecurityClaim(BaseModel):
                     "must reference evidence in the claim"
                 )
 
+        provenance_graph: dict[str, set[str]] = {}
+        for relationship in self.relationships:
+            if relationship.kind != "derived_from":
+                continue
+            provenance_graph.setdefault(
+                relationship.source_evidence_id,
+                set(),
+            ).add(
+                relationship.target_evidence_id
+            )
+
+        visiting: set[str] = set()
+        visited: set[str] = set()
+
+        def visit(evidence_id: str) -> None:
+            if evidence_id in visited:
+                return
+            if evidence_id in visiting:
+                raise ValueError(
+                    "Evidence graph contains a "
+                    "provenance cycle."
+                )
+
+            visiting.add(evidence_id)
+            for parent_id in sorted(
+                provenance_graph.get(
+                    evidence_id,
+                    set(),
+                )
+            ):
+                visit(parent_id)
+            visiting.remove(evidence_id)
+            visited.add(evidence_id)
+
+        for evidence_id in sorted(provenance_graph):
+            visit(evidence_id)
+
         return self
