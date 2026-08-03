@@ -23,6 +23,7 @@ from aegis.schemas.changes import (
 )
 from aegis.schemas.fixes import (
     AppliedPatchArtifact,
+    ResidualRiskAssessment,
     SecureFixRequest,
     StaticSecurityDeltaEvidence,
     StaticFixVerificationArtifact,
@@ -735,6 +736,25 @@ class FixVerificationTaskHandler:
                 "requested; the result is partial."
             )
 
+        redacted_reasons = self._redact_texts(
+            reasons,
+            session=redaction_session,
+        )
+        residual_status = (
+            "identified"
+            if (
+                not static_target_resolved
+                or not static_regression_free
+            )
+            else "inconclusive"
+        )
+        residual_risk = ResidualRiskAssessment(
+            claim_id=applied.claim_id,
+            patch_sha256=applied.patch_sha256,
+            status=residual_status,
+            reasons=redacted_reasons,
+        )
+
         artifact = (
             StaticFixVerificationArtifact(
                 handler=self.handler,
@@ -773,12 +793,8 @@ class FixVerificationTaskHandler:
                 transaction_state=(
                     transaction_state
                 ),
-                reasons=self._redact_texts(
-                    reasons,
-                    session=(
-                        redaction_session
-                    ),
-                ),
+                residual_risk=residual_risk,
+                reasons=redacted_reasons,
                 outputs_redacted=True,
             )
         )

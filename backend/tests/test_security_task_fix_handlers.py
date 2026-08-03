@@ -595,6 +595,15 @@ def test_failed_project_check_rolls_back(
     assert artifact.transaction_state == (
         "rolled_back"
     )
+    assert artifact.residual_risk.status == (
+        "inconclusive"
+    )
+    assert artifact.residual_risk.claim_id == (
+        artifact.applied_patch.claim_id
+    )
+    assert artifact.residual_risk.patch_sha256 == (
+        artifact.applied_patch.patch_sha256
+    )
     assert target.read_text(
         encoding="utf-8"
     ) == ORIGINAL
@@ -669,6 +678,12 @@ def test_skipped_project_check_rolls_back(
         "skipped" in reason.lower()
         or "incomplete" in reason.lower()
         for reason in artifact.reasons
+    )
+    assert artifact.residual_risk.status == (
+        "inconclusive"
+    )
+    assert artifact.residual_risk.reasons == (
+        artifact.reasons
     )
 
     assert target.read_text(
@@ -823,6 +838,14 @@ def test_static_success_without_replay_is_partial(
     assert artifact.transaction_state == (
         "committed"
     )
+    assert artifact.residual_risk.status == (
+        "inconclusive"
+    )
+    assert any(
+        "no dynamic replay" in reason.lower()
+        for reason
+        in artifact.residual_risk.reasons
+    )
     assert not store.contains(
         applied.transaction_id
     )
@@ -878,6 +901,14 @@ def test_static_success_hands_pending_fix_to_replay(
     assert artifact.ready_for_dynamic is True
     assert artifact.transaction_state == (
         "pending"
+    )
+    assert artifact.residual_risk.status == (
+        "inconclusive"
+    )
+    assert any(
+        "final proof awaits" in reason.lower()
+        for reason
+        in artifact.residual_risk.reasons
     )
     assert store.contains(
         applied.transaction_id

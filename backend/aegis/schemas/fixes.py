@@ -444,10 +444,35 @@ class StaticFixVerificationArtifact(BaseModel):
     verdict: StaticFixVerificationVerdict
     ready_for_dynamic: bool
     transaction_state: FixTransactionState
+    residual_risk: ResidualRiskAssessment
     reasons: list[str] = Field(
         default_factory=list,
     )
     outputs_redacted: bool
+
+    @model_validator(mode="after")
+    def validate_residual_risk_provenance(
+        self,
+    ) -> "StaticFixVerificationArtifact":
+        if (
+            self.residual_risk.claim_id
+            != self.applied_patch.claim_id
+        ):
+            raise ValueError(
+                "residual risk claim identity must match "
+                "the applied patch"
+            )
+
+        if (
+            self.residual_risk.patch_sha256
+            != self.applied_patch.patch_sha256
+        ):
+            raise ValueError(
+                "residual risk patch digest must match "
+                "the applied patch"
+            )
+
+        return self
 
 
 StaticFixVerificationRequest.model_rebuild()

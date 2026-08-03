@@ -346,6 +346,16 @@ def inputs() -> dict:
             verdict="awaiting_dynamic",
             ready_for_dynamic=True,
             transaction_state="pending",
+            residual_risk={
+                "claim_id": applied.claim_id,
+                "patch_sha256": (
+                    applied.patch_sha256
+                ),
+                "status": "inconclusive",
+                "reasons": [
+                    "Dynamic replay has not run.",
+                ],
+            },
             reasons=[],
             outputs_redacted=True,
         )
