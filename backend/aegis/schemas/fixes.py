@@ -305,6 +305,92 @@ class AppliedPatchArtifact(BaseModel):
     outputs_redacted: bool
 
 
+class RemediationLifecycleManifest(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+        frozen=True,
+    )
+
+    schema_version: Literal["1.0"] = "1.0"
+    manifest_id: SafeEvidenceIdentifier
+    fix_plan: FixPlan
+    fix_plan_sha256: Sha256Digest = Field(
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    applied_patch: AppliedPatchArtifact
+
+    @model_validator(mode="after")
+    def validate_manifest(
+        self,
+    ) -> "RemediationLifecycleManifest":
+        proposal = self.fix_plan.proposal
+
+        if (
+            self.fix_plan_sha256
+            != self.fix_plan.plan_sha256()
+        ):
+            raise ValueError(
+                "remediation manifest fix plan digest "
+                "must match the exact fix plan"
+            )
+
+        if proposal.claim_id != (
+            self.applied_patch.claim_id
+        ):
+            raise ValueError(
+                "remediation manifest claim identity "
+                "must match the applied patch"
+            )
+
+        if proposal.patch_sha256() != (
+            self.applied_patch.patch_sha256
+        ):
+            raise ValueError(
+                "remediation manifest patch digest "
+                "must match the applied patch"
+            )
+
+        if proposal.target_path != (
+            self.applied_patch.target_path
+        ):
+            raise ValueError(
+                "remediation manifest target path "
+                "must match the applied patch"
+            )
+
+        if proposal.expected_file_sha256 != (
+            self.applied_patch.before_sha256
+        ):
+            raise ValueError(
+                "remediation manifest before digest "
+                "must match the authorized source"
+            )
+
+        if (
+            self.applied_patch.transaction_state
+            != "pending"
+        ):
+            raise ValueError(
+                "remediation manifest transaction state "
+                "must be pending"
+            )
+
+        return self
+
+    def manifest_sha256(self) -> str:
+        canonical = json.dumps(
+            self.model_dump(mode="json"),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+
+        return hashlib.sha256(
+            canonical
+        ).hexdigest()
+
+
 class StaticFixVerificationRequest(BaseModel):
     claim_id: SafeEvidenceIdentifier
     verifier: SafeEvidenceIdentifier
