@@ -110,6 +110,42 @@ class SecurityClaim(BaseModel):
 
     @model_validator(mode="after")
     def validate_evidence_graph(self) -> "SecurityClaim":
+        relationship_ids: set[str] = set()
+        relationship_keys: set[tuple[str, str, str]] = set()
+
+        for relationship in self.relationships:
+            if relationship.relationship_id in relationship_ids:
+                raise ValueError(
+                    "Evidence graph contains a duplicate "
+                    "relationship_id."
+                )
+            relationship_ids.add(
+                relationship.relationship_id
+            )
+
+            if (
+                relationship.source_evidence_id
+                == relationship.target_evidence_id
+            ):
+                raise ValueError(
+                    "Evidence relationships must reference "
+                    "distinct evidence."
+                )
+
+            relationship_key = (
+                relationship.source_evidence_id,
+                relationship.target_evidence_id,
+                relationship.kind,
+            )
+            if relationship_key in relationship_keys:
+                raise ValueError(
+                    "Evidence graph contains a duplicate "
+                    "evidence relationship."
+                )
+            relationship_keys.add(
+                relationship_key
+            )
+
         evidence_ids = [
             item.evidence_id
             for item in self.evidence

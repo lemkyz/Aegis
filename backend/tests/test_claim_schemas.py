@@ -173,3 +173,151 @@ def test_claim_rejects_unknown_relationship_reference() -> None:
                 ),
             ],
         )
+
+
+def _graph_evidence(
+    evidence_id: str,
+) -> EvidenceItem:
+    return EvidenceItem(
+        evidence_id=evidence_id,
+        source=EvidenceSource(
+            kind="scanner",
+            name="Aegis Graph Test Scanner",
+        ),
+        summary="Canonical graph test evidence.",
+        confidence=0.9,
+    )
+
+
+def _graph_claim(
+    *,
+    evidence: list[EvidenceItem],
+    relationships: list[EvidenceRelationship],
+) -> SecurityClaim:
+    return SecurityClaim(
+        claim_id="claim:graph-integrity",
+        statement="A canonical evidence graph exists.",
+        category="graph-integrity",
+        severity="medium",
+        confidence=0.9,
+        state="supported",
+        evidence=evidence,
+        relationships=relationships,
+        remediation="Preserve graph integrity.",
+    )
+
+
+def test_claim_rejects_duplicate_relationship_ids() -> None:
+    source = _graph_evidence("evidence:source")
+    target = _graph_evidence("evidence:target")
+    duplicate_id = "relationship:duplicate"
+
+    with pytest.raises(
+        ValidationError,
+        match="duplicate relationship_id",
+    ):
+        _graph_claim(
+            evidence=[source, target],
+            relationships=[
+                EvidenceRelationship(
+                    relationship_id=duplicate_id,
+                    source_evidence_id=source.evidence_id,
+                    target_evidence_id=target.evidence_id,
+                    kind="supports",
+                ),
+                EvidenceRelationship(
+                    relationship_id=duplicate_id,
+                    source_evidence_id=target.evidence_id,
+                    target_evidence_id=source.evidence_id,
+                    kind="corroborates",
+                ),
+            ],
+        )
+
+
+def test_claim_rejects_duplicate_semantic_relationships() -> None:
+    source = _graph_evidence("evidence:source")
+    target = _graph_evidence("evidence:target")
+
+    with pytest.raises(
+        ValidationError,
+        match="duplicate evidence relationship",
+    ):
+        _graph_claim(
+            evidence=[source, target],
+            relationships=[
+                EvidenceRelationship(
+                    relationship_id="relationship:first",
+                    source_evidence_id=source.evidence_id,
+                    target_evidence_id=target.evidence_id,
+                    kind="supports",
+                    reason="Primary relationship.",
+                ),
+                EvidenceRelationship(
+                    relationship_id="relationship:second",
+                    source_evidence_id=source.evidence_id,
+                    target_evidence_id=target.evidence_id,
+                    kind="supports",
+                    reason="Duplicate semantic relationship.",
+                ),
+            ],
+        )
+
+
+def test_claim_rejects_self_referential_relationships() -> None:
+    evidence = _graph_evidence("evidence:self")
+
+    with pytest.raises(
+        ValidationError,
+        match="must reference distinct evidence",
+    ):
+        _graph_claim(
+            evidence=[evidence],
+            relationships=[
+                EvidenceRelationship(
+                    relationship_id="relationship:self",
+                    source_evidence_id=evidence.evidence_id,
+                    target_evidence_id=evidence.evidence_id,
+                    kind="derived_from",
+                ),
+            ],
+        )
+
+
+def test_claim_accepts_distinct_directed_relationships() -> None:
+    first = _graph_evidence("evidence:first")
+    second = _graph_evidence("evidence:second")
+    third = _graph_evidence("evidence:third")
+
+    claim = _graph_claim(
+        evidence=[first, second, third],
+        relationships=[
+            EvidenceRelationship(
+                relationship_id="relationship:first-supports-second",
+                source_evidence_id=first.evidence_id,
+                target_evidence_id=second.evidence_id,
+                kind="supports",
+            ),
+            EvidenceRelationship(
+                relationship_id="relationship:second-corroborates-first",
+                source_evidence_id=second.evidence_id,
+                target_evidence_id=first.evidence_id,
+                kind="corroborates",
+            ),
+            EvidenceRelationship(
+                relationship_id="relationship:third-derived-from-first",
+                source_evidence_id=third.evidence_id,
+                target_evidence_id=first.evidence_id,
+                kind="derived_from",
+            ),
+        ],
+    )
+
+    assert [
+        relationship.relationship_id
+        for relationship in claim.relationships
+    ] == [
+        "relationship:first-supports-second",
+        "relationship:second-corroborates-first",
+        "relationship:third-derived-from-first",
+    ]
