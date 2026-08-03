@@ -267,6 +267,44 @@ class FixPlan(BaseModel):
         ).hexdigest()
 
 
+ResidualRiskStatus = Literal[
+    "none_identified",
+    "identified",
+    "inconclusive",
+]
+
+
+class ResidualRiskAssessment(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+    )
+
+    claim_id: SafeEvidenceIdentifier
+    patch_sha256: Sha256Digest = Field(
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    status: ResidualRiskStatus
+    reasons: list[str] = Field(
+        min_length=1,
+        max_length=50,
+    )
+
+    @model_validator(mode="after")
+    def validate_reasons(
+        self,
+    ) -> "ResidualRiskAssessment":
+        if any(
+            not reason.strip()
+            for reason in self.reasons
+        ):
+            raise ValueError(
+                "residual risk reasons must not be blank"
+            )
+
+        return self
+
+
 FixTransactionState = Literal[
     "pending",
     "committed",

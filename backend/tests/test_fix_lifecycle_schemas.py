@@ -5,6 +5,7 @@ from aegis.schemas.fixes import (
     FixPlan,
     FixVerificationCheck,
     FixVerificationPlan,
+    ResidualRiskAssessment,
     SecureFixProposal,
 )
 
@@ -57,6 +58,17 @@ def fix_plan() -> FixPlan:
                 project_check(),
             ],
         ),
+    )
+
+
+def residual_risk() -> ResidualRiskAssessment:
+    return ResidualRiskAssessment(
+        claim_id="claim-command-001",
+        patch_sha256="a" * 64,
+        status="none_identified",
+        reasons=[
+            "All required verification checks passed.",
+        ],
     )
 
 
@@ -328,3 +340,66 @@ def test_fix_plan_rejects_coerced_identifier() -> None:
 
     with pytest.raises(ValidationError):
         FixPlan.model_validate(payload)
+
+
+def test_residual_risk_round_trips_deterministically() -> None:
+    assessment = residual_risk()
+
+    serialized = assessment.model_dump_json()
+    restored = (
+        ResidualRiskAssessment
+        .model_validate_json(serialized)
+    )
+
+    assert restored == assessment
+    assert restored.model_dump_json() == serialized
+
+
+def test_residual_risk_rejects_unknown_fields() -> None:
+    payload = residual_risk().model_dump(
+        mode="json"
+    )
+    payload["accepted"] = True
+
+    with pytest.raises(
+        ValidationError,
+        match="Extra inputs are not permitted",
+    ):
+        ResidualRiskAssessment.model_validate(
+            payload
+        )
+
+
+def test_residual_risk_requires_evidence_reasons() -> None:
+    with pytest.raises(ValidationError):
+        ResidualRiskAssessment(
+            claim_id="claim-command-001",
+            patch_sha256="a" * 64,
+            status="inconclusive",
+            reasons=[],
+        )
+
+
+def test_residual_risk_rejects_blank_reasons() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="must not be blank",
+    ):
+        ResidualRiskAssessment(
+            claim_id="claim-command-001",
+            patch_sha256="a" * 64,
+            status="identified",
+            reasons=["   "],
+        )
+
+
+def test_residual_risk_rejects_coerced_status() -> None:
+    payload = residual_risk().model_dump(
+        mode="json"
+    )
+    payload["status"] = 1
+
+    with pytest.raises(ValidationError):
+        ResidualRiskAssessment.model_validate(
+            payload
+        )
