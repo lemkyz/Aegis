@@ -264,6 +264,80 @@ def test_verified_fix_updates_claim_state() -> None:
     )
 
 
+def test_fix_verification_links_evidence_graph() -> None:
+    claim = base_claim()
+
+    updated = apply_fix_verification(
+        claim,
+        replay=replay_result(
+            claim_id=claim.claim_id,
+        ),
+        verification=verification_result(
+            claim_id=claim.claim_id,
+        ),
+    )
+
+    replay_evidence = next(
+        item
+        for item in updated.evidence
+        if item.source.kind == "runtime_execution"
+    )
+    verification_evidence = next(
+        item
+        for item in updated.evidence
+        if item.source.kind == "test_result"
+    )
+
+    assert len(updated.relationships) == 1
+
+    relationship = updated.relationships[0]
+
+    assert relationship.kind == "verifies"
+    assert (
+        relationship.source_evidence_id
+        == verification_evidence.evidence_id
+    )
+    assert (
+        relationship.target_evidence_id
+        == replay_evidence.evidence_id
+    )
+    assert relationship.relationship_id.startswith(
+        "relationship:sha256:"
+    )
+    assert relationship.reason == (
+        "Unified fix verification verifies the "
+        "authorized dynamic replay result."
+    )
+
+
+def test_fix_verification_relationship_is_idempotent() -> None:
+    claim = base_claim()
+    replay = replay_result(
+        claim_id=claim.claim_id,
+    )
+    verification = verification_result(
+        claim_id=claim.claim_id,
+    )
+
+    first = apply_fix_verification(
+        claim,
+        replay=replay,
+        verification=verification,
+    )
+    second = apply_fix_verification(
+        first,
+        replay=replay,
+        verification=verification,
+    )
+
+    assert len(first.relationships) == 1
+    assert len(second.relationships) == 1
+    assert (
+        first.relationships[0].relationship_id
+        == second.relationships[0].relationship_id
+    )
+
+
 def test_residual_risk_prevents_verified_fixed_state() -> None:
     claim = base_claim()
 

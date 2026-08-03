@@ -2,6 +2,7 @@ import hashlib
 
 from aegis.schemas.claims import (
     EvidenceItem,
+    EvidenceRelationship,
     EvidenceSource,
     SecurityClaim,
 )
@@ -238,6 +239,29 @@ def apply_fix_verification(
         replay_evidence,
         verification_evidence,
     )
+    relationship_reason = (
+        "Unified fix verification verifies the "
+        "authorized dynamic replay result."
+    )
+    verification_relationship = EvidenceRelationship(
+        relationship_id=_stable_id(
+            "relationship",
+            "verifies",
+            verification_evidence.evidence_id,
+            replay_evidence.evidence_id,
+            relationship_reason,
+        ),
+        source_evidence_id=(
+            verification_evidence.evidence_id
+        ),
+        target_evidence_id=replay_evidence.evidence_id,
+        kind="verifies",
+        reason=relationship_reason,
+    )
+    relationships = _append_unique_relationships(
+        claim.relationships,
+        verification_relationship,
+    )
 
     state = claim.state
 
@@ -262,6 +286,7 @@ def apply_fix_verification(
         update={
             "state": state,
             "evidence": evidence,
+            "relationships": relationships,
         },
     )
 
@@ -282,6 +307,26 @@ def _append_unique_evidence(
 
         result.append(item)
         known_ids.add(item.evidence_id)
+
+    return result
+
+
+def _append_unique_relationships(
+    existing: list[EvidenceRelationship],
+    *items: EvidenceRelationship,
+) -> list[EvidenceRelationship]:
+    result = list(existing)
+    known_ids = {
+        item.relationship_id
+        for item in existing
+    }
+
+    for item in items:
+        if item.relationship_id in known_ids:
+            continue
+
+        result.append(item)
+        known_ids.add(item.relationship_id)
 
     return result
 
