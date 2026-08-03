@@ -7,6 +7,7 @@ import pytest
 from aegis.schemas.claims import (
     CodeLocation,
     EvidenceItem,
+    EvidenceRelationship,
     EvidenceSource,
     SecurityClaim,
 )
@@ -570,3 +571,160 @@ def test_invalid_metadata_schema_version_is_redacted(
         match="invalid schema version",
     ):
         SQLiteProjectMemoryStore(database_path)
+
+
+def _relationship_snapshot(
+    *,
+    relationships: list[EvidenceRelationship],
+):
+    base = claim("claim:relationship-identity")
+    template = base.evidence[0]
+
+    evidence = [
+        template.model_copy(
+            deep=True,
+            update={
+                "evidence_id": "evidence:source",
+            },
+        ),
+        template.model_copy(
+            deep=True,
+            update={
+                "evidence_id": "evidence:target",
+            },
+        ),
+        template.model_copy(
+            deep=True,
+            update={
+                "evidence_id": "evidence:alternate",
+            },
+        ),
+    ]
+
+    item = base.model_copy(
+        deep=True,
+        update={
+            "evidence": evidence,
+            "relationships": relationships,
+        },
+    )
+
+    return snapshot(claims=[item])
+
+
+@pytest.mark.parametrize(
+    "changed_relationship",
+    [
+        EvidenceRelationship(
+            relationship_id="relationship:stable",
+            source_evidence_id="evidence:source",
+            target_evidence_id="evidence:target",
+            kind="supports",
+            reason="Updated material reason.",
+        ),
+        EvidenceRelationship(
+            relationship_id="relationship:stable",
+            source_evidence_id="evidence:source",
+            target_evidence_id="evidence:alternate",
+            kind="supports",
+            reason="Original material reason.",
+        ),
+        EvidenceRelationship(
+            relationship_id="relationship:stable",
+            source_evidence_id="evidence:source",
+            target_evidence_id="evidence:target",
+            kind="verifies",
+            reason="Original material reason.",
+        ),
+    ],
+    ids=[
+        "reason",
+        "endpoint",
+        "kind",
+    ],
+)
+def test_relationship_material_collision_is_rejected(
+    tmp_path: Path,
+    changed_relationship: EvidenceRelationship,
+) -> None:
+    memory = store(tmp_path)
+    original = _relationship_snapshot(
+        relationships=[
+            EvidenceRelationship(
+                relationship_id="relationship:stable",
+                source_evidence_id="evidence:source",
+                target_evidence_id="evidence:target",
+                kind="supports",
+                reason="Original material reason.",
+            )
+        ],
+    )
+    changed = _relationship_snapshot(
+        relationships=[changed_relationship],
+    ).model_copy(
+        deep=True,
+        update={
+            "snapshot_id": original.snapshot_id,
+        },
+    )
+
+    memory.save_snapshot(original)
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "snapshot_id collision or inconsistent "
+            "snapshot identity"
+        ),
+    ):
+        memory.save_snapshot(changed)
+
+    assert memory.get_snapshot(
+        original.snapshot_id
+    ) == original
+    assert memory.count_snapshots(
+        original.project_id
+    ) == 1
+
+
+def test_relationship_order_remains_idempotent_in_sqlite(
+    tmp_path: Path,
+) -> None:
+    memory = store(tmp_path)
+    first_relationship = EvidenceRelationship(
+        relationship_id="relationship:first",
+        source_evidence_id="evidence:source",
+        target_evidence_id="evidence:target",
+        kind="supports",
+        reason="Primary epistemic relationship.",
+    )
+    second_relationship = EvidenceRelationship(
+        relationship_id="relationship:second",
+        source_evidence_id="evidence:alternate",
+        target_evidence_id="evidence:source",
+        kind="derived_from",
+        reason="Independent provenance relationship.",
+    )
+
+    first = _relationship_snapshot(
+        relationships=[
+            first_relationship,
+            second_relationship,
+        ],
+    )
+    reordered = _relationship_snapshot(
+        relationships=[
+            second_relationship,
+            first_relationship,
+        ],
+    )
+
+    assert first.snapshot_id == reordered.snapshot_id
+
+    saved = memory.save_snapshot(first)
+    repeated = memory.save_snapshot(reordered)
+
+    assert repeated == saved
+    assert memory.count_snapshots(
+        first.project_id
+    ) == 1
