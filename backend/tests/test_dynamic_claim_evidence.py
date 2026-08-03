@@ -1,6 +1,7 @@
 from aegis.schemas.analysis import SecurityFinding
 from aegis.schemas.validation import (
     DynamicValidationEvidenceResponse,
+    ResidualRiskStatus,
     UnifiedFixVerificationResponse,
     ValidationReplayCompareResponse,
 )
@@ -87,12 +88,14 @@ def verification_result(
     *,
     claim_id: str,
     verified: bool = True,
+    patch_sha256: str = "0" * 64,
+    residual_status: ResidualRiskStatus | None = None,
 ) -> UnifiedFixVerificationResponse:
     return UnifiedFixVerificationResponse(
         evaluator="aegis-unified-fix-verification-v1",
         threat_id="threat-command-001",
         claim_id=claim_id,
-        patch_sha256="0" * 64,
+        patch_sha256=patch_sha256,
         category="command_injection",
         verdict=(
             "verified"
@@ -107,11 +110,15 @@ def verification_result(
         dynamic_replay_fixed=verified,
         residual_risk={
             "claim_id": claim_id,
-            "patch_sha256": "0" * 64,
+            "patch_sha256": patch_sha256,
             "status": (
-                "none_identified"
-                if verified
-                else "inconclusive"
+                residual_status
+                if residual_status is not None
+                else (
+                    "none_identified"
+                    if verified
+                    else "inconclusive"
+                )
             ),
             "reasons": [
                 "Unified verification completed.",
@@ -231,6 +238,86 @@ def test_verified_fix_updates_claim_state() -> None:
         "runtime_execution",
         "test_result",
     }
+
+    verification_evidence = next(
+        item
+        for item in updated.evidence
+        if item.source.kind == "test_result"
+    )
+    assert (
+        f"Verification claim identifier: "
+        f"{claim.claim_id}"
+        in verification_evidence.details
+    )
+    assert (
+        f"Patch SHA-256: {'0' * 64}"
+        in verification_evidence.details
+    )
+    assert (
+        "Residual risk status: none_identified"
+        in verification_evidence.details
+    )
+    assert (
+        "Residual risk reason: "
+        "Unified verification completed."
+        in verification_evidence.details
+    )
+
+
+def test_residual_risk_prevents_verified_fixed_state() -> None:
+    claim = base_claim()
+
+    updated = apply_fix_verification(
+        claim,
+        replay=replay_result(
+            claim_id=claim.claim_id,
+        ),
+        verification=verification_result(
+            claim_id=claim.claim_id,
+            verified=True,
+            residual_status="inconclusive",
+        ),
+    )
+
+    assert updated.state == "suspected"
+
+
+def test_fix_verification_evidence_id_tracks_patch_digest() -> None:
+    claim = base_claim()
+
+    first = apply_fix_verification(
+        claim,
+        replay=replay_result(
+            claim_id=claim.claim_id,
+        ),
+        verification=verification_result(
+            claim_id=claim.claim_id,
+            patch_sha256="0" * 64,
+        ),
+    )
+    second = apply_fix_verification(
+        claim,
+        replay=replay_result(
+            claim_id=claim.claim_id,
+        ),
+        verification=verification_result(
+            claim_id=claim.claim_id,
+            patch_sha256="f" * 64,
+        ),
+    )
+
+    first_id = next(
+        item.evidence_id
+        for item in first.evidence
+        if item.source.kind == "test_result"
+    )
+    second_id = next(
+        item.evidence_id
+        for item in second.evidence
+        if item.source.kind == "test_result"
+    )
+
+    assert first_id != second_id
 
 
 def test_inconclusive_verification_does_not_mark_fixed() -> None:

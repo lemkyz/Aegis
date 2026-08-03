@@ -164,6 +164,14 @@ def apply_fix_verification(
             str(
                 verification.dynamic_replay_fixed
             ),
+            verification.claim_id,
+            verification.patch_sha256,
+            verification.residual_risk.claim_id,
+            verification.residual_risk.patch_sha256,
+            verification.residual_risk.status,
+            "\n".join(
+                verification.residual_risk.reasons
+            ),
             "\n".join(verification.reasons),
             "\n".join(
                 verification.failed_checks
@@ -202,6 +210,26 @@ def apply_fix_verification(
                 "Dynamic replay fixed: "
                 f"{verification.dynamic_replay_fixed}"
             ),
+            (
+                "Verification claim identifier: "
+                f"{verification.claim_id}"
+            ),
+            (
+                "Patch SHA-256: "
+                f"{verification.patch_sha256}"
+            ),
+            (
+                "Residual risk status: "
+                f"{verification.residual_risk.status}"
+            ),
+            *[
+                (
+                    "Residual risk reason: "
+                    f"{reason}"
+                )
+                for reason
+                in verification.residual_risk.reasons
+            ],
         ],
     )
 
@@ -222,6 +250,10 @@ def apply_fix_verification(
         and verification.static_target_resolved
         and verification.static_regression_free
         and verification.dynamic_replay_fixed
+        and (
+            verification.residual_risk.status
+            == "none_identified"
+        )
     ):
         state = "verified_fixed"
 
