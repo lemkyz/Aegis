@@ -258,14 +258,7 @@ def apply_fix_verification(
         kind="verifies",
         reason=relationship_reason,
     )
-    relationships = _append_unique_relationships(
-        claim.relationships,
-        verification_relationship,
-    )
-
-    state = claim.state
-
-    if (
+    verified_fix = (
         replay.verdict == "fixed"
         and replay.fixed
         and verification.verdict == "verified"
@@ -278,7 +271,49 @@ def apply_fix_verification(
             verification.residual_risk.status
             == "none_identified"
         )
-    ):
+    )
+    mitigation_reason = (
+        "Verified remediation mitigates the "
+        "original vulnerability evidence."
+    )
+    original_evidence = [
+        item
+        for item in claim.evidence
+        if item.source.kind
+        not in {
+            "runtime_execution",
+            "test_result",
+            "patch_diff",
+            "user_decision",
+        }
+    ]
+    mitigation_relationships = [
+        EvidenceRelationship(
+            relationship_id=_stable_id(
+                "relationship",
+                "mitigates",
+                verification_evidence.evidence_id,
+                item.evidence_id,
+                mitigation_reason,
+            ),
+            source_evidence_id=(
+                verification_evidence.evidence_id
+            ),
+            target_evidence_id=item.evidence_id,
+            kind="mitigates",
+            reason=mitigation_reason,
+        )
+        for item in original_evidence
+    ] if verified_fix else []
+    relationships = _append_unique_relationships(
+        claim.relationships,
+        verification_relationship,
+        *mitigation_relationships,
+    )
+
+    state = claim.state
+
+    if verified_fix:
         state = "verified_fixed"
 
     return claim.model_copy(

@@ -1,4 +1,8 @@
 from aegis.schemas.analysis import SecurityFinding
+from aegis.schemas.claims import (
+    EvidenceItem,
+    EvidenceSource,
+)
 from aegis.schemas.validation import (
     DynamicValidationEvidenceResponse,
     ResidualRiskStatus,
@@ -336,6 +340,134 @@ def test_fix_verification_relationship_is_idempotent() -> None:
         first.relationships[0].relationship_id
         == second.relationships[0].relationship_id
     )
+
+
+def test_fix_verification_mitigates_original_evidence() -> None:
+    claim = base_claim()
+    original = EvidenceItem(
+        evidence_id="evidence:scanner:original",
+        source=EvidenceSource(
+            kind="scanner",
+            name="Aegis Static Scanner",
+        ),
+        summary="The original vulnerability was detected.",
+        confidence=0.95,
+    )
+    claim = claim.model_copy(
+        deep=True,
+        update={
+            "evidence": [original],
+        },
+    )
+
+    updated = apply_fix_verification(
+        claim,
+        replay=replay_result(
+            claim_id=claim.claim_id,
+        ),
+        verification=verification_result(
+            claim_id=claim.claim_id,
+        ),
+    )
+
+    verification_evidence = next(
+        item
+        for item in updated.evidence
+        if item.source.kind == "test_result"
+    )
+    mitigations = [
+        relationship
+        for relationship in updated.relationships
+        if relationship.kind == "mitigates"
+    ]
+
+    assert len(mitigations) == 1
+
+    relationship = mitigations[0]
+
+    assert (
+        relationship.source_evidence_id
+        == verification_evidence.evidence_id
+    )
+    assert (
+        relationship.target_evidence_id
+        == original.evidence_id
+    )
+    assert relationship.relationship_id.startswith(
+        "relationship:sha256:"
+    )
+    assert relationship.reason == (
+        "Verified remediation mitigates the "
+        "original vulnerability evidence."
+    )
+
+
+def test_fix_verification_mitigations_are_complete_and_idempotent() -> None:
+    claim = base_claim()
+    originals = [
+        EvidenceItem(
+            evidence_id="evidence:scanner:original",
+            source=EvidenceSource(
+                kind="scanner",
+                name="Aegis Static Scanner",
+            ),
+            summary="The static scanner detected the issue.",
+            confidence=0.95,
+        ),
+        EvidenceItem(
+            evidence_id="evidence:dynamic:original",
+            source=EvidenceSource(
+                kind="dynamic_probe",
+                name="Aegis Dynamic Validator",
+            ),
+            summary="The exploit was reproduced.",
+            confidence=0.98,
+        ),
+    ]
+    claim = claim.model_copy(
+        deep=True,
+        update={
+            "evidence": originals,
+        },
+    )
+    replay = replay_result(
+        claim_id=claim.claim_id,
+    )
+    verification = verification_result(
+        claim_id=claim.claim_id,
+    )
+
+    first = apply_fix_verification(
+        claim,
+        replay=replay,
+        verification=verification,
+    )
+    second = apply_fix_verification(
+        first,
+        replay=replay,
+        verification=verification,
+    )
+
+    first_mitigations = {
+        relationship.relationship_id: (
+            relationship.target_evidence_id
+        )
+        for relationship in first.relationships
+        if relationship.kind == "mitigates"
+    }
+    second_mitigations = {
+        relationship.relationship_id: (
+            relationship.target_evidence_id
+        )
+        for relationship in second.relationships
+        if relationship.kind == "mitigates"
+    }
+
+    assert set(first_mitigations.values()) == {
+        item.evidence_id
+        for item in originals
+    }
+    assert second_mitigations == first_mitigations
 
 
 def test_residual_risk_prevents_verified_fixed_state() -> None:
