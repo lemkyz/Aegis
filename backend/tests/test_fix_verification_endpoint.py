@@ -16,11 +16,14 @@ client = TestClient(app)
 
 def _payload() -> dict[str, object]:
     return {
+        "claim_id": "claim-command-001",
+        "patch_sha256": "0" * 64,
         "replay": {
             "comparator": (
                 "aegis-dynamic-validation-replay-v1"
             ),
             "threat_id": "threat-command-001",
+            "claim_id": "claim-command-001",
             "category": "command_injection",
             "verdict": "fixed",
             "fixed": True,
@@ -68,6 +71,16 @@ def test_fix_verification_endpoint_verifies() -> None:
     assert payload["verdict"] == "verified"
     assert payload["verified"] is True
     assert payload["dynamic_replay_fixed"] is True
+    assert payload["claim_id"] == (
+        "claim-command-001"
+    )
+    assert payload["patch_sha256"] == "0" * 64
+    assert payload["residual_risk"] == {
+        "claim_id": "claim-command-001",
+        "patch_sha256": "0" * 64,
+        "status": "none_identified",
+        "reasons": payload["reasons"],
+    }
 
 
 def test_fix_verification_endpoint_reports_regression() -> None:
@@ -87,6 +100,12 @@ def test_fix_verification_endpoint_reports_regression() -> None:
         "regression_detected"
     )
     assert body["verified"] is False
+    assert body["residual_risk"]["status"] == (
+        "identified"
+    )
+    assert body["residual_risk"]["reasons"] == (
+        body["reasons"]
+    )
 
 
 def test_fix_verification_endpoint_validates_check_status() -> None:
@@ -135,4 +154,10 @@ def test_fix_verification_endpoint_fails_closed_for_skipped_check() -> None:
         "skipped" in reason.lower()
         or "incomplete" in reason.lower()
         for reason in body["reasons"]
+    )
+    assert body["residual_risk"]["status"] == (
+        "inconclusive"
+    )
+    assert body["residual_risk"]["reasons"] == (
+        body["reasons"]
     )

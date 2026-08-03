@@ -1,6 +1,11 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
+)
 
 
 ValidationTargetType = Literal[
@@ -22,6 +27,51 @@ ValidationNetworkPolicy = Literal[
     "disabled",
     "loopback",
 ]
+
+
+ResidualRiskStatus = Literal[
+    "none_identified",
+    "identified",
+    "inconclusive",
+]
+
+
+class ResidualRiskAssessment(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+    )
+
+    claim_id: str = Field(
+        min_length=1,
+        max_length=300,
+        pattern=(
+            r"^[A-Za-z0-9]"
+            r"[A-Za-z0-9._:/@+-]*$"
+        ),
+    )
+    patch_sha256: str = Field(
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    status: ResidualRiskStatus
+    reasons: list[str] = Field(
+        min_length=1,
+        max_length=50,
+    )
+
+    @model_validator(mode="after")
+    def validate_reasons(
+        self,
+    ) -> "ResidualRiskAssessment":
+        if any(
+            not reason.strip()
+            for reason in self.reasons
+        ):
+            raise ValueError(
+                "residual risk reasons must not be blank"
+            )
+
+        return self
 
 
 class ValidationAuthorizationRequest(BaseModel):
@@ -410,6 +460,17 @@ class FixProjectCheck(BaseModel):
 
 
 class UnifiedFixVerificationRequest(BaseModel):
+    claim_id: str = Field(
+        min_length=1,
+        max_length=300,
+        pattern=(
+            r"^[A-Za-z0-9]"
+            r"[A-Za-z0-9._:/@+-]*$"
+        ),
+    )
+    patch_sha256: str = Field(
+        pattern=r"^[a-f0-9]{64}$",
+    )
     replay: ValidationReplayCompareResponse
 
     project_checks: list[
@@ -422,15 +483,33 @@ class UnifiedFixVerificationRequest(BaseModel):
     static_target_resolved: bool
     static_regression_free: bool
 
+    @model_validator(mode="after")
+    def validate_replay_provenance(
+        self,
+    ) -> "UnifiedFixVerificationRequest":
+        if self.replay.claim_id != self.claim_id:
+            raise ValueError(
+                "verification claim identity must match "
+                "the replay claim"
+            )
+
+        return self
+
 
 class UnifiedFixVerificationResponse(BaseModel):
     evaluator: str
 
     threat_id: str
-    claim_id: str | None = Field(
-        default=None,
+    claim_id: str = Field(
         min_length=1,
         max_length=300,
+        pattern=(
+            r"^[A-Za-z0-9]"
+            r"[A-Za-z0-9._:/@+-]*$"
+        ),
+    )
+    patch_sha256: str = Field(
+        pattern=r"^[a-f0-9]{64}$",
     )
     category: ValidationTestType
 
@@ -445,6 +524,7 @@ class UnifiedFixVerificationResponse(BaseModel):
     static_target_resolved: bool
     static_regression_free: bool
     dynamic_replay_fixed: bool
+    residual_risk: ResidualRiskAssessment
 
     reasons: list[str] = Field(
         default_factory=list,
@@ -458,6 +538,30 @@ class UnifiedFixVerificationResponse(BaseModel):
     skipped_checks: list[str] = Field(
         default_factory=list,
     )
+
+    @model_validator(mode="after")
+    def validate_residual_risk_provenance(
+        self,
+    ) -> "UnifiedFixVerificationResponse":
+        if (
+            self.residual_risk.claim_id
+            != self.claim_id
+        ):
+            raise ValueError(
+                "residual risk claim identity must match "
+                "the unified verification claim"
+            )
+
+        if (
+            self.residual_risk.patch_sha256
+            != self.patch_sha256
+        ):
+            raise ValueError(
+                "residual risk patch digest must match "
+                "the unified verification patch"
+            )
+
+        return self
 
 
 DynamicValidationTaskArtifact.model_rebuild()

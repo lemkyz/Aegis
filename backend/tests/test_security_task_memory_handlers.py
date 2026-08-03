@@ -623,6 +623,7 @@ def verified_dynamic_artifact(
             evaluator="test-fix-verifier",
             threat_id="threat:test",
             claim_id=claim_id,
+            patch_sha256="0" * 64,
             category="command_injection",
             verdict="verified",
             verified=True,
@@ -631,6 +632,12 @@ def verified_dynamic_artifact(
             static_target_resolved=True,
             static_regression_free=True,
             dynamic_replay_fixed=True,
+            residual_risk={
+                "claim_id": claim_id,
+                "patch_sha256": "0" * 64,
+                "status": "none_identified",
+                "reasons": ["Fix verified."],
+            },
             reasons=["Fix verified."],
             failed_checks=[],
         )

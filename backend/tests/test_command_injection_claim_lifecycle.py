@@ -316,6 +316,8 @@ def test_command_injection_claim_lifecycle(
     verification = (
         UnifiedFixVerificationEvaluator().evaluate(
             UnifiedFixVerificationRequest(
+                claim_id=claim.claim_id,
+                patch_sha256="0" * 64,
                 replay=replay,
                 project_checks=[
                     FixProjectCheck(

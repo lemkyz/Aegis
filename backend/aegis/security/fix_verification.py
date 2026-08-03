@@ -1,4 +1,5 @@
 from aegis.schemas.validation import (
+    ResidualRiskAssessment,
     UnifiedFixVerificationRequest,
     UnifiedFixVerificationResponse,
 )
@@ -139,10 +140,32 @@ class UnifiedFixVerificationEvaluator:
                 "that the fix is effective."
             )
 
+        residual_status = (
+            "none_identified"
+            if verdict == "verified"
+            else (
+                "identified"
+                if verdict
+                in {
+                    "target_not_resolved",
+                    "regression_detected",
+                    "still_exploitable",
+                }
+                else "inconclusive"
+            )
+        )
+        residual_risk = ResidualRiskAssessment(
+            claim_id=request.claim_id,
+            patch_sha256=request.patch_sha256,
+            status=residual_status,
+            reasons=reasons,
+        )
+
         return UnifiedFixVerificationResponse(
             evaluator=self.evaluator,
             threat_id=request.replay.threat_id,
-            claim_id=request.replay.claim_id,
+            claim_id=request.claim_id,
+            patch_sha256=request.patch_sha256,
             category=request.replay.category,
             verdict=verdict,
             verified=verified,
@@ -159,6 +182,7 @@ class UnifiedFixVerificationEvaluator:
             dynamic_replay_fixed=(
                 dynamic_replay_fixed
             ),
+            residual_risk=residual_risk,
             reasons=reasons,
             passed_checks=passed_checks,
             failed_checks=failed_checks,

@@ -92,6 +92,7 @@ def verification_result(
         evaluator="aegis-unified-fix-verification-v1",
         threat_id="threat-command-001",
         claim_id=claim_id,
+        patch_sha256="0" * 64,
         category="command_injection",
         verdict=(
             "verified"
@@ -104,6 +105,18 @@ def verification_result(
         static_target_resolved=True,
         static_regression_free=True,
         dynamic_replay_fixed=verified,
+        residual_risk={
+            "claim_id": claim_id,
+            "patch_sha256": "0" * 64,
+            "status": (
+                "none_identified"
+                if verified
+                else "inconclusive"
+            ),
+            "reasons": [
+                "Unified verification completed.",
+            ],
+        },
         reasons=[
             "Unified verification completed.",
         ],

@@ -1,6 +1,10 @@
+import pytest
+from pydantic import ValidationError
+
 from aegis.schemas.validation import (
     FixProjectCheck,
     UnifiedFixVerificationRequest,
+    UnifiedFixVerificationResponse,
     ValidationReplayCompareResponse,
 )
 from aegis.security.fix_verification import (
@@ -10,6 +14,7 @@ from aegis.security.fix_verification import (
 
 def _replay(
     *,
+    claim_id: str = "claim-command-001",
     verdict: str = "fixed",
     fixed: bool = True,
 ) -> ValidationReplayCompareResponse:
@@ -18,6 +23,7 @@ def _replay(
             "aegis-dynamic-validation-replay-v1"
         ),
         threat_id="threat-command-001",
+        claim_id=claim_id,
         category="command_injection",
         verdict=verdict,
         fixed=fixed,
@@ -45,6 +51,8 @@ def _request(
     checks: list[FixProjectCheck] | None = None,
 ) -> UnifiedFixVerificationRequest:
     return UnifiedFixVerificationRequest(
+        claim_id="claim-command-001",
+        patch_sha256="0" * 64,
         replay=replay or _replay(),
         project_checks=checks or [
             FixProjectCheck(
@@ -207,3 +215,103 @@ def test_skipped_check_fails_closed() -> None:
         or "incomplete" in reason.lower()
         for reason in result.reasons
     )
+
+
+def test_request_preserves_exact_patch_provenance() -> None:
+    request = _request()
+
+    assert request.claim_id == (
+        request.replay.claim_id
+    )
+    assert request.patch_sha256 == "0" * 64
+
+
+def test_request_rejects_replay_claim_mismatch() -> None:
+    with pytest.raises(
+        ValidationError,
+        match=(
+            "verification claim identity must match "
+            "the replay claim"
+        ),
+    ):
+        _request(
+            replay=_replay(
+                claim_id="claim-other",
+            )
+        )
+
+
+def test_verified_result_emits_no_identified_residual_risk() -> None:
+    result = (
+        UnifiedFixVerificationEvaluator()
+        .evaluate(_request())
+    )
+
+    assert result.residual_risk.claim_id == (
+        "claim-command-001"
+    )
+    assert result.residual_risk.patch_sha256 == (
+        "0" * 64
+    )
+    assert result.residual_risk.status == (
+        "none_identified"
+    )
+    assert result.residual_risk.reasons == (
+        result.reasons
+    )
+
+
+def test_still_exploitable_result_emits_identified_residual_risk() -> None:
+    result = (
+        UnifiedFixVerificationEvaluator()
+        .evaluate(
+            _request(
+                replay=_replay(
+                    verdict="still_exploitable",
+                    fixed=False,
+                )
+            )
+        )
+    )
+
+    assert result.residual_risk.status == (
+        "identified"
+    )
+    assert result.residual_risk.reasons == (
+        result.reasons
+    )
+
+def test_response_preserves_exact_patch_provenance() -> None:
+    result = (
+        UnifiedFixVerificationEvaluator()
+        .evaluate(_request())
+    )
+
+    assert result.patch_sha256 == (
+        result.residual_risk.patch_sha256
+    )
+    assert result.patch_sha256 == "0" * 64
+
+
+def test_response_rejects_residual_risk_patch_mismatch() -> None:
+    result = (
+        UnifiedFixVerificationEvaluator()
+        .evaluate(_request())
+    )
+    payload = result.model_dump(
+        mode="json"
+    )
+    payload["residual_risk"][
+        "patch_sha256"
+    ] = "f" * 64
+
+    with pytest.raises(
+        ValidationError,
+        match=(
+            "residual risk patch digest must match "
+            "the unified verification patch"
+        ),
+    ):
+        UnifiedFixVerificationResponse.model_validate(
+            payload
+        )

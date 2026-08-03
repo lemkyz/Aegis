@@ -242,6 +242,16 @@ class DynamicValidationTaskHandler:
             unified = (
                 self._fix_evaluator.evaluate(
                     UnifiedFixVerificationRequest(
+                        claim_id=(
+                            verification
+                            .applied_patch
+                            .claim_id
+                        ),
+                        patch_sha256=(
+                            verification
+                            .applied_patch
+                            .patch_sha256
+                        ),
                         replay=(
                             safe_replay
                             .comparison

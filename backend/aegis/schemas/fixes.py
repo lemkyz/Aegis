@@ -15,7 +15,10 @@ from pydantic import (
 from aegis.schemas.change_policy import (
     ChangePolicyDecisionResponse,
 )
-from aegis.schemas.validation import FixProjectCheck
+from aegis.schemas.validation import (
+    FixProjectCheck,
+    ResidualRiskAssessment,
+)
 
 
 Sha256Digest = str
@@ -265,44 +268,6 @@ class FixPlan(BaseModel):
         return hashlib.sha256(
             canonical
         ).hexdigest()
-
-
-ResidualRiskStatus = Literal[
-    "none_identified",
-    "identified",
-    "inconclusive",
-]
-
-
-class ResidualRiskAssessment(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        strict=True,
-    )
-
-    claim_id: SafeEvidenceIdentifier
-    patch_sha256: Sha256Digest = Field(
-        pattern=r"^[a-f0-9]{64}$",
-    )
-    status: ResidualRiskStatus
-    reasons: list[str] = Field(
-        min_length=1,
-        max_length=50,
-    )
-
-    @model_validator(mode="after")
-    def validate_reasons(
-        self,
-    ) -> "ResidualRiskAssessment":
-        if any(
-            not reason.strip()
-            for reason in self.reasons
-        ):
-            raise ValueError(
-                "residual risk reasons must not be blank"
-            )
-
-        return self
 
 
 FixTransactionState = Literal[

@@ -254,6 +254,8 @@ def test_unified_verification_propagates_claim_id() -> None:
 
     result = UnifiedFixVerificationEvaluator().evaluate(
         UnifiedFixVerificationRequest(
+            claim_id=CLAIM_ID,
+            patch_sha256="0" * 64,
             replay=replay,
             project_checks=[
                 FixProjectCheck(
