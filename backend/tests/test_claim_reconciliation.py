@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from aegis.schemas.claims import (
     CodeLocation,
     EvidenceItem,
+    EvidenceRelationship,
     EvidenceSource,
     SecurityClaim,
 )
@@ -129,6 +130,49 @@ def test_classifies_changed_state() -> None:
     assert delta.previous_state == "supported"
     assert delta.current_state == "confirmed"
     assert "state" in delta.reasons[0]
+
+
+def test_classifies_relationship_change_as_changed() -> None:
+    previous = claim(
+        "claim:relationships",
+        evidence_ids=[
+            "evidence:scanner:1",
+            "evidence:dynamic:1",
+        ],
+    )
+    current = previous.model_copy(
+        deep=True,
+        update={
+            "relationships": [
+                EvidenceRelationship(
+                    relationship_id=(
+                        "relationship:verifies:1"
+                    ),
+                    source_evidence_id=(
+                        "evidence:dynamic:1"
+                    ),
+                    target_evidence_id=(
+                        "evidence:scanner:1"
+                    ),
+                    kind="corroborates",
+                    reason=(
+                        "Runtime evidence corroborates "
+                        "the scanner result."
+                    ),
+                )
+            ],
+        },
+    )
+
+    result = reconcile(
+        previous=[previous],
+        current=[current],
+    )
+
+    delta = result.deltas[0]
+
+    assert delta.status == "changed"
+    assert "relationships" in delta.reasons[0]
 
 
 def test_classifies_evidence_enrichment_as_changed() -> None:

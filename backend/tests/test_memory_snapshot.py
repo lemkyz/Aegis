@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from aegis.schemas.claims import (
     CodeLocation,
     EvidenceItem,
+    EvidenceRelationship,
     EvidenceSource,
     SecurityClaim,
 )
@@ -240,6 +241,49 @@ def test_evidence_change_changes_snapshot_identity() -> None:
                 ],
             )
         ]
+    )
+
+    assert first.snapshot_id != second.snapshot_id
+
+
+def test_relationship_change_changes_snapshot_identity() -> None:
+    evidence_ids = [
+        "evidence:scanner:1",
+        "evidence:dynamic:1",
+    ]
+    without_relationship = claim(
+        "claim:one",
+        evidence_ids=evidence_ids,
+    )
+    with_relationship = without_relationship.model_copy(
+        deep=True,
+        update={
+            "relationships": [
+                EvidenceRelationship(
+                    relationship_id=(
+                        "relationship:verifies:1"
+                    ),
+                    source_evidence_id=(
+                        "evidence:dynamic:1"
+                    ),
+                    target_evidence_id=(
+                        "evidence:scanner:1"
+                    ),
+                    kind="corroborates",
+                    reason=(
+                        "Runtime evidence corroborates "
+                        "the scanner result."
+                    ),
+                )
+            ],
+        },
+    )
+
+    first = build(
+        claims=[without_relationship],
+    )
+    second = build(
+        claims=[with_relationship],
     )
 
     assert first.snapshot_id != second.snapshot_id

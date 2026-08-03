@@ -214,6 +214,12 @@ class ClaimReconciler:
             changed.append("evidence")
 
         if (
+            ClaimReconciler._relationship_ids(previous)
+            != ClaimReconciler._relationship_ids(current)
+        ):
+            changed.append("relationships")
+
+        if (
             ClaimReconciler._location_identity(previous)
             != ClaimReconciler._location_identity(current)
         ):
@@ -229,6 +235,18 @@ class ClaimReconciler:
             sorted(
                 evidence.evidence_id
                 for evidence in claim.evidence
+            )
+        )
+
+    @staticmethod
+    def _relationship_ids(
+        claim: SecurityClaim,
+    ) -> tuple[str, ...]:
+        return tuple(
+            sorted(
+                relationship.relationship_id
+                for relationship
+                in claim.relationships
             )
         )
 
