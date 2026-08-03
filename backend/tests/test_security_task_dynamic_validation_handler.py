@@ -735,6 +735,188 @@ def test_handler_redacts_injected_replay_output(
     )
 
 
+def test_inconclusive_replay_rolls_back_pending_fix(
+    tmp_path: Path,
+) -> None:
+    request = replay_request(
+        tmp_path
+    )
+    store = SecureFixTransactionStore(
+        id_factory=lambda: "fix:dynamic",
+    )
+    fix_inputs, transaction_id = (
+        pending_transaction_inputs(
+            tmp_path,
+            store,
+        )
+    )
+
+    def response_factory(
+        value: ValidationReplayRequest,
+    ) -> ValidationReplayResponse:
+        return replay_response(
+            value,
+            after_execution=execution(
+                stdout="",
+                status="runtime_unavailable",
+                exit_code=None,
+            ),
+        )
+
+    handler = DynamicValidationTaskHandler(
+        replay_orchestrator=(
+            RecordingReplayOrchestrator(
+                response_factory=response_factory,
+            )
+        ),
+        transactions=store,
+    )
+
+    result = run(
+        handler.execute(
+            task=task(),
+            context=context(
+                tmp_path,
+                request,
+            ),
+            inputs=fix_inputs,
+        )
+    )
+    artifact = (
+        DynamicValidationTaskArtifact
+        .model_validate(
+            result.output[
+                "dynamic_validation_evidence"
+            ]
+        )
+    )
+
+    assert (
+        artifact.fix_verification.verdict
+        == "inconclusive"
+    )
+    assert (
+        artifact.fix_verification
+        .residual_risk.status
+        == "inconclusive"
+    )
+    assert artifact.transaction_state == (
+        "rolled_back"
+    )
+    assert not store.contains(
+        transaction_id
+    )
+    assert (
+        tmp_path / "app.py"
+    ).read_bytes() == b"unsafe = True\n"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("claim_id", "claim-other"),
+        ("patch_sha256", "f" * 64),
+    ],
+)
+def test_mismatched_unified_provenance_rolls_back_pending_fix(
+    tmp_path: Path,
+    field: str,
+    value: str,
+) -> None:
+    from aegis.schemas.validation import (
+        UnifiedFixVerificationRequest,
+        UnifiedFixVerificationResponse,
+    )
+    from aegis.security.fix_verification import (
+        UnifiedFixVerificationEvaluator,
+    )
+
+    request = replay_request(
+        tmp_path
+    )
+    store = SecureFixTransactionStore(
+        id_factory=lambda: "fix:dynamic",
+    )
+    fix_inputs, transaction_id = (
+        pending_transaction_inputs(
+            tmp_path,
+            store,
+        )
+    )
+
+    class MismatchedProvenanceEvaluator(
+        UnifiedFixVerificationEvaluator
+    ):
+        def evaluate(
+            self,
+            value_request: UnifiedFixVerificationRequest,
+        ) -> UnifiedFixVerificationResponse:
+            result = (
+                UnifiedFixVerificationEvaluator()
+                .evaluate(value_request)
+            )
+            payload = result.model_dump(
+                mode="json"
+            )
+            payload[field] = value
+            payload["residual_risk"][
+                field
+            ] = value
+            return (
+                UnifiedFixVerificationResponse
+                .model_validate(payload)
+            )
+
+    handler = DynamicValidationTaskHandler(
+        replay_orchestrator=(
+            RecordingReplayOrchestrator()
+        ),
+        fix_evaluator=(
+            MismatchedProvenanceEvaluator()
+        ),
+        transactions=store,
+    )
+
+    result = run(
+        handler.execute(
+            task=task(),
+            context=context(
+                tmp_path,
+                request,
+            ),
+            inputs=fix_inputs,
+        )
+    )
+    artifact = (
+        DynamicValidationTaskArtifact
+        .model_validate(
+            result.output[
+                "dynamic_validation_evidence"
+            ]
+        )
+    )
+
+    assert artifact.fix_verification.verified
+    assert (
+        artifact.fix_verification.verdict
+        == "verified"
+    )
+    assert (
+        artifact.fix_verification
+        .residual_risk.status
+        == "none_identified"
+    )
+    assert artifact.transaction_state == (
+        "rolled_back"
+    )
+    assert not store.contains(
+        transaction_id
+    )
+    assert (
+        tmp_path / "app.py"
+    ).read_bytes() == b"unsafe = True\n"
+
+
 def test_verified_replay_commits_pending_fix(
     tmp_path: Path,
 ) -> None:

@@ -23,6 +23,7 @@ from aegis.schemas.validation import (
     DynamicValidationEvidenceRequest,
     DynamicValidationTaskArtifact,
     UnifiedFixVerificationRequest,
+    UnifiedFixVerificationResponse,
     ValidationExecutionResult,
     ValidationExecutionPlanResponse,
     ValidationReplayCompareRequest,
@@ -277,7 +278,7 @@ class DynamicValidationTaskHandler:
                         verification
                     ),
                     target=fix_target,
-                    verdict=unified.verdict,
+                    result=unified,
                 )
             )
             transaction_active = False
@@ -493,7 +494,7 @@ class DynamicValidationTaskHandler:
             StaticFixVerificationArtifact
         ),
         target: Path,
-        verdict: str,
+        result: UnifiedFixVerificationResponse,
     ) -> str:
         if self._transactions is None:
             return (
@@ -503,15 +504,22 @@ class DynamicValidationTaskHandler:
         applied = (
             verification.applied_patch
         )
-        hard_failures = {
-            "project_failed",
-            "target_not_resolved",
-            "regression_detected",
-            "still_exploitable",
-        }
+        commit_allowed = (
+            result.verified
+            and result.verdict == "verified"
+            and (
+                result.residual_risk.status
+                == "none_identified"
+            )
+            and result.claim_id == applied.claim_id
+            and (
+                result.patch_sha256
+                == applied.patch_sha256
+            )
+        )
 
         try:
-            if verdict in hard_failures:
+            if not commit_allowed:
                 self._transactions.rollback(
                     applied.transaction_id,
                     expected_target=target,
