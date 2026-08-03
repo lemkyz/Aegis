@@ -165,7 +165,13 @@ class ProjectSecuritySnapshotBuilder:
                 for evidence in claim.evidence
             ),
             "relationship_ids": sorted(
-                relationship.relationship_id
+                (
+                    relationship.relationship_id,
+                    relationship.source_evidence_id,
+                    relationship.target_evidence_id,
+                    relationship.kind,
+                    relationship.reason,
+                )
                 for relationship in claim.relationships
             ),
         }

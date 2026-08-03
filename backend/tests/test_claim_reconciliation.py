@@ -357,3 +357,118 @@ def test_rejects_duplicate_current_claim_ids() -> None:
                 duplicate,
             ],
         )
+
+
+def _relationship_claim(
+    claim_id: str,
+    *,
+    relationships: list[EvidenceRelationship],
+) -> SecurityClaim:
+    return claim(
+        claim_id,
+        evidence_ids=[
+            "evidence:source",
+            "evidence:target",
+            "evidence:alternate",
+        ],
+    ).model_copy(
+        deep=True,
+        update={
+            "relationships": relationships,
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "changed_relationship",
+    [
+        EvidenceRelationship(
+            relationship_id="relationship:stable",
+            source_evidence_id="evidence:source",
+            target_evidence_id="evidence:target",
+            kind="supports",
+            reason="Updated material reason.",
+        ),
+        EvidenceRelationship(
+            relationship_id="relationship:stable",
+            source_evidence_id="evidence:source",
+            target_evidence_id="evidence:alternate",
+            kind="supports",
+            reason="Original material reason.",
+        ),
+        EvidenceRelationship(
+            relationship_id="relationship:stable",
+            source_evidence_id="evidence:source",
+            target_evidence_id="evidence:target",
+            kind="verifies",
+            reason="Original material reason.",
+        ),
+    ],
+    ids=[
+        "reason",
+        "endpoint",
+        "kind",
+    ],
+)
+def test_relationship_material_change_is_reconciled(
+    changed_relationship: EvidenceRelationship,
+) -> None:
+    previous = _relationship_claim(
+        "claim:relationship-material-change",
+        relationships=[
+            EvidenceRelationship(
+                relationship_id="relationship:stable",
+                source_evidence_id="evidence:source",
+                target_evidence_id="evidence:target",
+                kind="supports",
+                reason="Original material reason.",
+            )
+        ],
+    )
+    current = _relationship_claim(
+        previous.claim_id,
+        relationships=[changed_relationship],
+    )
+
+    result = reconcile(
+        previous=[previous],
+        current=[current],
+    )
+
+    delta = result.deltas[0]
+
+    assert delta.status == "changed"
+    assert "relationships" in delta.reasons[0]
+
+
+def test_relationship_order_is_ignored_during_reconciliation() -> None:
+    first = EvidenceRelationship(
+        relationship_id="relationship:first",
+        source_evidence_id="evidence:source",
+        target_evidence_id="evidence:target",
+        kind="supports",
+        reason="Primary epistemic relationship.",
+    )
+    second = EvidenceRelationship(
+        relationship_id="relationship:second",
+        source_evidence_id="evidence:alternate",
+        target_evidence_id="evidence:source",
+        kind="derived_from",
+        reason="Independent provenance relationship.",
+    )
+
+    previous = _relationship_claim(
+        "claim:relationship-order",
+        relationships=[first, second],
+    )
+    current = _relationship_claim(
+        previous.claim_id,
+        relationships=[second, first],
+    )
+
+    result = reconcile(
+        previous=[previous],
+        current=[current],
+    )
+
+    assert result.deltas[0].status == "persistent"

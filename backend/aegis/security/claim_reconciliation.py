@@ -214,8 +214,8 @@ class ClaimReconciler:
             changed.append("evidence")
 
         if (
-            ClaimReconciler._relationship_ids(previous)
-            != ClaimReconciler._relationship_ids(current)
+            ClaimReconciler._relationship_identity(previous)
+            != ClaimReconciler._relationship_identity(current)
         ):
             changed.append("relationships")
 
@@ -239,12 +239,27 @@ class ClaimReconciler:
         )
 
     @staticmethod
-    def _relationship_ids(
+    def _relationship_identity(
         claim: SecurityClaim,
-    ) -> tuple[str, ...]:
+    ) -> tuple[
+        tuple[
+            str,
+            str,
+            str,
+            str,
+            str | None,
+        ],
+        ...,
+    ]:
         return tuple(
             sorted(
-                relationship.relationship_id
+                (
+                    relationship.relationship_id,
+                    relationship.source_evidence_id,
+                    relationship.target_evidence_id,
+                    relationship.kind,
+                    relationship.reason,
+                )
                 for relationship
                 in claim.relationships
             )

@@ -377,3 +377,117 @@ def test_schema_rejects_wrong_claim_count() -> None:
             claims=[claim("claim:one")],
             claim_count=0,
         )
+
+
+def _snapshot_relationship_claim(
+    *,
+    relationships: list[EvidenceRelationship],
+) -> SecurityClaim:
+    return claim(
+        "claim:relationship-identity",
+        evidence_ids=[
+            "evidence:source",
+            "evidence:target",
+            "evidence:alternate",
+        ],
+    ).model_copy(
+        deep=True,
+        update={
+            "relationships": relationships,
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "changed_relationship",
+    [
+        EvidenceRelationship(
+            relationship_id="relationship:stable",
+            source_evidence_id="evidence:source",
+            target_evidence_id="evidence:target",
+            kind="supports",
+            reason="Updated material reason.",
+        ),
+        EvidenceRelationship(
+            relationship_id="relationship:stable",
+            source_evidence_id="evidence:source",
+            target_evidence_id="evidence:alternate",
+            kind="supports",
+            reason="Original material reason.",
+        ),
+        EvidenceRelationship(
+            relationship_id="relationship:stable",
+            source_evidence_id="evidence:source",
+            target_evidence_id="evidence:target",
+            kind="verifies",
+            reason="Original material reason.",
+        ),
+    ],
+    ids=[
+        "reason",
+        "endpoint",
+        "kind",
+    ],
+)
+def test_relationship_material_change_changes_snapshot_identity(
+    changed_relationship: EvidenceRelationship,
+) -> None:
+    original = _snapshot_relationship_claim(
+        relationships=[
+            EvidenceRelationship(
+                relationship_id="relationship:stable",
+                source_evidence_id="evidence:source",
+                target_evidence_id="evidence:target",
+                kind="supports",
+                reason="Original material reason.",
+            )
+        ],
+    )
+    changed = _snapshot_relationship_claim(
+        relationships=[changed_relationship],
+    )
+
+    first = build(claims=[original])
+    second = build(claims=[changed])
+
+    assert first.snapshot_id != second.snapshot_id
+
+
+def test_snapshot_identity_ignores_relationship_order() -> None:
+    first_relationship = EvidenceRelationship(
+        relationship_id="relationship:first",
+        source_evidence_id="evidence:source",
+        target_evidence_id="evidence:target",
+        kind="supports",
+        reason="Primary epistemic relationship.",
+    )
+    second_relationship = EvidenceRelationship(
+        relationship_id="relationship:second",
+        source_evidence_id="evidence:alternate",
+        target_evidence_id="evidence:source",
+        kind="derived_from",
+        reason="Independent provenance relationship.",
+    )
+
+    first = build(
+        claims=[
+            _snapshot_relationship_claim(
+                relationships=[
+                    first_relationship,
+                    second_relationship,
+                ],
+            )
+        ],
+    )
+    second = build(
+        claims=[
+            _snapshot_relationship_claim(
+                relationships=[
+                    second_relationship,
+                    first_relationship,
+                ],
+            )
+        ],
+    )
+
+    assert first.snapshot_id == second.snapshot_id
