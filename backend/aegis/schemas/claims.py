@@ -112,6 +112,13 @@ class SecurityClaim(BaseModel):
     def validate_evidence_graph(self) -> "SecurityClaim":
         relationship_ids: set[str] = set()
         relationship_keys: set[tuple[str, str, str]] = set()
+        epistemic_kinds = {
+            "supports",
+            "corroborates",
+            "contradicts",
+            "verifies",
+        }
+        epistemic_relationships: dict[tuple[str, str], str] = {}
 
         for relationship in self.relationships:
             if relationship.relationship_id in relationship_ids:
@@ -145,6 +152,28 @@ class SecurityClaim(BaseModel):
             relationship_keys.add(
                 relationship_key
             )
+
+            if relationship.kind in epistemic_kinds:
+                epistemic_key = (
+                    relationship.source_evidence_id,
+                    relationship.target_evidence_id,
+                )
+                previous_kind = (
+                    epistemic_relationships.get(
+                        epistemic_key
+                    )
+                )
+                if (
+                    previous_kind is not None
+                    and previous_kind != relationship.kind
+                ):
+                    raise ValueError(
+                        "Evidence graph contains conflicting "
+                        "epistemic relationships."
+                    )
+                epistemic_relationships[
+                    epistemic_key
+                ] = relationship.kind
 
         evidence_ids = [
             item.evidence_id

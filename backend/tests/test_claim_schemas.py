@@ -321,3 +321,115 @@ def test_claim_accepts_distinct_directed_relationships() -> None:
         "relationship:second-corroborates-first",
         "relationship:third-derived-from-first",
     ]
+
+
+@pytest.mark.parametrize(
+    ("first_kind", "second_kind"),
+    [
+        ("supports", "corroborates"),
+        ("supports", "contradicts"),
+        ("corroborates", "verifies"),
+        ("verifies", "contradicts"),
+    ],
+)
+def test_claim_rejects_conflicting_epistemic_relationships(
+    first_kind: str,
+    second_kind: str,
+) -> None:
+    source = _graph_evidence("evidence:source")
+    target = _graph_evidence("evidence:target")
+
+    with pytest.raises(
+        ValidationError,
+        match="conflicting epistemic relationships",
+    ):
+        _graph_claim(
+            evidence=[source, target],
+            relationships=[
+                EvidenceRelationship(
+                    relationship_id=(
+                        f"relationship:{first_kind}"
+                    ),
+                    source_evidence_id=source.evidence_id,
+                    target_evidence_id=target.evidence_id,
+                    kind=first_kind,
+                ),
+                EvidenceRelationship(
+                    relationship_id=(
+                        f"relationship:{second_kind}"
+                    ),
+                    source_evidence_id=source.evidence_id,
+                    target_evidence_id=target.evidence_id,
+                    kind=second_kind,
+                ),
+            ],
+        )
+
+
+def test_claim_accepts_independent_relationship_dimensions() -> None:
+    source = _graph_evidence("evidence:source")
+    target = _graph_evidence("evidence:target")
+
+    claim = _graph_claim(
+        evidence=[source, target],
+        relationships=[
+            EvidenceRelationship(
+                relationship_id="relationship:supports",
+                source_evidence_id=source.evidence_id,
+                target_evidence_id=target.evidence_id,
+                kind="supports",
+            ),
+            EvidenceRelationship(
+                relationship_id="relationship:derived-from",
+                source_evidence_id=source.evidence_id,
+                target_evidence_id=target.evidence_id,
+                kind="derived_from",
+            ),
+            EvidenceRelationship(
+                relationship_id="relationship:mitigates",
+                source_evidence_id=source.evidence_id,
+                target_evidence_id=target.evidence_id,
+                kind="mitigates",
+            ),
+        ],
+    )
+
+    assert {
+        relationship.kind
+        for relationship in claim.relationships
+    } == {
+        "supports",
+        "derived_from",
+        "mitigates",
+    }
+
+
+def test_claim_accepts_reverse_direction_epistemic_roles() -> None:
+    first = _graph_evidence("evidence:first")
+    second = _graph_evidence("evidence:second")
+
+    claim = _graph_claim(
+        evidence=[first, second],
+        relationships=[
+            EvidenceRelationship(
+                relationship_id="relationship:first-supports-second",
+                source_evidence_id=first.evidence_id,
+                target_evidence_id=second.evidence_id,
+                kind="supports",
+            ),
+            EvidenceRelationship(
+                relationship_id="relationship:second-contradicts-first",
+                source_evidence_id=second.evidence_id,
+                target_evidence_id=first.evidence_id,
+                kind="contradicts",
+            ),
+        ],
+    )
+
+    assert [
+        relationship.kind
+        for relationship in claim.relationships
+    ] == [
+        "supports",
+        "contradicts",
+    ]
