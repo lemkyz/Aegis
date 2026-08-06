@@ -23,6 +23,8 @@ from aegis.schemas.changes import (
 )
 from aegis.schemas.fixes import (
     AppliedPatchArtifact,
+    FixPlan,
+    RemediationLifecycleManifest,
     ResidualRiskAssessment,
     SecureFixRequest,
     StaticSecurityDeltaEvidence,
@@ -56,6 +58,7 @@ class SecureFixTaskHandler:
         }),
         produced_artifacts=frozenset({
             "applied_patch",
+            "remediation_manifest",
         }),
         supports_retry=False,
         max_attempts=1,
@@ -115,6 +118,10 @@ class SecureFixTaskHandler:
         )
         request = self._request(context)
         proposal = request.proposal
+        fix_plan = self._fix_plan(
+            context=context,
+            request=request,
+        )
         patch_sha256 = (
             proposal.patch_sha256()
         )
@@ -300,11 +307,26 @@ class SecureFixTaskHandler:
             transaction_state="pending",
             outputs_redacted=True,
         )
+        fix_plan_sha256 = fix_plan.plan_sha256()
+        manifest = RemediationLifecycleManifest(
+            manifest_id=(
+                "remediation-manifest:"
+                f"{fix_plan_sha256}"
+            ),
+            fix_plan=fix_plan,
+            fix_plan_sha256=fix_plan_sha256,
+            applied_patch=artifact,
+        )
 
         return SecurityTaskHandlerResult(
             output={
                 "applied_patch": (
                     artifact.model_dump(
+                        mode="json"
+                    )
+                ),
+                "remediation_manifest": (
+                    manifest.model_dump(
                         mode="json"
                     )
                 ),
@@ -320,6 +342,9 @@ class SecureFixTaskHandler:
                     policy.decision
                 ),
                 "transaction_state": "pending",
+                "manifest_sha256": (
+                    manifest.manifest_sha256()
+                ),
                 "outputs_redacted": True,
             },
             reasons=(
@@ -339,6 +364,35 @@ class SecureFixTaskHandler:
                 ),
             ),
         )
+
+    @staticmethod
+    def _fix_plan(
+        *,
+        context: SecurityTaskHandlerContext,
+        request: SecureFixRequest,
+    ) -> FixPlan:
+        value = context.metadata.get(
+            "fix_plan"
+        )
+
+        try:
+            plan = FixPlan.model_validate(
+                value
+            )
+        except ValidationError as exc:
+            raise SecurityTaskInputError(
+                "Secure fix requires a valid "
+                "metadata['fix_plan'] contract."
+            ) from exc
+
+        if plan.proposal != request.proposal:
+            raise SecurityTaskInputError(
+                "The lifecycle fix plan proposal "
+                "does not match the approved "
+                "secure-fix proposal."
+            )
+
+        return plan
 
     @staticmethod
     def _request(

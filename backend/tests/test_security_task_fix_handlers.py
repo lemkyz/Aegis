@@ -34,6 +34,10 @@ from aegis.orchestrator.security_task_workflow import (
 )
 from aegis.schemas.fixes import (
     AppliedPatchArtifact,
+    FixPlan,
+    FixVerificationCheck,
+    FixVerificationPlan,
+    RemediationLifecycleManifest,
     SecureFixApproval,
     SecureFixProposal,
     SecureFixRequest,
@@ -76,7 +80,10 @@ def secure_task() -> SecurityTaskNode:
         task_id="secure_fix",
         kind="secure_fix",
         state="ready",
-        produces=["applied_patch"],
+        produces=[
+            "applied_patch",
+            "remediation_manifest",
+        ],
     )
 
 
@@ -141,6 +148,7 @@ def context(
         StaticFixVerificationRequest
         | None
     ) = None,
+    include_lifecycle_plan: bool = True,
 ) -> SecurityTaskHandlerContext:
     metadata = {
         "secure_fix_request": (
@@ -155,6 +163,15 @@ def context(
             "static_fix_verification_request"
         ] = verification.model_dump(
             mode="json"
+        )
+
+    if include_lifecycle_plan:
+        metadata["fix_plan"] = (
+            _lifecycle_plan(
+                request.proposal
+            ).model_dump(
+                mode="json"
+            )
         )
 
     return SecurityTaskHandlerContext(
@@ -511,6 +528,13 @@ def test_cancellation_after_write_restores_original(
             metadata={
                 "secure_fix_request": (
                     request.model_dump(
+                        mode="json"
+                    )
+                ),
+                "fix_plan": (
+                    _lifecycle_plan(
+                        request.proposal
+                    ).model_dump(
                         mode="json"
                     )
                 ),
@@ -980,6 +1004,13 @@ def test_fix_and_verify_workflow_composes_handlers(
                         mode="json"
                     )
                 ),
+                "fix_plan": (
+                    _lifecycle_plan(
+                        request.proposal
+                    ).model_dump(
+                        mode="json"
+                    )
+                ),
                 (
                     "static_fix_verification_"
                     "request"
@@ -1024,4 +1055,201 @@ def test_fix_and_verify_workflow_composes_handlers(
     )
     assert REPLACEMENT in target.read_text(
         encoding="utf-8"
+    )
+
+def _lifecycle_plan(
+    value: SecureFixProposal,
+) -> FixPlan:
+    return FixPlan(
+        plan_id=(
+            "fix-plan:"
+            f"{value.claim_id}"
+        ),
+        proposal=value,
+        verification_plan=FixVerificationPlan(
+            plan_id=(
+                "verification-plan:"
+                f"{value.claim_id}"
+            ),
+            claim_id=value.claim_id,
+            patch_sha256=value.patch_sha256(),
+            checks=[
+                FixVerificationCheck(
+                    check_id="check:project-tests",
+                    kind="project",
+                    name="Project tests",
+                ),
+                FixVerificationCheck(
+                    check_id="check:static-security",
+                    kind="static_security",
+                    name="Static security scan",
+                ),
+            ],
+        ),
+    )
+
+
+def _context_with_lifecycle_plan(
+    repository_root: Path,
+    request: SecureFixRequest,
+    plan: FixPlan,
+) -> SecurityTaskHandlerContext:
+    return SecurityTaskHandlerContext(
+        execution_id="execution:fix-test",
+        operation="fix_and_verify",
+        language="python",
+        repository_root=str(
+            repository_root
+        ),
+        metadata={
+            "secure_fix_request": (
+                request.model_dump(
+                    mode="json"
+                )
+            ),
+            "fix_plan": plan.model_dump(
+                mode="json"
+            ),
+        },
+    )
+
+
+def test_secure_fix_requires_lifecycle_plan_before_write(
+    tmp_path: Path,
+) -> None:
+    target = setup_repository(tmp_path)
+    request = fix_request(proposal())
+    store = transaction_store()
+
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="fix_plan",
+    ):
+        run(
+            SecureFixTaskHandler(
+                transactions=store,
+            ).execute(
+                task=secure_task(),
+                context=context(
+                    tmp_path,
+                    request,
+                    include_lifecycle_plan=False,
+                ),
+                inputs=repository_inputs(
+                    tmp_path
+                ),
+            )
+        )
+
+    assert target.read_text(
+        encoding="utf-8"
+    ) == ORIGINAL
+    assert not store.contains(
+        "fix:deterministic-test"
+    )
+
+
+def test_secure_fix_rejects_mismatched_lifecycle_plan(
+    tmp_path: Path,
+) -> None:
+    target = setup_repository(tmp_path)
+    approved = proposal()
+    request = fix_request(approved)
+    mismatched = _lifecycle_plan(
+        proposal(
+            replacement=(
+                "subprocess.run("
+                "command, check=True)"
+            ),
+        )
+    )
+    store = transaction_store()
+
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="proposal",
+    ):
+        run(
+            SecureFixTaskHandler(
+                transactions=store,
+            ).execute(
+                task=secure_task(),
+                context=(
+                    _context_with_lifecycle_plan(
+                        tmp_path,
+                        request,
+                        mismatched,
+                    )
+                ),
+                inputs=repository_inputs(
+                    tmp_path
+                ),
+            )
+        )
+
+    assert target.read_text(
+        encoding="utf-8"
+    ) == ORIGINAL
+    assert not store.contains(
+        "fix:deterministic-test"
+    )
+
+
+def test_secure_fix_emits_bound_remediation_lifecycle_manifest(
+    tmp_path: Path,
+) -> None:
+    target = setup_repository(tmp_path)
+    approved = proposal()
+    request = fix_request(approved)
+    plan = _lifecycle_plan(approved)
+    store = transaction_store()
+
+    result = run(
+        SecureFixTaskHandler(
+            transactions=store,
+        ).execute(
+            task=secure_task(),
+            context=_context_with_lifecycle_plan(
+                tmp_path,
+                request,
+                plan,
+            ),
+            inputs=repository_inputs(
+                tmp_path
+            ),
+        )
+    )
+
+    applied = AppliedPatchArtifact.model_validate(
+        result.output["applied_patch"]
+    )
+    manifest = (
+        RemediationLifecycleManifest
+        .model_validate(
+            result.output[
+                "remediation_manifest"
+            ]
+        )
+    )
+
+    assert manifest.manifest_id == (
+        "remediation-manifest:"
+        f"{plan.plan_sha256()}"
+    )
+    assert manifest.fix_plan == plan
+    assert manifest.fix_plan_sha256 == (
+        plan.plan_sha256()
+    )
+    assert manifest.applied_patch == applied
+    assert result.metadata[
+        "manifest_sha256"
+    ] == manifest.manifest_sha256()
+    assert target.read_text(
+        encoding="utf-8"
+    ) == ORIGINAL.replace(
+        VULNERABLE,
+        REPLACEMENT,
+    )
+    assert store.contains(
+        applied.transaction_id
     )

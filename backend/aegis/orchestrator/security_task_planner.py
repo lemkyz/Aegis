@@ -562,6 +562,7 @@ class SecurityTaskPlanner:
                 reasons=secure_fix_reasons,
                 produces=[
                     "applied_patch",
+                    "remediation_manifest",
                 ],
             ),
             SecurityTaskNode(
