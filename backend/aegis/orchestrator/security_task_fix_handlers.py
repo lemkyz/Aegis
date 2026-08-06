@@ -642,6 +642,7 @@ class FixVerificationTaskHandler:
         kind="fix_verification",
         required_artifacts=frozenset({
             "applied_patch",
+            "remediation_manifest",
         }),
         produced_artifacts=frozenset({
             "fix_verification_result",
@@ -676,6 +677,10 @@ class FixVerificationTaskHandler:
 
         applied = self._applied_patch(
             inputs
+        )
+        manifest = self._remediation_manifest(
+            inputs=inputs,
+            applied=applied,
         )
         target = self._target(
             context=context,
@@ -814,6 +819,7 @@ class FixVerificationTaskHandler:
                 handler=self.handler,
                 source_artifacts=[
                     "applied_patch",
+                    "remediation_manifest",
                 ],
                 applied_patch=(
                     applied.model_copy(
@@ -824,6 +830,14 @@ class FixVerificationTaskHandler:
                             ),
                         },
                     )
+                ),
+                remediation_manifest=(
+                    manifest.model_copy(
+                        deep=True
+                    )
+                ),
+                manifest_sha256=(
+                    manifest.manifest_sha256()
                 ),
                 verifier=(
                     redaction_session
@@ -870,6 +884,12 @@ class FixVerificationTaskHandler:
                 ),
                 "transaction_state": (
                     transaction_state
+                ),
+                "manifest_id": (
+                    manifest.manifest_id
+                ),
+                "manifest_sha256": (
+                    manifest.manifest_sha256()
                 ),
                 "outputs_redacted": True,
             },
@@ -947,6 +967,35 @@ class FixVerificationTaskHandler:
                 "Fix verification requires a valid "
                 "applied_patch artifact."
             ) from exc
+
+    @staticmethod
+    def _remediation_manifest(
+        *,
+        inputs: Mapping[str, Any],
+        applied: AppliedPatchArtifact,
+    ) -> RemediationLifecycleManifest:
+        value = inputs.get(
+            "remediation_manifest"
+        )
+
+        try:
+            manifest = (
+                RemediationLifecycleManifest
+                .model_validate(value)
+            )
+        except ValidationError as exc:
+            raise SecurityTaskInputError(
+                "Fix verification requires a valid "
+                "remediation_manifest artifact."
+            ) from exc
+
+        if manifest.applied_patch != applied:
+            raise SecurityTaskInputError(
+                "The remediation manifest does not "
+                "match the exact applied patch."
+            )
+
+        return manifest
 
     @staticmethod
     def _request(

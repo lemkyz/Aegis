@@ -245,6 +245,36 @@ def apply_fix(
     return artifact, resolved_request
 
 
+def _verification_inputs(
+    applied: AppliedPatchArtifact,
+    request: SecureFixRequest,
+) -> dict[str, object]:
+    plan = _lifecycle_plan(
+        request.proposal
+    )
+    plan_sha256 = plan.plan_sha256()
+    manifest = RemediationLifecycleManifest(
+        manifest_id=(
+            "remediation-manifest:"
+            f"{plan_sha256}"
+        ),
+        fix_plan=plan,
+        fix_plan_sha256=plan_sha256,
+        applied_patch=applied,
+    )
+
+    return {
+        "applied_patch": applied.model_dump(
+            mode="json"
+        ),
+        "remediation_manifest": (
+            manifest.model_dump(
+                mode="json"
+            )
+        ),
+    }
+
+
 def verification_request(
     *,
     check_status: str = "passed",
@@ -597,13 +627,7 @@ def test_failed_project_check_rolls_back(
                 request,
                 verification=verification,
             ),
-            inputs={
-                "applied_patch": (
-                    applied.model_dump(
-                        mode="json"
-                    )
-                ),
-            },
+            inputs=_verification_inputs(applied, request),
         )
     )
     artifact = (
@@ -672,13 +696,7 @@ def test_skipped_project_check_rolls_back(
                 request,
                 verification=verification,
             ),
-            inputs={
-                "applied_patch": (
-                    applied.model_dump(
-                        mode="json"
-                    )
-                ),
-            },
+            inputs=_verification_inputs(applied, request),
         )
     )
     artifact = (
@@ -743,13 +761,7 @@ def test_invalid_verification_contract_rolls_back(
                     tmp_path,
                     request,
                 ),
-                inputs={
-                    "applied_patch": (
-                        applied.model_dump(
-                            mode="json"
-                        )
-                    ),
-                },
+                inputs=_verification_inputs(applied, request),
             )
         )
 
@@ -790,13 +802,7 @@ def test_rollback_never_overwrites_newer_user_edit(
                 request,
                 verification=verification,
             ),
-            inputs={
-                "applied_patch": (
-                    applied.model_dump(
-                        mode="json"
-                    )
-                ),
-            },
+            inputs=_verification_inputs(applied, request),
         )
     )
     artifact = (
@@ -839,13 +845,7 @@ def test_static_success_without_replay_is_partial(
                 request,
                 verification=verification,
             ),
-            inputs={
-                "applied_patch": (
-                    applied.model_dump(
-                        mode="json"
-                    )
-                ),
-            },
+            inputs=_verification_inputs(applied, request),
         )
     )
     artifact = (
@@ -901,13 +901,7 @@ def test_static_success_hands_pending_fix_to_replay(
                 request,
                 verification=verification,
             ),
-            inputs={
-                "applied_patch": (
-                    applied.model_dump(
-                        mode="json"
-                    )
-                ),
-            },
+            inputs=_verification_inputs(applied, request),
         )
     )
     artifact = (
@@ -1250,6 +1244,266 @@ def test_secure_fix_emits_bound_remediation_lifecycle_manifest(
         VULNERABLE,
         REPLACEMENT,
     )
+    assert store.contains(
+        applied.transaction_id
+    )
+
+def _apply_fix_with_manifest(
+    repository_root: Path,
+    *,
+    store: SecureFixTransactionStore,
+) -> tuple[
+    AppliedPatchArtifact,
+    RemediationLifecycleManifest,
+    SecureFixRequest,
+]:
+    request = fix_request(
+        proposal()
+    )
+    plan = _lifecycle_plan(
+        request.proposal
+    )
+    result = run(
+        SecureFixTaskHandler(
+            transactions=store,
+        ).execute(
+            task=secure_task(),
+            context=(
+                _context_with_lifecycle_plan(
+                    repository_root,
+                    request,
+                    plan,
+                )
+            ),
+            inputs=repository_inputs(
+                repository_root
+            ),
+        )
+    )
+
+    return (
+        AppliedPatchArtifact.model_validate(
+            result.output["applied_patch"]
+        ),
+        (
+            RemediationLifecycleManifest
+            .model_validate(
+                result.output[
+                    "remediation_manifest"
+                ]
+            )
+        ),
+        request,
+    )
+
+
+def test_fix_verification_requires_manifest_artifact(
+) -> None:
+    capability = (
+        FixVerificationTaskHandler(
+            transactions=None,
+        ).capability
+    )
+
+    assert capability.required_artifacts == (
+        frozenset({
+            "applied_patch",
+            "remediation_manifest",
+        })
+    )
+
+
+def test_fix_verification_rejects_missing_manifest(
+    tmp_path: Path,
+) -> None:
+    setup_repository(tmp_path)
+    store = SecureFixTransactionStore(
+        id_factory=lambda: (
+            "fix:missing-manifest"
+        ),
+    )
+    applied, _, request = (
+        _apply_fix_with_manifest(
+            tmp_path,
+            store=store,
+        )
+    )
+
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="remediation_manifest",
+    ):
+        run(
+            FixVerificationTaskHandler(
+                transactions=store,
+            ).execute(
+                task=verification_task(),
+                context=context(
+                    tmp_path,
+                    request,
+                    verification=(
+                        verification_request(
+                            requires_dynamic=True,
+                        )
+                    ),
+                ),
+                inputs={
+                    "applied_patch": (
+                        applied.model_dump(
+                            mode="json"
+                        )
+                    ),
+                },
+            )
+        )
+
+    assert store.contains(
+        applied.transaction_id
+    )
+
+
+def test_fix_verification_rejects_mismatched_manifest(
+    tmp_path: Path,
+) -> None:
+    primary_root = tmp_path / "primary"
+    alternate_root = tmp_path / "alternate"
+    primary_root.mkdir()
+    alternate_root.mkdir()
+    setup_repository(primary_root)
+    setup_repository(alternate_root)
+
+    primary_store = SecureFixTransactionStore(
+        id_factory=lambda: (
+            "fix:manifest-primary"
+        ),
+    )
+    alternate_store = SecureFixTransactionStore(
+        id_factory=lambda: (
+            "fix:manifest-alternate"
+        ),
+    )
+    applied, _, request = (
+        _apply_fix_with_manifest(
+            primary_root,
+            store=primary_store,
+        )
+    )
+    _, alternate_manifest, _ = (
+        _apply_fix_with_manifest(
+            alternate_root,
+            store=alternate_store,
+        )
+    )
+
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="manifest",
+    ):
+        run(
+            FixVerificationTaskHandler(
+                transactions=primary_store,
+            ).execute(
+                task=verification_task(),
+                context=context(
+                    primary_root,
+                    request,
+                    verification=(
+                        verification_request(
+                            requires_dynamic=True,
+                        )
+                    ),
+                ),
+                inputs={
+                    "applied_patch": (
+                        applied.model_dump(
+                            mode="json"
+                        )
+                    ),
+                    "remediation_manifest": (
+                        alternate_manifest
+                        .model_dump(
+                            mode="json"
+                        )
+                    ),
+                },
+            )
+        )
+
+    assert primary_store.contains(
+        applied.transaction_id
+    )
+
+
+def test_fix_verification_binds_remediation_manifest(
+    tmp_path: Path,
+) -> None:
+    setup_repository(tmp_path)
+    store = SecureFixTransactionStore(
+        id_factory=lambda: (
+            "fix:bound-manifest"
+        ),
+    )
+    applied, manifest, request = (
+        _apply_fix_with_manifest(
+            tmp_path,
+            store=store,
+        )
+    )
+
+    result = run(
+        FixVerificationTaskHandler(
+            transactions=store,
+        ).execute(
+            task=verification_task(),
+            context=context(
+                tmp_path,
+                request,
+                verification=(
+                    verification_request(
+                        requires_dynamic=True,
+                    )
+                ),
+            ),
+            inputs={
+                "applied_patch": (
+                    applied.model_dump(
+                        mode="json"
+                    )
+                ),
+                "remediation_manifest": (
+                    manifest.model_dump(
+                        mode="json"
+                    )
+                ),
+            },
+        )
+    )
+    artifact = (
+        StaticFixVerificationArtifact
+        .model_validate(
+            result.output[
+                "fix_verification_result"
+            ]
+        )
+    )
+
+    assert artifact.source_artifacts == [
+        "applied_patch",
+        "remediation_manifest",
+    ]
+    assert (
+        artifact.remediation_manifest
+        == manifest
+    )
+    assert artifact.manifest_sha256 == (
+        manifest.manifest_sha256()
+    )
+    assert result.metadata[
+        "manifest_id"
+    ] == manifest.manifest_id
+    assert result.metadata[
+        "manifest_sha256"
+    ] == manifest.manifest_sha256()
     assert store.contains(
         applied.transaction_id
     )

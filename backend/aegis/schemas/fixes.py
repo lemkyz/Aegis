@@ -487,6 +487,14 @@ class StaticFixVerificationArtifact(BaseModel):
         min_length=1,
     )
     applied_patch: AppliedPatchArtifact
+    remediation_manifest: (
+        RemediationLifecycleManifest
+        | None
+    ) = None
+    manifest_sha256: Sha256Digest | None = Field(
+        default=None,
+        pattern=r"^[a-f0-9]{64}$",
+    )
     verifier: str
     project_checks: list[FixProjectCheck]
     security_delta: StaticSecurityDeltaEvidence
@@ -521,6 +529,56 @@ class StaticFixVerificationArtifact(BaseModel):
             raise ValueError(
                 "residual risk patch digest must match "
                 "the applied patch"
+            )
+
+        manifest = self.remediation_manifest
+        manifest_sha256 = self.manifest_sha256
+
+        if (
+            (manifest is None)
+            != (manifest_sha256 is None)
+        ):
+            raise ValueError(
+                "static verification manifest and "
+                "digest must be supplied together"
+            )
+
+        if manifest is None:
+            return self
+
+        if self.source_artifacts != [
+            "applied_patch",
+            "remediation_manifest",
+        ]:
+            raise ValueError(
+                "manifest-bound static verification "
+                "requires exact source artifacts"
+            )
+
+        normalized_applied = (
+            self.applied_patch.model_copy(
+                deep=True,
+                update={
+                    "transaction_state": "pending",
+                },
+            )
+        )
+
+        if (
+            manifest.applied_patch
+            != normalized_applied
+        ):
+            raise ValueError(
+                "remediation manifest must match the "
+                "exact applied patch identity"
+            )
+
+        if manifest_sha256 != (
+            manifest.manifest_sha256()
+        ):
+            raise ValueError(
+                "remediation manifest digest must match "
+                "the exact manifest"
             )
 
         return self
