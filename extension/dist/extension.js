@@ -41,6 +41,7 @@ const path = __importStar(require("node:path"));
 const promises_1 = require("node:fs/promises");
 const node_util_1 = require("node:util");
 const vscode = __importStar(require("vscode"));
+const attackGraphPanel_1 = require("./attackGraphPanel");
 const backendClient_1 = require("./backendClient");
 const workspaceSafety_1 = require("./workspaceSafety");
 const execFileAsync = (0, node_util_1.promisify)(node_child_process_1.execFile);
@@ -72,6 +73,7 @@ let latestThreatModel;
 let diagnosticCollection;
 let securityTreeProvider;
 function activate(context) {
+    context.subscriptions.push(vscode.commands.registerCommand("aegis.showAttackGraph", showWorkspaceAttackGraph));
     diagnosticCollection =
         vscode.languages.createDiagnosticCollection("aegis");
     reportContentProvider =
@@ -1611,6 +1613,18 @@ async function runTrustedAnalysis() {
             + `failed: ${message}`));
     }
 }
+async function requestAttackGraphBuild(backendUrl, attackSurface, threatModel) {
+    return (0, backendClient_1.postBackendJson)({
+        backendUrl,
+        endpoint: "/v1/attack-graph/build",
+        body: {
+            attack_surface: attackSurface,
+            threat_model: threatModel,
+        },
+        timeoutMilliseconds: 180_000,
+        timeoutMessage: "Attack Graph construction timed out after three minutes.",
+    });
+}
 async function requestAttackSurfaceScan(backendUrl, files) {
     return (0, backendClient_1.postBackendJson)({
         backendUrl,
@@ -2077,6 +2091,89 @@ async function generateWorkspaceThreatModel() {
             ? error.message
             : String(error);
         void vscode.window.showErrorMessage(`Aegis Threat Modeling failed: ${message}`);
+    }
+}
+async function showWorkspaceAttackGraph() {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders
+        || workspaceFolders.length === 0) {
+        void vscode.window.showWarningMessage("Aegis Attack Graph requires an open local workspace.");
+        return;
+    }
+    if (!vscode.workspace.isTrusted) {
+        void vscode.window.showWarningMessage("Aegis Attack Graph requires a trusted workspace.");
+        return;
+    }
+    try {
+        const files = await collectSafeModelSourceFiles();
+        if (files.length === 0) {
+            void vscode.window.showWarningMessage("Aegis did not find any supported source files to graph.");
+            return;
+        }
+        const backendUrl = vscode.workspace
+            .getConfiguration("aegis")
+            .get("backendUrl", "http://127.0.0.1:8000");
+        const result = await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Aegis is proving attack paths",
+            cancellable: true,
+        }, async (progress, cancellationToken) => {
+            progress.report({
+                increment: 20,
+                message: `Mapping ${files.length} source file(s)`,
+            });
+            const attackSurface = await requestAttackSurfaceScan(backendUrl, files);
+            if (cancellationToken
+                .isCancellationRequested) {
+                return undefined;
+            }
+            progress.report({
+                increment: 30,
+                message: "Building the deterministic threat model",
+            });
+            const threatModel = await requestThreatModelScan(backendUrl, files);
+            if (cancellationToken
+                .isCancellationRequested) {
+                return undefined;
+            }
+            progress.report({
+                increment: 40,
+                message: "Materializing source-to-sink proof",
+            });
+            const attackGraph = await requestAttackGraphBuild(backendUrl, attackSurface, threatModel);
+            return {
+                attackSurface,
+                threatModel,
+                attackGraph,
+            };
+        });
+        if (!result) {
+            void vscode.window.showInformationMessage("Aegis: Attack Graph generation was cancelled.");
+            return;
+        }
+        latestAttackSurface =
+            result.attackSurface;
+        latestThreatModel =
+            result.threatModel;
+        securityTreeProvider?.refresh();
+        (0, attackGraphPanel_1.showAttackGraphPanel)(result.attackGraph, result.attackSurface, result.threatModel);
+        const summary = result.attackGraph.summary;
+        const message = `Aegis proved ${summary.attack_paths} attack path(s), `
+            + `${summary.boundary_crossings} trust-boundary crossing(s), `
+            + `and ${summary.sensitive_data_exposures} sensitive-data exposure(s).`;
+        if (summary.critical_paths > 0
+            || summary.high_paths > 0) {
+            void vscode.window.showWarningMessage(message);
+        }
+        else {
+            void vscode.window.showInformationMessage(message);
+        }
+    }
+    catch (error) {
+        const message = error instanceof Error
+            ? error.message
+            : String(error);
+        void vscode.window.showErrorMessage(`Aegis Attack Graph failed: ${message}`);
     }
 }
 async function mapWorkspaceAttackSurface() {

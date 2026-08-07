@@ -75,6 +75,13 @@
         "enablement": "isWorkspaceTrusted"
       },
       {
+        "command": "aegis.showAttackGraph",
+        "title": "Aegis: Show Attack Graph & Data Sentinel",
+        "category": "Aegis",
+        "enablement": "isWorkspaceTrusted",
+        "icon": "$(graph)"
+      },
+      {
         "command": "aegis.previewSecurityTaskPlan",
         "title": "Aegis: Preview Security Task Plan",
         "category": "Aegis",
@@ -175,6 +182,11 @@
           "command": "aegis.refreshSecurityView",
           "when": "view == aegis.securityView",
           "group": "navigation"
+        },
+        {
+          "command": "aegis.showAttackGraph",
+          "when": "view == aegis.securityView",
+          "group": "navigation@2"
         }
       ]
     },
