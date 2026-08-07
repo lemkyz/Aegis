@@ -416,6 +416,20 @@ class DynamicValidationTaskArtifact(BaseModel):
     source_artifacts: list[str] = Field(
         min_length=1,
     )
+    manifest_id: str = Field(
+        min_length=1,
+        max_length=300,
+        pattern=(
+            r"^[A-Za-z0-9]"
+            r"[A-Za-z0-9._:/@+-]*$"
+        ),
+    )
+    manifest_sha256: str = Field(
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    static_verification_sha256: str = Field(
+        pattern=r"^[a-f0-9]{64}$",
+    )
     authorization: ValidationAuthorizationResponse
     execution_plan: ValidationExecutionPlanResponse
     replay: ValidationReplayResponse

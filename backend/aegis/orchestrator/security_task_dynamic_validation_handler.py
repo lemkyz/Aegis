@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, Protocol
 
@@ -151,6 +153,13 @@ class DynamicValidationTaskHandler:
                 inputs
             )
         )
+        (
+            manifest_id,
+            manifest_sha256,
+            static_verification_sha256,
+        ) = self._manifest_provenance(
+            verification
+        )
         fix_target = (
             self._fix_target(
                 context=context,
@@ -292,6 +301,13 @@ class DynamicValidationTaskHandler:
                     source_artifacts=[
                         "fix_verification_result",
                     ],
+                    manifest_id=manifest_id,
+                    manifest_sha256=(
+                        manifest_sha256
+                    ),
+                    static_verification_sha256=(
+                        static_verification_sha256
+                    ),
                     authorization=authorization,
                     execution_plan=(
                         execution_plan
@@ -357,6 +373,13 @@ class DynamicValidationTaskHandler:
                     "transaction_state": (
                         transaction_state
                     ),
+                    "manifest_id": manifest_id,
+                    "manifest_sha256": (
+                        manifest_sha256
+                    ),
+                    "static_verification_sha256": (
+                        static_verification_sha256
+                    ),
                     "outputs_redacted": True,
                 },
                 reasons=(
@@ -409,6 +432,58 @@ class DynamicValidationTaskHandler:
             raise
 
     @staticmethod
+    def _canonical_sha256(
+        value: Mapping[str, Any],
+    ) -> str:
+        canonical = json.dumps(
+            value,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        return hashlib.sha256(
+            canonical
+        ).hexdigest()
+
+    @staticmethod
+    def _manifest_provenance(
+        verification: (
+            StaticFixVerificationArtifact
+        ),
+    ) -> tuple[str, str, str]:
+        manifest = (
+            verification.remediation_manifest
+        )
+        manifest_sha256 = (
+            verification.manifest_sha256
+        )
+
+        if (
+            manifest is None
+            or manifest_sha256 is None
+        ):
+            raise SecurityTaskInputError(
+                "Dynamic validation requires "
+                "manifest-bound static fix "
+                "verification."
+            )
+
+        static_verification_sha256 = (
+            DynamicValidationTaskHandler
+            ._canonical_sha256(
+                verification.model_dump(
+                    mode="json"
+                )
+            )
+        )
+
+        return (
+            manifest.manifest_id,
+            manifest_sha256,
+            static_verification_sha256,
+        )
+
+    @staticmethod
     def _require_fix_verification(
         inputs: Mapping[str, Any],
     ) -> StaticFixVerificationArtifact:
@@ -426,6 +501,16 @@ class DynamicValidationTaskHandler:
                 "Dynamic validation requires a valid "
                 "fix_verification_result artifact."
             ) from exc
+
+        if (
+            artifact.remediation_manifest is None
+            or artifact.manifest_sha256 is None
+        ):
+            raise SecurityTaskInputError(
+                "Dynamic validation requires "
+                "manifest-bound static fix "
+                "verification."
+            )
 
         if (
             not artifact.ready_for_dynamic

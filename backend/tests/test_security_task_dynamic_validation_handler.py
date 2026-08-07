@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -23,6 +25,11 @@ from aegis.schemas.change_policy import (
 )
 from aegis.schemas.fixes import (
     AppliedPatchArtifact,
+    FixPlan,
+    FixVerificationCheck,
+    FixVerificationPlan,
+    RemediationLifecycleManifest,
+    SecureFixProposal,
     StaticFixVerificationArtifact,
 )
 from aegis.schemas.validation import (
@@ -273,6 +280,159 @@ def context(
     )
 
 
+def _canonical_sha256(
+    value: dict,
+) -> str:
+    canonical = json.dumps(
+        value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(
+        canonical
+    ).hexdigest()
+
+
+def _manifest_bound_verification(
+    applied: AppliedPatchArtifact,
+) -> StaticFixVerificationArtifact:
+    proposal = SecureFixProposal(
+        claim_id=applied.claim_id,
+        target_path=applied.target_path,
+        expected_file_sha256=(
+            applied.before_sha256
+        ),
+        expected_selection_sha256=(
+            "5" * 64
+        ),
+        start_offset=0,
+        end_offset=1,
+        replacement="0",
+    )
+    resolved_applied = applied.model_copy(
+        deep=True,
+        update={
+            "patch_sha256": (
+                proposal.patch_sha256()
+            ),
+            "transaction_state": "pending",
+        },
+    )
+    verification_plan = (
+        FixVerificationPlan(
+            plan_id=(
+                "verification-plan:"
+                f"{applied.claim_id}"
+            ),
+            claim_id=applied.claim_id,
+            patch_sha256=(
+                resolved_applied.patch_sha256
+            ),
+            checks=[
+                FixVerificationCheck(
+                    check_id=(
+                        "check:project-tests"
+                    ),
+                    kind="project",
+                    name="Project tests",
+                ),
+                FixVerificationCheck(
+                    check_id=(
+                        "check:static-security"
+                    ),
+                    kind="static_security",
+                    name="Static security scan",
+                ),
+                FixVerificationCheck(
+                    check_id=(
+                        "check:dynamic-replay"
+                    ),
+                    kind="dynamic_replay",
+                    name=(
+                        "Authorized dynamic replay"
+                    ),
+                ),
+            ],
+            requires_dynamic_replay=True,
+        )
+    )
+    plan = FixPlan(
+        plan_id=(
+            "fix-plan:"
+            f"{applied.claim_id}"
+        ),
+        proposal=proposal,
+        verification_plan=(
+            verification_plan
+        ),
+    )
+    plan_sha256 = plan.plan_sha256()
+    manifest = RemediationLifecycleManifest(
+        manifest_id=(
+            "remediation-manifest:"
+            f"{plan_sha256}"
+        ),
+        fix_plan=plan,
+        fix_plan_sha256=plan_sha256,
+        applied_patch=resolved_applied,
+    )
+
+    return StaticFixVerificationArtifact(
+        handler="test-fix-verification",
+        source_artifacts=[
+            "applied_patch",
+            "remediation_manifest",
+        ],
+        applied_patch=resolved_applied,
+        remediation_manifest=manifest,
+        manifest_sha256=(
+            manifest.manifest_sha256()
+        ),
+        verifier="test-static-verifier",
+        project_checks=[
+            {
+                "name": "Tests",
+                "status": "passed",
+                "details": "Passed.",
+            }
+        ],
+        security_delta={
+            "scanner": "test-scanner",
+            "before_scan_sha256": (
+                "3" * 64
+            ),
+            "after_scan_sha256": (
+                "4" * 64
+            ),
+            "target_finding_ids": [
+                "finding:target",
+            ],
+            "remaining_target_finding_ids": [],
+            "introduced_finding_ids": [],
+        },
+        static_target_resolved=True,
+        static_regression_free=True,
+        verdict="awaiting_dynamic",
+        ready_for_dynamic=True,
+        transaction_state="pending",
+        residual_risk={
+            "claim_id": (
+                resolved_applied.claim_id
+            ),
+            "patch_sha256": (
+                resolved_applied.patch_sha256
+            ),
+            "status": "inconclusive",
+            "reasons": [
+                "Dynamic replay has not run.",
+            ],
+        },
+        reasons=[],
+        outputs_redacted=True,
+    )
+
+
 def inputs() -> dict:
     policy = ChangePolicyDecisionResponse(
         engine="test-policy",
@@ -313,51 +473,8 @@ def inputs() -> dict:
         outputs_redacted=True,
     )
     verification = (
-        StaticFixVerificationArtifact(
-            handler="test-fix-verification",
-            source_artifacts=[
-                "applied_patch",
-            ],
-            applied_patch=applied,
-            verifier="test-static-verifier",
-            project_checks=[
-                {
-                    "name": "Tests",
-                    "status": "passed",
-                    "details": "Passed.",
-                }
-            ],
-            security_delta={
-                "scanner": "test-scanner",
-                "before_scan_sha256": (
-                    "3" * 64
-                ),
-                "after_scan_sha256": (
-                    "4" * 64
-                ),
-                "target_finding_ids": [
-                    "finding:target",
-                ],
-                "remaining_target_finding_ids": [],
-                "introduced_finding_ids": [],
-            },
-            static_target_resolved=True,
-            static_regression_free=True,
-            verdict="awaiting_dynamic",
-            ready_for_dynamic=True,
-            transaction_state="pending",
-            residual_risk={
-                "claim_id": applied.claim_id,
-                "patch_sha256": (
-                    applied.patch_sha256
-                ),
-                "status": "inconclusive",
-                "reasons": [
-                    "Dynamic replay has not run.",
-                ],
-            },
-            reasons=[],
-            outputs_redacted=True,
+        _manifest_bound_verification(
+            applied
         )
     )
 
@@ -389,7 +506,7 @@ def pending_transaction_inputs(
         updated,
         file_mode=target.stat().st_mode,
     )
-    verification = (
+    base = (
         StaticFixVerificationArtifact
         .model_validate(
             inputs()[
@@ -398,8 +515,7 @@ def pending_transaction_inputs(
         )
     )
     applied = (
-        verification.applied_patch
-        .model_copy(
+        base.applied_patch.model_copy(
             deep=True,
             update={
                 "transaction_id": (
@@ -414,11 +530,10 @@ def pending_transaction_inputs(
             },
         )
     )
-    resolved = verification.model_copy(
-        deep=True,
-        update={
-            "applied_patch": applied,
-        },
+    resolved = (
+        _manifest_bound_verification(
+            applied
+        )
     )
 
     return {
@@ -1089,3 +1204,229 @@ def test_invalid_replay_contract_rolls_back_fix(
     assert (
         tmp_path / "app.py"
     ).read_bytes() == b"unsafe = True\n"
+
+def test_dynamic_validation_rejects_manifestless_static_verification(
+    tmp_path: Path,
+) -> None:
+    request = replay_request(
+        tmp_path
+    )
+    payload = inputs()
+    verification = (
+        StaticFixVerificationArtifact
+        .model_validate(
+            payload[
+                "fix_verification_result"
+            ]
+        )
+    )
+    legacy = verification.model_copy(
+        deep=True,
+        update={
+            "source_artifacts": [
+                "applied_patch",
+            ],
+            "remediation_manifest": None,
+            "manifest_sha256": None,
+        },
+    )
+
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="manifest",
+    ):
+        run(
+            DynamicValidationTaskHandler(
+                replay_orchestrator=(
+                    RecordingReplayOrchestrator()
+                ),
+            ).execute(
+                task=task(),
+                context=context(
+                    tmp_path,
+                    request,
+                ),
+                inputs={
+                    "fix_verification_result": (
+                        legacy.model_dump(
+                            mode="json"
+                        )
+                    ),
+                },
+            )
+        )
+
+
+def test_dynamic_validation_emits_manifest_provenance(
+    tmp_path: Path,
+) -> None:
+    request = replay_request(
+        tmp_path
+    )
+    payload = inputs()
+    verification = (
+        StaticFixVerificationArtifact
+        .model_validate(
+            payload[
+                "fix_verification_result"
+            ]
+        )
+    )
+    manifest = (
+        verification.remediation_manifest
+    )
+    assert manifest is not None
+
+    result = run(
+        DynamicValidationTaskHandler(
+            replay_orchestrator=(
+                RecordingReplayOrchestrator()
+            ),
+        ).execute(
+            task=task(),
+            context=context(
+                tmp_path,
+                request,
+            ),
+            inputs=payload,
+        )
+    )
+    artifact = (
+        DynamicValidationTaskArtifact
+        .model_validate(
+            result.output[
+                "dynamic_validation_evidence"
+            ]
+        )
+    )
+    static_sha256 = _canonical_sha256(
+        verification.model_dump(
+            mode="json"
+        )
+    )
+
+    assert artifact.source_artifacts == [
+        "fix_verification_result",
+    ]
+    assert artifact.manifest_id == (
+        manifest.manifest_id
+    )
+    assert artifact.manifest_sha256 == (
+        manifest.manifest_sha256()
+    )
+    assert (
+        artifact.static_verification_sha256
+        == static_sha256
+    )
+    assert result.metadata[
+        "manifest_id"
+    ] == manifest.manifest_id
+    assert result.metadata[
+        "manifest_sha256"
+    ] == manifest.manifest_sha256()
+    assert result.metadata[
+        "static_verification_sha256"
+    ] == static_sha256
+
+
+@pytest.mark.parametrize(
+    (
+        "after_execution",
+        "expected_state",
+    ),
+    [
+        (
+            execution(
+                stdout="AEGIS_SAFE_BEHAVIOR\n",
+            ),
+            "committed",
+        ),
+        (
+            execution(
+                stdout="",
+                status="runtime_unavailable",
+                exit_code=None,
+            ),
+            "rolled_back",
+        ),
+    ],
+)
+def test_dynamic_transaction_outcome_preserves_manifest_reference(
+    tmp_path: Path,
+    after_execution: ValidationExecutionResult,
+    expected_state: str,
+) -> None:
+    request = replay_request(
+        tmp_path
+    )
+    store = SecureFixTransactionStore(
+        id_factory=lambda: (
+            "fix:manifest-continuity"
+        ),
+    )
+    payload, _ = pending_transaction_inputs(
+        tmp_path,
+        store,
+    )
+    verification = (
+        StaticFixVerificationArtifact
+        .model_validate(
+            payload[
+                "fix_verification_result"
+            ]
+        )
+    )
+    manifest = (
+        verification.remediation_manifest
+    )
+    assert manifest is not None
+
+    def response_factory(
+        value: ValidationReplayRequest,
+    ) -> ValidationReplayResponse:
+        return replay_response(
+            value,
+            after_execution=after_execution,
+        )
+
+    result = run(
+        DynamicValidationTaskHandler(
+            replay_orchestrator=(
+                RecordingReplayOrchestrator(
+                    response_factory=(
+                        response_factory
+                    ),
+                )
+            ),
+            transactions=store,
+        ).execute(
+            task=task(),
+            context=context(
+                tmp_path,
+                request,
+            ),
+            inputs=payload,
+        )
+    )
+    artifact = (
+        DynamicValidationTaskArtifact
+        .model_validate(
+            result.output[
+                "dynamic_validation_evidence"
+            ]
+        )
+    )
+
+    assert artifact.transaction_state == (
+        expected_state
+    )
+    assert artifact.manifest_id == (
+        manifest.manifest_id
+    )
+    assert artifact.manifest_sha256 == (
+        manifest.manifest_sha256()
+    )
+    assert (
+        manifest.applied_patch
+        .transaction_state
+    ) == "pending"
