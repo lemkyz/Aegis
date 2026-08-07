@@ -28,6 +28,9 @@ from aegis.orchestrator.security_task_workflow import (
     SecurityTaskWorkflowRunner,
 )
 from aegis.schemas.claims import SecurityClaim
+from aegis.schemas.fixes import (
+    RemediationLifecycleOutcome,
+)
 from aegis.schemas.memory import (
     SecurityMemoryTaskArtifact,
     SecurityMemoryTaskInput,
@@ -996,4 +999,269 @@ def test_memory_and_policy_compose_in_workflow(
             "policy_decision"
         ).producer_task_id
         == "policy_evaluation"
+    )
+
+def _lifecycle_bound_dynamic_artifact(
+    claim_id: str,
+    *,
+    transaction_state: str = "committed",
+) -> tuple[
+    DynamicValidationTaskArtifact,
+    RemediationLifecycleOutcome,
+]:
+    dynamic = verified_dynamic_artifact(
+        claim_id
+    ).model_copy(
+        deep=True,
+        update={
+            "handler": (
+                "test-dynamic-lifecycle-handler"
+            ),
+            "source_artifacts": [
+                "fix_verification_result",
+            ],
+            "manifest_id": (
+                "manifest:memory-lifecycle"
+            ),
+            "manifest_sha256": "a" * 64,
+            "static_verification_sha256": (
+                "b" * 64
+            ),
+            "transaction_state": (
+                transaction_state
+            ),
+            "outputs_redacted": True,
+        },
+    )
+    outcome = RemediationLifecycleOutcome(
+        manifest_id=dynamic.manifest_id,
+        manifest_sha256=(
+            dynamic.manifest_sha256
+        ),
+        static_verification_sha256=(
+            dynamic.static_verification_sha256
+        ),
+        dynamic_validation_sha256=(
+            dynamic.artifact_sha256()
+        ),
+        unified_verdict=(
+            dynamic.fix_verification.verdict
+        ),
+        transaction_state=(
+            transaction_state
+        ),
+        residual_risk=(
+            dynamic.fix_verification.residual_risk
+        ),
+    )
+    return dynamic, outcome
+
+
+def test_memory_capability_accepts_lifecycle_outcome_provenance() -> None:
+    assert (
+        "remediation_lifecycle_outcome"
+        in SecurityMemoryTaskHandler
+        .capability.optional_artifacts
+    )
+
+
+def test_manifest_aware_dynamic_memory_requires_lifecycle_outcome(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    current_claim = claim()
+    dynamic, _ = (
+        _lifecycle_bound_dynamic_artifact(
+            current_claim.claim_id,
+        )
+    )
+
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="lifecycle|remediation",
+    ):
+        execute_memory(
+            root=root,
+            service=memory_service(
+                tmp_path
+            ),
+            request=memory_input(
+                [current_claim],
+                coverage="fix_verification",
+                sources=[
+                    "dynamic_validation_evidence",
+                ],
+            ),
+            extra_inputs={
+                "dynamic_validation_evidence": (
+                    dynamic
+                ),
+            },
+        )
+
+
+def test_lifecycle_outcome_must_match_exact_dynamic_digest(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    current_claim = claim()
+    dynamic, outcome = (
+        _lifecycle_bound_dynamic_artifact(
+            current_claim.claim_id,
+        )
+    )
+    mismatched = outcome.model_copy(
+        deep=True,
+        update={
+            "dynamic_validation_sha256": (
+                "f" * 64
+            ),
+        },
+    )
+
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="lifecycle|dynamic.*digest|provenance",
+    ):
+        execute_memory(
+            root=root,
+            service=memory_service(
+                tmp_path
+            ),
+            request=memory_input(
+                [current_claim],
+                coverage="fix_verification",
+                sources=[
+                    "dynamic_validation_evidence",
+                    "remediation_lifecycle_outcome",
+                ],
+            ),
+            extra_inputs={
+                "dynamic_validation_evidence": (
+                    dynamic
+                ),
+                "remediation_lifecycle_outcome": (
+                    mismatched
+                ),
+            },
+        )
+
+
+def test_lifecycle_bound_memory_persists_outcome_evidence_deterministically(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    service = memory_service(tmp_path)
+    current_claim = claim()
+    dynamic, outcome = (
+        _lifecycle_bound_dynamic_artifact(
+            current_claim.claim_id,
+        )
+    )
+    request = memory_input(
+        [current_claim],
+        coverage="fix_verification",
+        sources=[
+            "dynamic_validation_evidence",
+            "remediation_lifecycle_outcome",
+        ],
+    )
+    extra_inputs = {
+        "dynamic_validation_evidence": (
+            dynamic
+        ),
+        "remediation_lifecycle_outcome": (
+            outcome
+        ),
+    }
+
+    first = execute_memory(
+        root=root,
+        service=service,
+        request=request,
+        extra_inputs=extra_inputs,
+    )
+    second = execute_memory(
+        root=root,
+        service=service,
+        request=request,
+        extra_inputs=extra_inputs,
+    )
+
+    first_claim = (
+        first.memory.snapshot.claims[0]
+    )
+    lifecycle_evidence = next(
+        item
+        for item in first_claim.evidence
+        if item.source.name
+        == "Aegis Remediation Lifecycle"
+    )
+
+    assert first_claim.state == "verified_fixed"
+    assert (
+        f"Outcome SHA-256: "
+        f"{outcome.outcome_sha256()}"
+        in lifecycle_evidence.details
+    )
+    assert any(
+        relationship.kind == "derived_from"
+        and relationship.source_evidence_id
+        == lifecycle_evidence.evidence_id
+        for relationship
+        in first_claim.relationships
+    )
+    assert (
+        first.memory.snapshot.snapshot_id
+        == second.memory.snapshot.snapshot_id
+    )
+    assert (
+        second.memory.persisted_new_snapshot
+        is False
+    )
+
+
+def test_rolled_back_lifecycle_is_remembered_but_not_verified_fixed(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    current_claim = claim()
+    dynamic, outcome = (
+        _lifecycle_bound_dynamic_artifact(
+            current_claim.claim_id,
+            transaction_state="rolled_back",
+        )
+    )
+
+    artifact = execute_memory(
+        root=root,
+        service=memory_service(
+            tmp_path
+        ),
+        request=memory_input(
+            [current_claim],
+            coverage="fix_verification",
+            sources=[
+                "dynamic_validation_evidence",
+                "remediation_lifecycle_outcome",
+            ],
+        ),
+        extra_inputs={
+            "dynamic_validation_evidence": (
+                dynamic
+            ),
+            "remediation_lifecycle_outcome": (
+                outcome
+            ),
+        },
+    )
+
+    remembered = (
+        artifact.memory.snapshot.claims[0]
+    )
+    assert remembered.state != "verified_fixed"
+    assert any(
+        item.source.name
+        == "Aegis Remediation Lifecycle"
+        for item in remembered.evidence
     )

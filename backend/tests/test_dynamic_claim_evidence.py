@@ -3,6 +3,9 @@ from aegis.schemas.claims import (
     EvidenceItem,
     EvidenceSource,
 )
+from aegis.schemas.fixes import (
+    RemediationLifecycleOutcome,
+)
 from aegis.schemas.validation import (
     DynamicValidationEvidenceResponse,
     ResidualRiskStatus,
@@ -562,3 +565,142 @@ def test_fix_verification_rejects_wrong_claim_id() -> None:
         raise AssertionError(
             "Expected mismatched claim_id to fail"
         )
+
+def _lifecycle_outcome(
+    *,
+    claim_id: str,
+    transaction_state: str = "committed",
+) -> RemediationLifecycleOutcome:
+    verification = verification_result(
+        claim_id=claim_id,
+    )
+    return RemediationLifecycleOutcome(
+        manifest_id="manifest:evidence-lifecycle",
+        manifest_sha256="a" * 64,
+        static_verification_sha256="b" * 64,
+        dynamic_validation_sha256="c" * 64,
+        unified_verdict=verification.verdict,
+        transaction_state=transaction_state,
+        residual_risk=verification.residual_risk,
+    )
+
+
+def test_lifecycle_outcome_is_material_to_fix_evidence_graph() -> None:
+    current = base_claim()
+    replay = replay_result(
+        claim_id=current.claim_id,
+    )
+    verification = verification_result(
+        claim_id=current.claim_id,
+    )
+    outcome = _lifecycle_outcome(
+        claim_id=current.claim_id,
+    )
+
+    updated = apply_fix_verification(
+        current,
+        replay=replay,
+        verification=verification,
+        lifecycle_outcome=outcome,
+    )
+
+    lifecycle_evidence = next(
+        item
+        for item in updated.evidence
+        if item.source.name
+        == "Aegis Remediation Lifecycle"
+    )
+    verification_evidence = next(
+        item
+        for item in updated.evidence
+        if (
+            item.source.kind == "test_result"
+            and item.source.name
+            != "Aegis Remediation Lifecycle"
+        )
+    )
+
+    assert (
+        f"Outcome SHA-256: "
+        f"{outcome.outcome_sha256()}"
+        in lifecycle_evidence.details
+    )
+    assert (
+        f"Manifest ID: {outcome.manifest_id}"
+        in lifecycle_evidence.details
+    )
+    assert any(
+        relationship.kind == "derived_from"
+        and relationship.source_evidence_id
+        == lifecycle_evidence.evidence_id
+        and relationship.target_evidence_id
+        == verification_evidence.evidence_id
+        for relationship in updated.relationships
+    )
+    assert updated.state == "verified_fixed"
+
+
+def test_rolled_back_lifecycle_outcome_never_marks_verified_fixed() -> None:
+    current = base_claim()
+    replay = replay_result(
+        claim_id=current.claim_id,
+    )
+    verification = verification_result(
+        claim_id=current.claim_id,
+    )
+    outcome = _lifecycle_outcome(
+        claim_id=current.claim_id,
+        transaction_state="rolled_back",
+    )
+
+    updated = apply_fix_verification(
+        current,
+        replay=replay,
+        verification=verification,
+        lifecycle_outcome=outcome,
+    )
+
+    assert updated.state != "verified_fixed"
+    assert any(
+        item.source.name
+        == "Aegis Remediation Lifecycle"
+        for item in updated.evidence
+    )
+
+
+def test_lifecycle_outcome_evidence_is_idempotent() -> None:
+    current = base_claim()
+    replay = replay_result(
+        claim_id=current.claim_id,
+    )
+    verification = verification_result(
+        claim_id=current.claim_id,
+    )
+    outcome = _lifecycle_outcome(
+        claim_id=current.claim_id,
+    )
+
+    first = apply_fix_verification(
+        current,
+        replay=replay,
+        verification=verification,
+        lifecycle_outcome=outcome,
+    )
+    second = apply_fix_verification(
+        first,
+        replay=replay,
+        verification=verification,
+        lifecycle_outcome=outcome,
+    )
+
+    first_ids = [
+        item.evidence_id
+        for item in first.evidence
+    ]
+    second_ids = [
+        item.evidence_id
+        for item in second.evidence
+    ]
+
+    assert second_ids == first_ids
+    assert second.relationships == first.relationships

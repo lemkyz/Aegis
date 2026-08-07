@@ -6,6 +6,9 @@ from aegis.schemas.claims import (
     EvidenceSource,
     SecurityClaim,
 )
+from aegis.schemas.fixes import (
+    RemediationLifecycleOutcome,
+)
 from aegis.schemas.validation import (
     DynamicValidationEvidenceResponse,
     UnifiedFixVerificationResponse,
@@ -91,6 +94,10 @@ def apply_fix_verification(
     *,
     replay: ValidationReplayCompareResponse,
     verification: UnifiedFixVerificationResponse,
+    lifecycle_outcome: (
+        RemediationLifecycleOutcome
+        | None
+    ) = None,
 ) -> SecurityClaim:
     _require_matching_claim_id(
         claim.claim_id,
@@ -234,10 +241,90 @@ def apply_fix_verification(
         ],
     )
 
-    evidence = _append_unique_evidence(
-        claim.evidence,
+    lifecycle_evidence: EvidenceItem | None = None
+    if lifecycle_outcome is not None:
+        _require_lifecycle_outcome_matches_verification(
+            claim_id=claim.claim_id,
+            verification=verification,
+            outcome=lifecycle_outcome,
+        )
+        outcome_sha256 = (
+            lifecycle_outcome.outcome_sha256()
+        )
+        lifecycle_evidence = EvidenceItem(
+            evidence_id=_stable_id(
+                "evidence",
+                "remediation_lifecycle",
+                claim.claim_id,
+                outcome_sha256,
+            ),
+            source=EvidenceSource(
+                kind="test_result",
+                name=(
+                    "Aegis Remediation Lifecycle"
+                ),
+                rule_id=(
+                    "aegis.remediation.lifecycle"
+                ),
+                version=(
+                    lifecycle_outcome.schema_version
+                ),
+            ),
+            summary=(
+                "Immutable remediation lifecycle "
+                "outcome: "
+                f"{lifecycle_outcome.transaction_state}."
+            ),
+            confidence=verification.confidence,
+            locations=[],
+            details=[
+                (
+                    "Manifest ID: "
+                    f"{lifecycle_outcome.manifest_id}"
+                ),
+                (
+                    "Manifest SHA-256: "
+                    f"{lifecycle_outcome.manifest_sha256}"
+                ),
+                (
+                    "Static verification SHA-256: "
+                    f"{lifecycle_outcome.static_verification_sha256}"
+                ),
+                (
+                    "Dynamic validation SHA-256: "
+                    f"{lifecycle_outcome.dynamic_validation_sha256}"
+                ),
+                (
+                    "Outcome SHA-256: "
+                    f"{outcome_sha256}"
+                ),
+                (
+                    "Unified verdict: "
+                    f"{lifecycle_outcome.unified_verdict}"
+                ),
+                (
+                    "Transaction state: "
+                    f"{lifecycle_outcome.transaction_state}"
+                ),
+                (
+                    "Residual risk: "
+                    f"{lifecycle_outcome.residual_risk.status}"
+                ),
+            ],
+        )
+
+    evidence_items = [
         replay_evidence,
         verification_evidence,
+    ]
+    if lifecycle_evidence is not None:
+        evidence_items.append(
+            lifecycle_evidence
+        )
+
+    evidence = _append_unique_evidence(
+        claim.evidence,
+        *evidence_items,
     )
     relationship_reason = (
         "Unified fix verification verifies the "
@@ -258,6 +345,33 @@ def apply_fix_verification(
         kind="verifies",
         reason=relationship_reason,
     )
+    lifecycle_relationships = []
+    if lifecycle_evidence is not None:
+        lifecycle_reason = (
+            "Immutable remediation lifecycle outcome "
+            "is derived from the unified fix "
+            "verification evidence."
+        )
+        lifecycle_relationships = [
+            EvidenceRelationship(
+                relationship_id=_stable_id(
+                    "relationship",
+                    "derived_from",
+                    lifecycle_evidence.evidence_id,
+                    verification_evidence.evidence_id,
+                    lifecycle_reason,
+                ),
+                source_evidence_id=(
+                    lifecycle_evidence.evidence_id
+                ),
+                target_evidence_id=(
+                    verification_evidence.evidence_id
+                ),
+                kind="derived_from",
+                reason=lifecycle_reason,
+            )
+        ]
+
     verified_fix = (
         replay.verdict == "fixed"
         and replay.fixed
@@ -270,6 +384,11 @@ def apply_fix_verification(
         and (
             verification.residual_risk.status
             == "none_identified"
+        )
+        and (
+            lifecycle_outcome is None
+            or lifecycle_outcome.transaction_state
+            == "committed"
         )
     )
     mitigation_reason = (
@@ -308,6 +427,7 @@ def apply_fix_verification(
     relationships = _append_unique_relationships(
         claim.relationships,
         verification_relationship,
+        *lifecycle_relationships,
         *mitigation_relationships,
     )
 
@@ -324,6 +444,49 @@ def apply_fix_verification(
             "relationships": relationships,
         },
     )
+
+
+def _require_lifecycle_outcome_matches_verification(
+    *,
+    claim_id: str,
+    verification: UnifiedFixVerificationResponse,
+    outcome: RemediationLifecycleOutcome,
+) -> None:
+    if (
+        outcome.residual_risk.claim_id
+        != claim_id
+    ):
+        raise ValueError(
+            "Remediation lifecycle outcome must "
+            "reference the same claim identifier."
+        )
+
+    if (
+        outcome.residual_risk.patch_sha256
+        != verification.patch_sha256
+    ):
+        raise ValueError(
+            "Remediation lifecycle outcome patch "
+            "digest must match fix verification."
+        )
+
+    if (
+        outcome.unified_verdict
+        != verification.verdict
+    ):
+        raise ValueError(
+            "Remediation lifecycle outcome verdict "
+            "must match fix verification."
+        )
+
+    if (
+        outcome.residual_risk
+        != verification.residual_risk
+    ):
+        raise ValueError(
+            "Remediation lifecycle outcome residual "
+            "risk must match fix verification."
+        )
 
 
 def _append_unique_evidence(

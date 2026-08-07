@@ -18,6 +18,9 @@ from aegis.schemas.claims import (
     EvidenceItem,
     SecurityClaim,
 )
+from aegis.schemas.fixes import (
+    RemediationLifecycleOutcome,
+)
 from aegis.schemas.memory import (
     ClaimReconciliationResponse,
     RepositoryContext,
@@ -88,6 +91,7 @@ _MEMORY_SOURCE_ARTIFACTS = frozenset({
     "applied_patch",
     "fix_verification_result",
     "dynamic_validation_evidence",
+    "remediation_lifecycle_outcome",
 })
 
 
@@ -215,11 +219,35 @@ class SecurityMemoryTaskHandler:
             "dynamic_validation_evidence"
             in request.source_artifacts
         ):
+            lifecycle_outcome_named = (
+                "remediation_lifecycle_outcome"
+                in request.source_artifacts
+            )
+            lifecycle_outcome_supplied = (
+                "remediation_lifecycle_outcome"
+                in inputs
+            )
+
+            if (
+                lifecycle_outcome_named
+                != lifecycle_outcome_supplied
+            ):
+                raise SecurityTaskInputError(
+                    "Remediation lifecycle outcome "
+                    "provenance must be named and "
+                    "supplied together."
+                )
+
             claims = self._apply_dynamic_fix(
                 claims=claims,
                 value=inputs[
                     "dynamic_validation_evidence"
                 ],
+                lifecycle_outcome_value=(
+                    inputs.get(
+                        "remediation_lifecycle_outcome"
+                    )
+                ),
             )
             fix_verification_applied = True
 
@@ -567,6 +595,7 @@ class SecurityMemoryTaskHandler:
         *,
         claims: list[SecurityClaim],
         value: Any,
+        lifecycle_outcome_value: Any = None,
     ) -> list[SecurityClaim]:
         try:
             artifact = (
@@ -577,6 +606,52 @@ class SecurityMemoryTaskHandler:
             raise SecurityTaskInputError(
                 "Dynamic fix provenance is invalid."
             ) from exc
+
+        manifest_id = getattr(
+            artifact,
+            "manifest_id",
+            None,
+        )
+        lifecycle_outcome: (
+            RemediationLifecycleOutcome
+            | None
+        ) = None
+
+        if manifest_id is not None:
+            if lifecycle_outcome_value is None:
+                raise SecurityTaskInputError(
+                    "Manifest-aware dynamic fix "
+                    "provenance requires the immutable "
+                    "remediation lifecycle outcome."
+                )
+
+            try:
+                lifecycle_outcome = (
+                    RemediationLifecycleOutcome
+                    .model_validate(
+                        lifecycle_outcome_value
+                    )
+                )
+            except ValidationError as exc:
+                raise SecurityTaskInputError(
+                    "Remediation lifecycle outcome "
+                    "provenance is invalid."
+                ) from exc
+
+            (
+                SecurityMemoryTaskHandler
+                ._require_lifecycle_outcome_match(
+                    artifact=artifact,
+                    outcome=lifecycle_outcome,
+                )
+            )
+
+        elif lifecycle_outcome_value is not None:
+            raise SecurityTaskInputError(
+                "Remediation lifecycle outcome cannot "
+                "be attached to legacy dynamic "
+                "provenance without a manifest."
+            )
 
         claim_id = (
             artifact.fix_verification.claim_id
@@ -609,9 +684,64 @@ class SecurityMemoryTaskHandler:
             verification=(
                 artifact.fix_verification
             ),
+            lifecycle_outcome=(
+                lifecycle_outcome
+            ),
         )
 
         return updated
+
+    @staticmethod
+    def _require_lifecycle_outcome_match(
+        *,
+        artifact: DynamicValidationTaskArtifact,
+        outcome: RemediationLifecycleOutcome,
+    ) -> None:
+        checks = (
+            (
+                outcome.manifest_id,
+                artifact.manifest_id,
+                "manifest identifier",
+            ),
+            (
+                outcome.manifest_sha256,
+                artifact.manifest_sha256,
+                "manifest digest",
+            ),
+            (
+                outcome.static_verification_sha256,
+                artifact.static_verification_sha256,
+                "static verification digest",
+            ),
+            (
+                outcome.dynamic_validation_sha256,
+                artifact.artifact_sha256(),
+                "dynamic validation digest",
+            ),
+            (
+                outcome.unified_verdict,
+                artifact.fix_verification.verdict,
+                "unified verdict",
+            ),
+            (
+                outcome.transaction_state,
+                artifact.transaction_state,
+                "terminal transaction state",
+            ),
+            (
+                outcome.residual_risk,
+                artifact.fix_verification.residual_risk,
+                "residual risk",
+            ),
+        )
+
+        for observed, expected, label in checks:
+            if observed != expected:
+                raise SecurityTaskInputError(
+                    "Remediation lifecycle outcome "
+                    f"{label} does not match dynamic "
+                    "validation provenance."
+                )
 
     def _redact_claims(
         self,
