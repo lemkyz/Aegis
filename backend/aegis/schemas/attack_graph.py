@@ -4,6 +4,13 @@ import hashlib
 import json
 from typing import Literal
 
+from aegis.schemas.attack_surface import (
+    AttackSurfaceScanResponse,
+)
+from aegis.schemas.threat_model import (
+    ThreatModelScanResponse,
+)
+
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -295,6 +302,13 @@ class AttackGraphSummary(
     critical_paths: int = Field(ge=0)
     high_paths: int = Field(ge=0)
     confirmed_paths: int = Field(ge=0)
+
+
+class AttackGraphBuildRequest(
+    _ImmutableAttackGraphModel
+):
+    attack_surface: AttackSurfaceScanResponse
+    threat_model: ThreatModelScanResponse
 
 
 class AttackGraphArtifact(

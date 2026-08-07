@@ -42,6 +42,10 @@ from aegis.schemas.memory import (
     SecurityMemoryRecordResponse,
     SecurityMemorySnapshotResponse,
 )
+from aegis.schemas.attack_graph import (
+    AttackGraphArtifact,
+    AttackGraphBuildRequest,
+)
 from aegis.schemas.attack_surface import (
     AttackSurfaceScanRequest,
     AttackSurfaceScanResponse,
@@ -93,6 +97,7 @@ from aegis.security.change_policy_service import (
 from aegis.security.git_changes import (
     GitChangeCollector,
 )
+from aegis.security.attack_graph import AttackGraphBuilder
 from aegis.security.attack_surface import AttackSurfaceMapper
 from aegis.security.dependency_files import parse_dependency_file
 from aegis.security.osv import OsvDependencyScanner
@@ -166,6 +171,7 @@ analyzer = SecurityAnalyzer(
     fingerprint_key=settings.aegis_fingerprint_key,
 )
 attack_surface_mapper = AttackSurfaceMapper()
+attack_graph_builder = AttackGraphBuilder()
 threat_modeler = ThreatModeler(
     mapper=attack_surface_mapper,
 )
@@ -702,6 +708,41 @@ async def scan_threat_model(
             status_code=502,
             detail=(
                 "Threat modeling failed: "
+                f"{exc}"
+            ),
+        ) from exc
+
+
+@app.post(
+    "/v1/attack-graph/build",
+    response_model=AttackGraphArtifact,
+)
+async def build_attack_graph(
+    request: AttackGraphBuildRequest,
+) -> AttackGraphArtifact:
+    """
+    Build the deterministic Aegis Attack Graph
+    from the exact attack-surface and threat-model
+    artifacts supplied by the caller.
+    """
+    try:
+        return attack_graph_builder.build(
+            attack_surface=request.attack_surface,
+            threat_model=request.threat_model,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Attack graph provenance mismatch: "
+                f"{exc}"
+            ),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Attack graph construction failed: "
                 f"{exc}"
             ),
         ) from exc
