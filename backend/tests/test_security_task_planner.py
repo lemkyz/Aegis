@@ -286,3 +286,24 @@ def test_repository_parallel_tasks_precede_threat_model() -> None:
         positions["attack_surface"]
         < positions["threat_model"]
     )
+
+def test_dynamic_validation_declares_lifecycle_outcome_artifact() -> None:
+    result = SecurityTaskPlanner().plan(
+        SecurityTaskPlanRequest(
+            operation="fix_and_verify",
+            has_proposed_patch=True,
+            human_approval_confirmed=True,
+            include_dynamic_validation=True,
+            authorization_confirmed=True,
+        )
+    )
+
+    validation = task_by_id(
+        result,
+        "dynamic_validation",
+    )
+
+    assert validation.produces == [
+        "dynamic_validation_evidence",
+        "remediation_lifecycle_outcome",
+    ]

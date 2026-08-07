@@ -31,6 +31,7 @@ from aegis.schemas.fixes import (
     RemediationLifecycleManifest,
     SecureFixProposal,
     StaticFixVerificationArtifact,
+    RemediationLifecycleOutcome,
 )
 from aegis.schemas.validation import (
     DynamicValidationEvidenceRequest,
@@ -1430,3 +1431,133 @@ def test_dynamic_transaction_outcome_preserves_manifest_reference(
         manifest.applied_patch
         .transaction_state
     ) == "pending"
+
+def test_dynamic_handler_declares_lifecycle_outcome_artifact() -> None:
+    assert (
+        DynamicValidationTaskHandler
+        .capability
+        .produced_artifacts
+    ) == frozenset({
+        "dynamic_validation_evidence",
+        "remediation_lifecycle_outcome",
+    })
+
+
+@pytest.mark.parametrize(
+    (
+        "after_execution",
+        "expected_state",
+    ),
+    [
+        (
+            execution(
+                stdout="AEGIS_SAFE_BEHAVIOR\n",
+            ),
+            "committed",
+        ),
+        (
+            execution(
+                stdout="",
+                status="runtime_unavailable",
+                exit_code=None,
+            ),
+            "rolled_back",
+        ),
+    ],
+)
+def test_dynamic_validation_emits_hash_bound_lifecycle_outcome(
+    tmp_path: Path,
+    after_execution: ValidationExecutionResult,
+    expected_state: str,
+) -> None:
+    request = replay_request(
+        tmp_path
+    )
+    store = SecureFixTransactionStore(
+        id_factory=lambda: (
+            "fix:lifecycle-outcome"
+        ),
+    )
+    payload, _ = pending_transaction_inputs(
+        tmp_path,
+        store,
+    )
+
+    def response_factory(
+        value: ValidationReplayRequest,
+    ) -> ValidationReplayResponse:
+        return replay_response(
+            value,
+            after_execution=after_execution,
+        )
+
+    result = run(
+        DynamicValidationTaskHandler(
+            replay_orchestrator=(
+                RecordingReplayOrchestrator(
+                    response_factory=(
+                        response_factory
+                    ),
+                )
+            ),
+            transactions=store,
+        ).execute(
+            task=task(),
+            context=context(
+                tmp_path,
+                request,
+            ),
+            inputs=payload,
+        )
+    )
+
+    artifact = (
+        DynamicValidationTaskArtifact
+        .model_validate(
+            result.output[
+                "dynamic_validation_evidence"
+            ]
+        )
+    )
+    outcome = (
+        RemediationLifecycleOutcome
+        .model_validate(
+            result.output[
+                "remediation_lifecycle_outcome"
+            ]
+        )
+    )
+
+    assert artifact.transaction_state == (
+        expected_state
+    )
+    assert outcome.transaction_state == (
+        expected_state
+    )
+    assert outcome.manifest_id == (
+        artifact.manifest_id
+    )
+    assert outcome.manifest_sha256 == (
+        artifact.manifest_sha256
+    )
+    assert (
+        outcome.static_verification_sha256
+        == artifact.static_verification_sha256
+    )
+    assert (
+        outcome.dynamic_validation_sha256
+        == artifact.artifact_sha256()
+    )
+    assert outcome.unified_verdict == (
+        artifact.fix_verification.verdict
+    )
+    assert outcome.residual_risk == (
+        artifact.fix_verification.residual_risk
+    )
+
+    assert result.metadata[
+        "dynamic_validation_sha256"
+    ] == artifact.artifact_sha256()
+    assert result.metadata[
+        "outcome_sha256"
+    ] == outcome.outcome_sha256()

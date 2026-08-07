@@ -1,3 +1,6 @@
+import hashlib
+import json
+
 from typing import Literal
 
 from pydantic import (
@@ -443,6 +446,18 @@ class DynamicValidationTaskArtifact(BaseModel):
         "rollback_blocked",
     ]
     outputs_redacted: bool
+    def artifact_sha256(self) -> str:
+        canonical = json.dumps(
+            self.model_dump(mode="json"),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+
+        return hashlib.sha256(
+            canonical
+        ).hexdigest()
+
 
 
 FixProjectCheckStatus = Literal[

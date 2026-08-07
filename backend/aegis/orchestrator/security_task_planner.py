@@ -693,6 +693,7 @@ class SecurityTaskPlanner:
                     reasons=validation_reasons,
                     produces=[
                         "dynamic_validation_evidence",
+                        "remediation_lifecycle_outcome",
                     ],
                 )
             )

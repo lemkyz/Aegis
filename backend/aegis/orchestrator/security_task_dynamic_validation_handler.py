@@ -19,6 +19,7 @@ from aegis.schemas.security_task_plan import (
     SecurityTaskNode,
 )
 from aegis.schemas.fixes import (
+    RemediationLifecycleOutcome,
     StaticFixVerificationArtifact,
 )
 from aegis.schemas.validation import (
@@ -77,6 +78,7 @@ class DynamicValidationTaskHandler:
         }),
         produced_artifacts=frozenset({
             "dynamic_validation_evidence",
+            "remediation_lifecycle_outcome",
         }),
         supports_retry=False,
         max_attempts=1,
@@ -320,6 +322,31 @@ class DynamicValidationTaskHandler:
                     outputs_redacted=True,
                 )
             )
+            outcome = None
+            if transaction_state in {
+                "committed",
+                "rolled_back",
+                "rollback_blocked",
+            }:
+                outcome = RemediationLifecycleOutcome(
+                    manifest_id=artifact.manifest_id,
+                    manifest_sha256=(
+                        artifact.manifest_sha256
+                    ),
+                    static_verification_sha256=(
+                        artifact.static_verification_sha256
+                    ),
+                    dynamic_validation_sha256=(
+                        artifact.artifact_sha256()
+                    ),
+                    unified_verdict=(
+                        artifact.fix_verification.verdict
+                    ),
+                    transaction_state=transaction_state,
+                    residual_risk=(
+                        artifact.fix_verification.residual_risk
+                    ),
+                )
             comparison = (
                 safe_replay.comparison
             )
@@ -330,6 +357,18 @@ class DynamicValidationTaskHandler:
                         artifact.model_dump(
                             mode="json"
                         )
+                    ),
+
+                    **(
+                        {
+                            "remediation_lifecycle_outcome": (
+                                outcome.model_dump(
+                                    mode="json"
+                                )
+                            ),
+                        }
+                        if outcome is not None
+                        else {}
                     ),
                 },
                 metadata={
@@ -381,6 +420,15 @@ class DynamicValidationTaskHandler:
                         static_verification_sha256
                     ),
                     "outputs_redacted": True,
+
+                    "dynamic_validation_sha256": (
+                        artifact.artifact_sha256()
+                    ),
+                    "outcome_sha256": (
+                        outcome.outcome_sha256()
+                        if outcome is not None
+                        else None
+                    ),
                 },
                 reasons=(
                     (

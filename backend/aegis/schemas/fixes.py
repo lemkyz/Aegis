@@ -17,6 +17,7 @@ from aegis.schemas.change_policy import (
 )
 from aegis.schemas.validation import (
     FixProjectCheck,
+    FixVerificationVerdict,
     ResidualRiskAssessment,
 )
 
@@ -379,6 +380,49 @@ class RemediationLifecycleManifest(BaseModel):
         return self
 
     def manifest_sha256(self) -> str:
+        canonical = json.dumps(
+            self.model_dump(mode="json"),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+
+        return hashlib.sha256(
+            canonical
+        ).hexdigest()
+
+
+
+RemediationLifecycleOutcomeState = Literal[
+    "committed",
+    "rolled_back",
+    "rollback_blocked",
+]
+
+
+class RemediationLifecycleOutcome(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+        frozen=True,
+    )
+
+    schema_version: Literal["1.0"] = "1.0"
+    manifest_id: SafeEvidenceIdentifier
+    manifest_sha256: Sha256Digest = Field(
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    static_verification_sha256: Sha256Digest = Field(
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    dynamic_validation_sha256: Sha256Digest = Field(
+        pattern=r"^[a-f0-9]{64}$",
+    )
+    unified_verdict: FixVerificationVerdict
+    transaction_state: RemediationLifecycleOutcomeState
+    residual_risk: ResidualRiskAssessment
+
+    def outcome_sha256(self) -> str:
         canonical = json.dumps(
             self.model_dump(mode="json"),
             ensure_ascii=False,
