@@ -53,6 +53,8 @@ from aegis.security.validation_replay import (
 from aegis.security.secure_fix import (
     SecureFixTransactionStore,
 )
+from aegis.security.sqlite_remediation_outcomes import SQLiteRemediationOutcomeStore
+
 
 
 EXPLOIT_MARKER = (
@@ -1561,3 +1563,213 @@ def test_dynamic_validation_emits_hash_bound_lifecycle_outcome(
     assert result.metadata[
         "outcome_sha256"
     ] == outcome.outcome_sha256()
+
+class RecordingOutcomeStore:
+    def __init__(self) -> None:
+        self.saved: list[
+            RemediationLifecycleOutcome
+        ] = []
+
+    def save_outcome(
+        self,
+        outcome: RemediationLifecycleOutcome,
+    ) -> RemediationLifecycleOutcome:
+        self.saved.append(outcome)
+        return outcome
+
+
+class FailingOutcomeStore:
+    def save_outcome(
+        self,
+        outcome: RemediationLifecycleOutcome,
+    ) -> RemediationLifecycleOutcome:
+        raise RuntimeError(
+            "outcome ledger unavailable"
+        )
+
+
+@pytest.mark.parametrize(
+    (
+        "after_execution",
+        "expected_state",
+    ),
+    [
+        (
+            execution(
+                stdout="AEGIS_SAFE_BEHAVIOR\n",
+            ),
+            "committed",
+        ),
+        (
+            execution(
+                stdout="",
+                status="runtime_unavailable",
+                exit_code=None,
+            ),
+            "rolled_back",
+        ),
+    ],
+)
+def test_dynamic_validation_persists_terminal_outcome_across_restart(
+    tmp_path: Path,
+    after_execution: ValidationExecutionResult,
+    expected_state: str,
+) -> None:
+    request = replay_request(
+        tmp_path
+    )
+    transactions = SecureFixTransactionStore(
+        id_factory=lambda: (
+            "fix:persisted-outcome"
+        ),
+    )
+    payload, _ = pending_transaction_inputs(
+        tmp_path,
+        transactions,
+    )
+    database_path = (
+        tmp_path / "remediation.sqlite3"
+    )
+    outcome_store = (
+        SQLiteRemediationOutcomeStore(
+            database_path
+        )
+    )
+
+    def response_factory(
+        value: ValidationReplayRequest,
+    ) -> ValidationReplayResponse:
+        return replay_response(
+            value,
+            after_execution=after_execution,
+        )
+
+    result = run(
+        DynamicValidationTaskHandler(
+            replay_orchestrator=(
+                RecordingReplayOrchestrator(
+                    response_factory=(
+                        response_factory
+                    ),
+                )
+            ),
+            transactions=transactions,
+            outcome_store=outcome_store,
+        ).execute(
+            task=task(),
+            context=context(
+                tmp_path,
+                request,
+            ),
+            inputs=payload,
+        )
+    )
+
+    outcome = (
+        RemediationLifecycleOutcome
+        .model_validate(
+            result.output[
+                "remediation_lifecycle_outcome"
+            ]
+        )
+    )
+
+    assert outcome.transaction_state == (
+        expected_state
+    )
+
+    restarted = SQLiteRemediationOutcomeStore(
+        database_path
+    )
+    loaded = restarted.get_outcome(
+        outcome.outcome_sha256()
+    )
+
+    assert loaded == outcome
+    assert loaded is not None
+    assert loaded.outcome_sha256() == (
+        outcome.outcome_sha256()
+    )
+
+
+def test_dynamic_validation_does_not_persist_pending_outcome(
+    tmp_path: Path,
+) -> None:
+    request = replay_request(
+        tmp_path
+    )
+    outcome_store = RecordingOutcomeStore()
+
+    result = run(
+        DynamicValidationTaskHandler(
+            replay_orchestrator=(
+                RecordingReplayOrchestrator()
+            ),
+            outcome_store=outcome_store,
+        ).execute(
+            task=task(),
+            context=context(
+                tmp_path,
+                request,
+            ),
+            inputs=inputs(),
+        )
+    )
+
+    artifact = (
+        DynamicValidationTaskArtifact
+        .model_validate(
+            result.output[
+                "dynamic_validation_evidence"
+            ]
+        )
+    )
+
+    assert artifact.transaction_state == (
+        "pending"
+    )
+    assert (
+        "remediation_lifecycle_outcome"
+        not in result.output
+    )
+    assert outcome_store.saved == []
+
+
+def test_dynamic_validation_fails_closed_when_outcome_persistence_fails(
+    tmp_path: Path,
+) -> None:
+    request = replay_request(
+        tmp_path
+    )
+    transactions = SecureFixTransactionStore(
+        id_factory=lambda: (
+            "fix:persistence-failure"
+        ),
+    )
+    payload, _ = pending_transaction_inputs(
+        tmp_path,
+        transactions,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="outcome ledger unavailable",
+    ):
+        run(
+            DynamicValidationTaskHandler(
+                replay_orchestrator=(
+                    RecordingReplayOrchestrator()
+                ),
+                transactions=transactions,
+                outcome_store=(
+                    FailingOutcomeStore()
+                ),
+            ).execute(
+                task=task(),
+                context=context(
+                    tmp_path,
+                    request,
+                ),
+                inputs=payload,
+            )
+        )

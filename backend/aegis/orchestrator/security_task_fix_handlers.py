@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import difflib
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping, Protocol
 
 from pydantic import ValidationError
 
@@ -48,6 +48,15 @@ from aegis.security.secure_fix import (
 )
 
 
+
+
+class RemediationManifestRecorder(Protocol):
+    def save_manifest(
+        self,
+        manifest: RemediationLifecycleManifest,
+    ) -> RemediationLifecycleManifest:
+        ...
+
 class SecureFixTaskHandler:
     handler = "aegis-secure-fix-task-handler-v1"
 
@@ -74,6 +83,12 @@ class SecureFixTaskHandler:
         redactor: SecretRedactor
         | None = None,
         max_file_bytes: int = 2_000_000,
+            manifest_store: (
+            RemediationManifestRecorder | None
+        ) = None,
+        manifest_store_provider: (
+            Callable[[], RemediationManifestRecorder] | None
+        ) = None,
     ) -> None:
         if max_file_bytes < 1:
             raise ValueError(
@@ -81,6 +96,12 @@ class SecureFixTaskHandler:
             )
 
         self._transactions = transactions
+        self._manifest_store = manifest_store
+        self._manifest_store_provider = (
+            manifest_store_provider
+            if manifest_store is None
+            else None
+        )
         self._policy_engine = (
             policy_engine
             if policy_engine is not None
@@ -318,6 +339,26 @@ class SecureFixTaskHandler:
             applied_patch=artifact,
         )
 
+        try:
+            self._persist_manifest(manifest)
+        except Exception as exc:
+            try:
+                self._transactions.rollback(
+                    transaction.transaction_id,
+                    expected_target=target,
+                    expected_after_sha256=(
+                        transaction.after_sha256
+                    ),
+                )
+            except SecureFixTransactionError as rollback_exc:
+                raise SecurityTaskInputError(
+                    "Remediation manifest persistence failed "
+                    "and automatic rollback was blocked: "
+                    f"{rollback_exc}"
+                ) from exc
+
+            raise
+
         return SecurityTaskHandlerResult(
             output={
                 "applied_patch": (
@@ -364,6 +405,41 @@ class SecureFixTaskHandler:
                 ),
             ),
         )
+
+    def _manifest_recorder(
+        self,
+    ) -> RemediationManifestRecorder | None:
+        if self._manifest_store is not None:
+            return self._manifest_store
+
+        if self._manifest_store_provider is None:
+            return None
+
+        recorder = (
+            self._manifest_store_provider()
+        )
+        self._manifest_store = recorder
+        return recorder
+
+    def _persist_manifest(
+        self,
+        manifest: RemediationLifecycleManifest,
+    ) -> None:
+        recorder = self._manifest_recorder()
+
+        if recorder is None:
+            return
+
+        saved = recorder.save_manifest(
+            manifest
+        )
+
+        if saved != manifest:
+            raise RuntimeError(
+                "Remediation manifest persistence "
+                "did not preserve the exact immutable "
+                "manifest."
+            )
 
     @staticmethod
     def _fix_plan(

@@ -627,3 +627,137 @@ def run(command: str) -> None:
     ).producer_task_id == (
         "model_consensus"
     )
+
+def test_remediation_outcome_store_is_injected() -> None:
+    outcome_store = SimpleNamespace(
+        save_outcome=lambda outcome: outcome,
+    )
+    registry = (
+        create_deep_analysis_security_task_registry(
+            project_identity_resolver=(
+                FakeProjectIdentityResolver()
+            ),
+            scanner_orchestrator=(
+                FakeScannerOrchestrator()
+            ),
+            primary_client=(
+                FakePrimaryClient()
+            ),
+            verifier_client=(
+                FakeVerifierClient()
+            ),
+            remediation_outcome_store=outcome_store,
+        )
+    )
+
+    handler = registry.resolve(
+        "dynamic_validation"
+    )
+
+    assert handler._outcome_store is outcome_store
+    assert handler._outcome_store_provider is None
+
+
+def test_default_remediation_outcome_store_is_lazy() -> None:
+    from aegis.dependencies import (
+        get_remediation_outcome_store,
+    )
+
+    registry = (
+        create_deep_analysis_security_task_registry(
+            project_identity_resolver=(
+                FakeProjectIdentityResolver()
+            ),
+            scanner_orchestrator=(
+                FakeScannerOrchestrator()
+            ),
+            primary_client=(
+                FakePrimaryClient()
+            ),
+            verifier_client=(
+                FakeVerifierClient()
+            ),
+        )
+    )
+
+    handler = registry.resolve(
+        "dynamic_validation"
+    )
+
+    assert handler._outcome_store is None
+    assert (
+        handler._outcome_store_provider
+        is get_remediation_outcome_store
+    )
+
+def test_secure_fix_receives_explicit_remediation_manifest_store() -> None:
+    lifecycle_store = SimpleNamespace(
+        save_manifest=lambda manifest: manifest,
+        save_outcome=lambda outcome: outcome,
+    )
+
+    registry = (
+        create_deep_analysis_security_task_registry(
+            project_identity_resolver=(
+                FakeProjectIdentityResolver()
+            ),
+            scanner_orchestrator=(
+                FakeScannerOrchestrator()
+            ),
+            primary_client=(
+                FakePrimaryClient()
+            ),
+            verifier_client=(
+                FakeVerifierClient()
+            ),
+            remediation_outcome_store=(
+                lifecycle_store
+            ),
+        )
+    )
+
+    handler = registry.resolve(
+        "secure_fix"
+    )
+
+    assert (
+        handler._manifest_store
+        is lifecycle_store
+    )
+    assert (
+        handler._manifest_store_provider
+        is None
+    )
+
+
+def test_secure_fix_default_manifest_store_is_lazy() -> None:
+    from aegis.dependencies import (
+        get_remediation_outcome_store,
+    )
+
+    registry = (
+        create_deep_analysis_security_task_registry(
+            project_identity_resolver=(
+                FakeProjectIdentityResolver()
+            ),
+            scanner_orchestrator=(
+                FakeScannerOrchestrator()
+            ),
+            primary_client=(
+                FakePrimaryClient()
+            ),
+            verifier_client=(
+                FakeVerifierClient()
+            ),
+        )
+    )
+
+    handler = registry.resolve(
+        "secure_fix"
+    )
+
+    assert handler._manifest_store is None
+    assert (
+        handler._manifest_store_provider
+        is get_remediation_outcome_store
+    )

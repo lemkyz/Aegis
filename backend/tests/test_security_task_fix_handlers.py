@@ -1507,3 +1507,128 @@ def test_fix_verification_binds_remediation_manifest(
     assert store.contains(
         applied.transaction_id
     )
+
+def test_secure_fix_persists_pending_manifest_across_restart(
+    tmp_path: Path,
+) -> None:
+    from aegis.security.sqlite_remediation_outcomes import (
+        SQLiteRemediationOutcomeStore,
+    )
+
+    target = setup_repository(tmp_path)
+    approved = proposal()
+    request = fix_request(approved)
+    plan = _lifecycle_plan(approved)
+    transactions = transaction_store()
+    database_path = (
+        tmp_path / "remediation.sqlite3"
+    )
+    lifecycle_store = (
+        SQLiteRemediationOutcomeStore(
+            database_path
+        )
+    )
+
+    result = run(
+        SecureFixTaskHandler(
+            transactions=transactions,
+            manifest_store=lifecycle_store,
+        ).execute(
+            task=secure_task(),
+            context=_context_with_lifecycle_plan(
+                tmp_path,
+                request,
+                plan,
+            ),
+            inputs=repository_inputs(
+                tmp_path
+            ),
+        )
+    )
+
+    applied = AppliedPatchArtifact.model_validate(
+        result.output["applied_patch"]
+    )
+    manifest = (
+        RemediationLifecycleManifest
+        .model_validate(
+            result.output[
+                "remediation_manifest"
+            ]
+        )
+    )
+
+    restarted = (
+        SQLiteRemediationOutcomeStore(
+            database_path
+        )
+    )
+    loaded = restarted.get_manifest(
+        manifest.manifest_id
+    )
+
+    assert loaded == manifest
+    assert loaded is not None
+    assert loaded.manifest_sha256() == (
+        manifest.manifest_sha256()
+    )
+    assert target.read_text(
+        encoding="utf-8"
+    ) == ORIGINAL.replace(
+        VULNERABLE,
+        REPLACEMENT,
+    )
+    assert transactions.contains(
+        applied.transaction_id
+    )
+
+
+class FailingManifestStore:
+    def save_manifest(
+        self,
+        manifest: RemediationLifecycleManifest,
+    ) -> RemediationLifecycleManifest:
+        del manifest
+        raise RuntimeError(
+            "manifest ledger unavailable"
+        )
+
+
+def test_secure_fix_rolls_back_when_manifest_persistence_fails(
+    tmp_path: Path,
+) -> None:
+    target = setup_repository(tmp_path)
+    approved = proposal()
+    request = fix_request(approved)
+    plan = _lifecycle_plan(approved)
+    transactions = transaction_store()
+
+    with pytest.raises(
+        RuntimeError,
+        match="manifest ledger unavailable",
+    ):
+        run(
+            SecureFixTaskHandler(
+                transactions=transactions,
+                manifest_store=(
+                    FailingManifestStore()
+                ),
+            ).execute(
+                task=secure_task(),
+                context=_context_with_lifecycle_plan(
+                    tmp_path,
+                    request,
+                    plan,
+                ),
+                inputs=repository_inputs(
+                    tmp_path
+                ),
+            )
+        )
+
+    assert target.read_text(
+        encoding="utf-8"
+    ) == ORIGINAL
+    assert not transactions.contains(
+        "fix:deterministic-test"
+    )

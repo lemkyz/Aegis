@@ -20,6 +20,7 @@ from aegis.orchestrator.security_task_handlers import (
 from aegis.orchestrator.security_task_dynamic_validation_handler import (
     DynamicValidationTaskHandler,
     ValidationReplayExecutor,
+    RemediationOutcomeRecorder,
 )
 from aegis.orchestrator.security_task_fix_handlers import (
     FixVerificationTaskHandler,
@@ -80,6 +81,9 @@ from aegis.security.secure_fix import (
 )
 from aegis.orchestrator.security_task_handler import (
     SecurityTaskHandlerContractError,
+)
+from aegis.dependencies import (
+    get_remediation_outcome_store,
 )
 
 
@@ -157,6 +161,9 @@ def create_deep_analysis_security_task_registry(
     route_policy: (
         ModelRoutePolicy
         | None
+    ) = None,
+    remediation_outcome_store: (
+        RemediationOutcomeRecorder | None
     ) = None,
 ) -> SecurityTaskHandlerRegistry:
     secret_engine = None
@@ -274,6 +281,15 @@ def create_deep_analysis_security_task_registry(
             policy_engine=(
                 change_policy_engine
             ),
+                    manifest_store=(
+                remediation_outcome_store
+            ),
+            manifest_store_provider=(
+                None
+                if remediation_outcome_store
+                is not None
+                else get_remediation_outcome_store
+            ),
         )
     )
 
@@ -293,6 +309,16 @@ def create_deep_analysis_security_task_registry(
             ),
             transactions=(
                 resolved_fix_transactions
+            ),
+
+            outcome_store=(
+                remediation_outcome_store
+            ),
+            outcome_store_provider=(
+                None
+                if remediation_outcome_store
+                is not None
+                else get_remediation_outcome_store
             ),
         )
     )

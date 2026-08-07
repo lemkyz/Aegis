@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections.abc import Callable
 
 import hashlib
 import json
@@ -66,6 +67,14 @@ class ValidationReplayExecutor(Protocol):
         ...
 
 
+class RemediationOutcomeRecorder(Protocol):
+    def save_outcome(
+        self,
+        outcome: RemediationLifecycleOutcome,
+    ) -> RemediationLifecycleOutcome:
+        ...
+
+
 class DynamicValidationTaskHandler:
     handler = (
         "aegis-dynamic-validation-task-handler-v1"
@@ -108,6 +117,12 @@ class DynamicValidationTaskHandler:
             SecureFixTransactionStore
             | None
         ) = None,
+        outcome_store: (
+            RemediationOutcomeRecorder | None
+        ) = None,
+            outcome_store_provider: (
+            Callable[[], RemediationOutcomeRecorder] | None
+        ) = None,
     ) -> None:
         self._planner = (
             planner
@@ -140,6 +155,10 @@ class DynamicValidationTaskHandler:
             else UnifiedFixVerificationEvaluator()
         )
         self._transactions = transactions
+        self._outcome_store = outcome_store
+        self._outcome_store_provider = (
+            outcome_store_provider
+        )
 
     async def execute(
         self,
@@ -346,6 +365,23 @@ class DynamicValidationTaskHandler:
                     residual_risk=(
                         artifact.fix_verification.residual_risk
                     ),
+                )
+            outcome_store = self._outcome_store
+            if (
+                outcome_store is None
+                and self._outcome_store_provider
+                is not None
+            ):
+                outcome_store = (
+                    self._outcome_store_provider()
+                )
+
+            if (
+                outcome is not None
+                and outcome_store is not None
+            ):
+                outcome_store.save_outcome(
+                    outcome
                 )
             comparison = (
                 safe_replay.comparison

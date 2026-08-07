@@ -23,6 +23,9 @@ from aegis.security.security_memory import (
 from aegis.security.sqlite_memory import (
     SQLiteProjectMemoryStore,
 )
+from aegis.security.sqlite_remediation_outcomes import (
+    SQLiteRemediationOutcomeStore,
+)
 
 
 @lru_cache
@@ -42,6 +45,18 @@ def get_security_memory_service(
         store=SQLiteProjectMemoryStore(
             settings.security_memory_database_path
         )
+    )
+
+
+@lru_cache
+def get_remediation_outcome_store(
+) -> SQLiteRemediationOutcomeStore:
+    """Lazily initialize the immutable remediation lifecycle ledger."""
+
+    settings = get_settings()
+
+    return SQLiteRemediationOutcomeStore(
+        settings.security_memory_database_path
     )
 
 
