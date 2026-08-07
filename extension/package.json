@@ -3,7 +3,7 @@
   "displayName": "Aegis Security",
   "description": "Run evidence-backed security analysis, fixes, and verification without leaving VS Code.",
   "version": "0.2.0",
-  "publisher": "aegis",
+  "publisher": "aegis-security",
   "preview": true,
   "pricing": "Free",
   "markdown": "github",
@@ -241,5 +241,9 @@
     "code-analysis",
     "devsecops",
     "vulnerability"
-  ]
+  ],
+  "galleryBanner": {
+    "color": "#F7F3EA",
+    "theme": "light"
+  }
 }
