@@ -1265,3 +1265,189 @@ def test_rolled_back_lifecycle_is_remembered_but_not_verified_fixed(
         == "Aegis Remediation Lifecycle"
         for item in remembered.evidence
     )
+
+from aegis.schemas.attack_surface import (
+    AttackSurfaceFile as Step49AttackSurfaceFile,
+)
+from aegis.security.attack_graph import (
+    AttackGraphBuilder as Step49AttackGraphBuilder,
+)
+from aegis.security.attack_surface import (
+    AttackSurfaceMapper as Step49AttackSurfaceMapper,
+)
+from aegis.security.threat_model import (
+    ThreatModeler as Step49ThreatModeler,
+)
+
+
+def _step49_attack_provenance() -> dict[str, object]:
+    files = [
+        Step49AttackSurfaceFile(
+            filename="app.py",
+            language="python",
+            code="""
+import os
+
+
+def execute(request):
+    command = request.args.get("command")
+    return os.system(command)
+""".strip(),
+        )
+    ]
+    surface = (
+        Step49AttackSurfaceMapper()
+        .scan(files)
+    )
+    threat_model = (
+        Step49ThreatModeler().scan(
+            files
+        )
+    )
+    graph = (
+        Step49AttackGraphBuilder()
+        .build(
+            attack_surface=surface,
+            threat_model=threat_model,
+        )
+    )
+    return {
+        "attack_surface_graph": (
+            surface.model_dump(
+                mode="json"
+            )
+        ),
+        "threat_model": (
+            threat_model.model_dump(
+                mode="json"
+            )
+        ),
+        "attack_graph": (
+            graph.model_dump(
+                mode="json"
+            )
+        ),
+    }
+
+
+def test_step49_4_memory_capability_accepts_attack_graph() -> None:
+    assert (
+        "attack_graph"
+        in SecurityMemoryTaskHandler
+        .capability.optional_artifacts
+    )
+
+
+def test_step49_4_memory_requires_attack_graph_source_pair(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    provenance = (
+        _step49_attack_provenance()
+    )
+
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="attack graph.*source|provenance",
+    ):
+        execute_memory(
+            root=root,
+            service=memory_service(
+                tmp_path
+            ),
+            request=memory_input(
+                [claim()],
+                sources=[
+                    "attack_graph",
+                ],
+            ),
+            extra_inputs={
+                "attack_graph": (
+                    provenance[
+                        "attack_graph"
+                    ]
+                ),
+            },
+        )
+
+
+def test_step49_4_memory_validates_and_persists_attack_graph_provenance(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    service = memory_service(tmp_path)
+    provenance = (
+        _step49_attack_provenance()
+    )
+    sources = [
+        "attack_surface_graph",
+        "threat_model",
+        "attack_graph",
+    ]
+    request = memory_input(
+        [claim()],
+        sources=sources,
+    )
+
+    first = execute_memory(
+        root=root,
+        service=service,
+        request=request,
+        extra_inputs=provenance,
+    )
+    second = execute_memory(
+        root=root,
+        service=service,
+        request=request,
+        extra_inputs=provenance,
+    )
+
+    assert first.source_artifacts == (
+        sources
+    )
+    assert (
+        first.memory.snapshot.snapshot_id
+        == second.memory.snapshot.snapshot_id
+    )
+    assert (
+        second.memory.persisted_new_snapshot
+        is False
+    )
+
+
+def test_step49_4_memory_rejects_tampered_attack_graph(
+    tmp_path: Path,
+) -> None:
+    root = repository(tmp_path)
+    provenance = (
+        _step49_attack_provenance()
+    )
+    tampered = dict(
+        provenance["attack_graph"]
+    )
+    tampered["builder"] = (
+        "tampered-attack-graph-builder"
+    )
+    provenance["attack_graph"] = (
+        tampered
+    )
+
+    with pytest.raises(
+        SecurityTaskInputError,
+        match="attack graph.*provenance|does not match",
+    ):
+        execute_memory(
+            root=root,
+            service=memory_service(
+                tmp_path
+            ),
+            request=memory_input(
+                [claim()],
+                sources=[
+                    "attack_surface_graph",
+                    "threat_model",
+                    "attack_graph",
+                ],
+            ),
+            extra_inputs=provenance,
+        )

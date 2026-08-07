@@ -307,3 +307,83 @@ def test_dynamic_validation_declares_lifecycle_outcome_artifact() -> None:
         "dynamic_validation_evidence",
         "remediation_lifecycle_outcome",
     ]
+
+def test_step49_4_deep_analysis_routes_through_attack_graph() -> None:
+    result = SecurityTaskPlanner().plan(
+        SecurityTaskPlanRequest(
+            operation="deep_analysis",
+            has_scanner_evidence=True,
+            include_threat_model=True,
+            include_security_memory=True,
+            include_policy_evaluation=False,
+        )
+    )
+
+    attack_graph = task_by_id(
+        result,
+        "attack_graph",
+    )
+    assert attack_graph.kind == "attack_graph"
+    assert attack_graph.produces == [
+        "attack_graph",
+    ]
+    assert {
+        dependency.task_id
+        for dependency
+        in attack_graph.dependencies
+    } == {
+        "attack_surface",
+        "threat_model",
+    }
+
+    memory = task_by_id(
+        result,
+        "security_memory",
+    )
+    assert {
+        dependency.task_id
+        for dependency in memory.dependencies
+    } == {"attack_graph"}
+
+
+def test_step49_4_repository_review_routes_policy_through_attack_graph() -> None:
+    result = SecurityTaskPlanner().plan(
+        SecurityTaskPlanRequest(
+            operation="repository_review",
+            include_security_memory=False,
+            include_policy_evaluation=True,
+        )
+    )
+
+    attack_graph = task_by_id(
+        result,
+        "attack_graph",
+    )
+    policy = task_by_id(
+        result,
+        "policy_evaluation",
+    )
+
+    assert {
+        dependency.task_id
+        for dependency
+        in attack_graph.dependencies
+    } == {
+        "attack_surface",
+        "threat_model",
+    }
+    assert {
+        dependency.task_id
+        for dependency in policy.dependencies
+    } == {"attack_graph"}
+
+    positions = {
+        task_id: index
+        for index, task_id
+        in enumerate(result.execution_order)
+    }
+    assert (
+        positions["threat_model"]
+        < positions["attack_graph"]
+        < positions["policy_evaluation"]
+    )

@@ -203,6 +203,7 @@ def test_deep_analysis_registry_contains_full_pipeline() -> None:
     assert registry.frozen is True
 
     assert registry.registered_kinds() == (
+        "attack_graph",
         "attack_surface",
         "dependency_scan",
         "deterministic_scan",
@@ -760,4 +761,43 @@ def test_secure_fix_default_manifest_store_is_lazy() -> None:
     assert (
         handler._manifest_store_provider
         is get_remediation_outcome_store
+    )
+
+def test_step49_4_registry_contains_attack_graph_handler() -> None:
+    registry = (
+        create_deep_analysis_security_task_registry(
+            project_identity_resolver=(
+                FakeProjectIdentityResolver()
+            ),
+            scanner_orchestrator=(
+                FakeScannerOrchestrator()
+            ),
+            primary_client=(
+                FakePrimaryClient()
+            ),
+            verifier_client=(
+                FakeVerifierClient()
+            ),
+        )
+    )
+
+    handler = registry.resolve(
+        "attack_graph"
+    )
+
+    assert handler.capability.kind == (
+        "attack_graph"
+    )
+    assert (
+        handler.capability.required_artifacts
+        == frozenset({
+            "attack_surface_graph",
+            "threat_model",
+        })
+    )
+    assert (
+        handler.capability.produced_artifacts
+        == frozenset({
+            "attack_graph",
+        })
     )

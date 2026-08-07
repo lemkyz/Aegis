@@ -316,8 +316,55 @@ class SecurityTaskPlanner:
                     ],
                 )
             )
+            tasks.append(
+                SecurityTaskNode(
+                    task_id="attack_surface",
+                    kind="attack_surface",
+                    state="waiting",
+                    dependencies=[
+                        self._dependency(
+                            "repository_context"
+                        )
+                    ],
+                    reasons=[
+                        (
+                            "Attack graph requires a "
+                            "deterministic repository "
+                            "attack-surface artifact."
+                        )
+                    ],
+                    produces=[
+                        "attack_surface_graph",
+                    ],
+                )
+            )
+            tasks.append(
+                SecurityTaskNode(
+                    task_id="attack_graph",
+                    kind="attack_graph",
+                    state=evidence_state,
+                    dependencies=[
+                        self._dependency(
+                            "attack_surface"
+                        ),
+                        self._dependency(
+                            "threat_model"
+                        ),
+                    ],
+                    reasons=[
+                        (
+                            "Attack graph requires the "
+                            "exact deterministic attack "
+                            "surface and threat model."
+                        )
+                    ],
+                    produces=[
+                        "attack_graph",
+                    ],
+                )
+            )
             post_consensus_dependency = (
-                "threat_model"
+                "attack_graph"
             )
 
         if request.include_security_memory:
@@ -428,6 +475,29 @@ class SecurityTaskPlanner:
                     "threat_model",
                 ],
             ),
+            SecurityTaskNode(
+                task_id="attack_graph",
+                kind="attack_graph",
+                state="waiting",
+                dependencies=[
+                    self._dependency(
+                        "attack_surface"
+                    ),
+                    self._dependency(
+                        "threat_model"
+                    ),
+                ],
+                reasons=[
+                    (
+                        "Attack graph binds "
+                        "deterministic source-to-sink "
+                        "proof to threat semantics."
+                    )
+                ],
+                produces=[
+                    "attack_graph",
+                ],
+            ),
         ]
 
         if request.include_security_memory:
@@ -438,7 +508,7 @@ class SecurityTaskPlanner:
                     state="waiting",
                     dependencies=[
                         self._dependency(
-                            "threat_model"
+                            "attack_graph"
                         )
                     ],
                     produces=[
@@ -451,7 +521,7 @@ class SecurityTaskPlanner:
             dependency = (
                 "security_memory"
                 if request.include_security_memory
-                else "threat_model"
+                else "attack_graph"
             )
 
             tasks.append(

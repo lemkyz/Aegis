@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from aegis.orchestrator.security_task_attack_graph_handler import (
+    AttackGraphTaskHandler,
+)
+
 import asyncio
 import json
 from pathlib import Path
@@ -329,6 +333,9 @@ def test_specialist_branches_preserve_artifact_provenance(
     registry.register(
         ThreatModelTaskHandler()
     )
+    registry.register(
+        AttackGraphTaskHandler()
+    )
     registry.freeze()
 
     plan = SecurityTaskPlanner().plan(
@@ -388,6 +395,7 @@ def test_specialist_branches_preserve_artifact_provenance(
         "dependency_scan",
         "attack_surface",
         "threat_model",
+        "attack_graph",
     ):
         step = run(
             executor.execute_task(
@@ -413,6 +421,9 @@ def test_specialist_branches_preserve_artifact_provenance(
     assert store.artifact(
         "threat_model"
     ).producer_task_id == "threat_model"
+    assert store.artifact(
+        "attack_graph"
+    ).producer_task_id == "attack_graph"
 
     threat_model = next(
         planned_task

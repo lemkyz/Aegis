@@ -18,6 +18,7 @@ SecurityTaskKind = Literal[
     "verifier_review",
     "model_consensus",
     "threat_model",
+    "attack_graph",
     "dynamic_validation",
     "secure_fix",
     "fix_verification",

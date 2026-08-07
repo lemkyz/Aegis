@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from aegis.orchestrator.security_task_attack_graph_handler import (
+    AttackGraphTaskHandler,
+)
+
 from aegis.models.factory import (
     create_primary_fallback_model_client,
     create_primary_model_client,
@@ -271,6 +275,10 @@ def create_deep_analysis_security_task_registry(
         ThreatModelTaskHandler(
             modeler=threat_modeler,
         )
+    )
+
+    registry.register(
+        AttackGraphTaskHandler()
     )
 
     registry.register(

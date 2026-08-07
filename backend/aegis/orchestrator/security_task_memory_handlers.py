@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+from aegis.schemas.attack_graph import (
+    AttackGraphArtifact,
+)
+from aegis.schemas.attack_surface import (
+    AttackSurfaceScanResponse,
+)
+from aegis.schemas.threat_model import (
+    ThreatModelScanResponse,
+)
+from aegis.security.attack_graph import (
+    AttackGraphBuilder,
+)
+
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol
 
@@ -88,6 +101,7 @@ _MEMORY_SOURCE_ARTIFACTS = frozenset({
     "secret_findings",
     "dependency_findings",
     "attack_surface_graph",
+    "attack_graph",
     "applied_patch",
     "fix_verification_result",
     "dynamic_validation_evidence",
@@ -181,6 +195,11 @@ class SecurityMemoryTaskHandler:
             )
 
         self._require_sources(
+            request=request,
+            inputs=inputs,
+        )
+
+        self._validate_attack_graph_provenance(
             request=request,
             inputs=inputs,
         )
@@ -589,6 +608,91 @@ class SecurityMemoryTaskHandler:
             )
 
         return repository
+
+    @staticmethod
+    def _validate_attack_graph_provenance(
+        *,
+        request: SecurityMemoryTaskInput,
+        inputs: Mapping[str, Any],
+    ) -> None:
+        if (
+            "attack_graph"
+            not in request.source_artifacts
+        ):
+            return
+
+        required_sources = {
+            "attack_surface_graph",
+            "threat_model",
+        }
+        named_sources = set(
+            request.source_artifacts
+        )
+
+        if not required_sources.issubset(
+            named_sources
+        ):
+            raise SecurityTaskInputError(
+                "Attack graph provenance requires "
+                "attack_surface_graph and threat_model "
+                "source artifacts."
+            )
+
+        try:
+            attack_surface = (
+                AttackSurfaceScanResponse
+                .model_validate(
+                    inputs.get(
+                        "attack_surface_graph"
+                    )
+                )
+            )
+            threat_model = (
+                ThreatModelScanResponse
+                .model_validate(
+                    inputs.get(
+                        "threat_model"
+                    )
+                )
+            )
+            supplied = (
+                AttackGraphArtifact
+                .model_validate(
+                    inputs.get(
+                        "attack_graph"
+                    )
+                )
+            )
+        except ValidationError as exc:
+            raise SecurityTaskInputError(
+                "Attack graph provenance contains "
+                "an invalid source artifact."
+            ) from exc
+
+        try:
+            expected = (
+                AttackGraphBuilder().build(
+                    attack_surface=attack_surface,
+                    threat_model=threat_model,
+                )
+            )
+        except ValueError as exc:
+            raise SecurityTaskInputError(
+                "Attack graph provenance cannot be "
+                "rebuilt from the named sources."
+            ) from exc
+
+        if (
+            supplied != expected
+            or supplied.artifact_sha256()
+            != expected.artifact_sha256()
+        ):
+            raise SecurityTaskInputError(
+                "Attack graph provenance does not "
+                "match the exact attack surface and "
+                "threat model."
+            )
+
 
     @staticmethod
     def _apply_dynamic_fix(

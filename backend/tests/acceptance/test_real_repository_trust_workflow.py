@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from aegis.orchestrator.security_task_attack_graph_handler import (
+    AttackGraphTaskHandler,
+)
+
 import asyncio
 import hashlib
 from pathlib import Path
@@ -32,6 +36,9 @@ from aegis.orchestrator.security_task_model_handlers import (
 )
 from aegis.orchestrator.security_task_production import (
     SecurityTaskProductionRunner,
+)
+from aegis.orchestrator.security_task_specialist_handlers import (
+    AttackSurfaceTaskHandler,
 )
 from aegis.orchestrator.security_task_threat_model_handler import (
     ThreatModelTaskHandler,
@@ -391,8 +398,14 @@ def registry(
         ModelConsensusTaskHandler()
     )
     value.register(
+        AttackSurfaceTaskHandler()
+    )
+    value.register(
         threat_model_handler
         or ThreatModelTaskHandler()
+    )
+    value.register(
+        AttackGraphTaskHandler()
     )
     value.register(
         SecurityMemoryTaskHandler(

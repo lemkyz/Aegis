@@ -119,7 +119,7 @@ def test_high_risk_deep_plan_includes_threat_model() -> None:
         dependency.task_id
         for dependency in memory.dependencies
     ] == [
-        "threat_model"
+        "attack_graph"
     ]
 
 

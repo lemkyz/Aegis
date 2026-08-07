@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+from aegis.orchestrator.security_task_specialist_handlers import (
+    AttackSurfaceTaskHandler,
+)
+
+from aegis.orchestrator.security_task_attack_graph_handler import (
+    AttackGraphTaskHandler,
+)
+
 import asyncio
 import hashlib
 from pathlib import Path
@@ -306,6 +314,14 @@ def registry(
     result.register(
         ThreatModelTaskHandler()
     )
+
+    result.register(
+        AttackSurfaceTaskHandler()
+    )
+
+    result.register(
+        AttackGraphTaskHandler()
+    )
     result.register(
         SecurityMemoryTaskHandler(
             memory_service=memory,
@@ -357,10 +373,12 @@ def test_production_run_completes_trust_pipeline(
         == [
             "repository_context",
             "deterministic_scan",
+            "attack_surface",
             "primary_model_review",
             "verifier_review",
             "model_consensus",
             "threat_model",
+            "attack_graph",
             "security_memory",
             "policy_evaluation",
         ]
@@ -384,7 +402,7 @@ def test_production_run_completes_trust_pipeline(
     )
     assert (
         result.aggregation.audit_event_count
-        == 33
+        == 41
     )
     assert result.integrity.verified is True
     assert (
