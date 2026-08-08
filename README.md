@@ -547,7 +547,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: lemkyz/Aegis@v0.2.0
+      - uses: lemkyz/Aegis@v0.2.1
         with:
           base: ${{ github.event.pull_request.base.sha }}
           head: ${{ github.event.pull_request.head.sha }}
