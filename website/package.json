@@ -17,7 +17,7 @@
     "prebuild": "node scripts/sync-github.mjs"
   },
   "dependencies": {
-    "astro": "7.1.5"
+    "astro": "7.1.6"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",
