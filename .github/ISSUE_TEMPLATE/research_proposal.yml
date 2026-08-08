@@ -1,0 +1,31 @@
+name: Research / benchmark proposal
+description: Propose a reproducible security-evaluation or verification scenario.
+title: "[Research]: "
+labels: ["research", "triage"]
+body:
+  - type: textarea
+    id: claim
+    attributes:
+      label: Claim or question
+      description: What should the experiment establish or falsify?
+    validations:
+      required: true
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Reproducible scenario
+      description: Describe inputs, expected evidence, verification conditions, and failure modes.
+    validations:
+      required: true
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Proposed measurements
+      placeholder: Precision, false verification, evidence completeness, reproducibility, etc.
+  - type: checkboxes
+    id: authorization
+    attributes:
+      label: Authorization
+      options:
+        - label: The proposal does not require testing systems without explicit authorization.
+          required: true

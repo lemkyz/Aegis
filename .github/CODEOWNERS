@@ -1,0 +1,9 @@
+# Public-preview ownership. Expand ownership as maintainers join.
+* @lemkyz
+
+/.github/ @lemkyz
+/extension/ @lemkyz
+/backend/ @lemkyz
+/security-engine/ @lemkyz
+/website/ @lemkyz
+/SECURITY.md @lemkyz

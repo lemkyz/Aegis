@@ -97,3 +97,7 @@ Testing against third-party systems without authorization is not permitted.
 Never submit API keys, access tokens, private keys, passwords, session cookies, production configuration, or proprietary source code in an issue or report.
 
 Revoke and rotate any secret that may have been exposed.
+
+## Security contact
+
+Please do not disclose vulnerabilities in public GitHub issues. Report them privately to **security@aegistrustlayer.com** with the affected version or commit, reproduction steps, impact, and safe supporting evidence.
