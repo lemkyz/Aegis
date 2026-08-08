@@ -1,0 +1,53 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import Icon from '../components/Icon.astro';
+import RepositoryWindow from '../components/RepositoryWindow.astro';
+import { SITE } from '../config/site';
+---
+<BaseLayout title="Open source — Aegis" description="Aegis starts with an Apache-2.0 open-source core so developers can inspect the trust primitives behind claims, evidence, policy, and verification.">
+  <Nav />
+  <main id="main">
+    <section class="page-hero">
+      <div class="shell page-hero-inner">
+        <div><p class="eyebrow">Open source</p><h1>Trust infrastructure should be <span class="accent-underline">inspectable.</span></h1></div>
+        <p class="page-hero-copy">Aegis starts with an Apache-2.0 open-source core. The point is not to give away every future operating layer; it is to make the trust primitives developers rely on visible and testable.</p>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell info-grid">
+        <article class="info-card"><span>LICENSE</span><h3>Apache-2.0 core.</h3><p>The current repository exposes the product source, schemas, tests, documentation, contribution guidance, and security policy under a permissive open-source license.</p></article>
+        <article class="info-card"><span>DISTRIBUTION</span><h3>Developer trust first.</h3><p>Local workflows and evidence formats are more credible when developers can inspect the code paths that produce them.</p></article>
+        <article class="info-card"><span>COMMERCIAL BOUNDARY</span><h3>Operational leverage can be paid.</h3><p>Future hosted collaboration, organization controls, private managed infrastructure, and premium operating layers do not need to make the local trust primitives opaque.</p></article>
+      </div>
+
+      <div class="repo-page-live">
+        <RepositoryWindow />
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell prose-grid">
+        <aside><p class="eyebrow">Contribution</p><h2>Build against the same trust model.</h2></aside>
+        <div class="prose-body">
+          <p>Contributors should be able to understand where a finding comes from, what evidence is required, how authorization changes the lifecycle, and which tests guard the behavior. Aegis should remain strict about changes that blur those boundaries.</p>
+          <h3>Useful contribution areas</h3>
+          <ul>
+            <li>Security rules and deterministic analysis.</li>
+            <li>Evidence and verification models.</li>
+            <li>Tests, fixtures, and reproducible scenarios.</li>
+            <li>Developer experience, documentation, and accessibility.</li>
+            <li>Security reviews of the local execution boundary.</li>
+          </ul>
+          <div class="release-actions">
+            <a class="btn btn--primary" href={SITE.github} target="_blank" rel="noopener noreferrer"><Icon name="github" /> Open repository</a>
+            <a class="btn btn--ghost" href={`${SITE.github}/blob/main/CONTRIBUTING.md`} target="_blank" rel="noopener noreferrer">Contributing guide <Icon name="external" /></a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>

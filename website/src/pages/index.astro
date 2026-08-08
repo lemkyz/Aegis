@@ -1,0 +1,284 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Icon from '../components/Icon.astro';
+import ProofConsole from '../components/ProofConsole.astro';
+import EvidenceGraph from '../components/EvidenceGraph.astro';
+import FixProveLab from '../components/FixProveLab.astro';
+import ProductSurfaces from '../components/ProductSurfaces.astro';
+import Architecture from '../components/Architecture.astro';
+import PricingTeaser from '../components/PricingTeaser.astro';
+import RepositoryWindow from '../components/RepositoryWindow.astro';
+import ResearchTeaser from '../components/ResearchTeaser.astro';
+import ContactHome from '../components/ContactHome.astro';
+import SecurityBoundaryExplorer from '../components/SecurityBoundaryExplorer.astro';
+import LifecycleRail from '../components/LifecycleRail.astro';
+import Footer from '../components/Footer.astro';
+import { SITE } from '../config/site';
+---
+<BaseLayout
+  title="Aegis — Security claims need proof"
+  description="Aegis is trust infrastructure for software agents, starting with evidence-backed security verification for AI-generated software changes."
+>
+  <Nav />
+  <LifecycleRail />
+  <main id="main">
+    <section id="top" class="hero hero--final">
+      <div class="hero-grid" aria-hidden="true"></div>
+      <div class="shell hero-inner hero-inner--final">
+        <div class="hero-copy">
+          <div class="hero-identity">
+            <img class="hero-logo" src="/brand/aegis-mark.svg" alt="Aegis geometric trust-lattice mark" width="94" height="94" />
+            <div>
+              <p class="hero-wordmark">AEGIS</p>
+              <p class="hero-descriptor">Trust infrastructure for software agents</p>
+            </div>
+          </div>
+
+          <p class="hero-thesis"><span aria-hidden="true"></span>{SITE.slogan}</p>
+          <h1>Evidence-backed security for <span class="accent-underline">AI-generated software.</span></h1>
+          <p class="hero-lede">Verify security-sensitive code changes before they merge. Aegis keeps findings, evidence, remediation, independent verification, policy, and security memory as separate, inspectable records.</p>
+
+          <div class="hero-actions">
+            <a class="btn btn--primary" href={SITE.marketplace} target="_blank" rel="noopener noreferrer">Install Aegis <Icon name="arrow" /></a>
+            <a class="btn btn--ghost" href="/contact?interest=design-partner">Apply for a design partnership</a>
+          </div>
+          <a class="hero-source-link" href={SITE.github} target="_blank" rel="noopener noreferrer"><Icon name="github" /> Inspect the public source</a>
+
+          <div class="hero-foot hero-foot--final" aria-label="Current release facts">
+            <button class="hero-release-pill" type="button" data-release-open><b>{SITE.release}</b> public preview <span>↗</span></button><i aria-hidden="true"></i><span>VS Code</span><i aria-hidden="true"></i><span>GitHub Action</span><i aria-hidden="true"></i><span>CLI + local API</span><i aria-hidden="true"></i><span>Apache-2.0</span>
+          </div>
+        </div>
+
+        <div class="hero-product">
+          <ProofConsole />
+        </div>
+      </div>
+    </section>
+
+    <section class="trust-strip" aria-label="Aegis trust principles">
+      <div class="shell trust-grid">
+        <div><small>Claim</small><strong>Evidence attached</strong></div>
+        <div><small>Remediation</small><strong>Explicitly authorized</strong></div>
+        <div><small>Verification</small><strong>Independent</strong></div>
+        <div><small>Decision</small><strong>ALLOW · REVIEW · BLOCK</strong></div>
+        <div><small>Memory</small><strong>Persistent and auditable</strong></div>
+      </div>
+    </section>
+
+    <section class="section problem" id="product">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">The trust problem</p>
+            <h2>Finding ≠ proof.<br/>Patch ≠ verification.</h2>
+          </div>
+          <p class="section-lede">AI can create a change in seconds. Security still needs to establish what was requested, what evidence supports the claim, what was authorized, whether the change actually worked, and what can be trusted afterward.</p>
+        </div>
+
+        <div class="problem-grid">
+          <article class="problem-card muted-card">
+            <span class="card-index mono">01 / FINDING</span>
+            <h3>“This line looks vulnerable.”</h3>
+            <p>A useful signal is not yet a security conclusion. The claim still needs source context, provenance, and inspectable evidence.</p>
+            <div class="card-state"><i></i> Evidence incomplete</div>
+          </article>
+          <article class="problem-card muted-card">
+            <span class="card-index mono">02 / PATCH</span>
+            <h3>“The model generated a fix.”</h3>
+            <p>A diff does not establish that the original attack condition disappeared, normal behavior survived, or a new regression was not introduced.</p>
+            <div class="card-state"><i></i> Verification pending</div>
+          </article>
+          <article class="problem-card proof-card">
+            <span class="card-index mono">03 / AEGIS</span>
+            <h3>Keep the proof chain intact.</h3>
+            <p>Analysis, authorization, remediation, verification, policy, audit, and memory stay separate so no single model—or missing error—can certify the entire workflow.</p>
+            <div class="card-state good"><Icon name="shield" /> Evidence-bearing decision</div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section evidence-section" id="evidence">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Evidence lifecycle</p>
+            <h2>Every security claim should have a <span class="accent-underline">traceable chain.</span></h2>
+          </div>
+          <p class="section-lede">Select a stage. Aegis keeps each contribution to the trust record visible instead of flattening a security-sensitive workflow into one confidence score.</p>
+        </div>
+        <EvidenceGraph />
+      </div>
+    </section>
+
+    <section class="section section--dark" id="workflow">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Fix &amp; Prove</p>
+            <h2>A patch does not get to <span class="accent-underline accent-underline--dark">certify itself.</span></h2>
+          </div>
+          <p class="section-lede">The lifecycle stays explicit: vulnerable condition → controlled reproduction → reviewed patch → independent re-verification. Missing evidence fails closed instead of becoming a clean result.</p>
+        </div>
+        <FixProveLab />
+      </div>
+    </section>
+
+    <section class="section verified-gate" id="verified-change">
+      <div class="shell verified-gate-grid">
+        <div class="verified-gate-copy">
+          <p class="eyebrow">Commercial wedge</p>
+          <h2>Verify security-sensitive changes <span class="accent-underline">before they merge.</span></h2>
+          <p class="section-lede">Aegis is entering the market through a narrow, valuable workflow: evidence-backed verification for AI-generated software changes. The long-term trust infrastructure vision starts by proving one thing well.</p>
+          <div class="gate-actions">
+            <a class="btn btn--primary" href="/contact?interest=design-partner">Apply for a design partnership <Icon name="arrow" /></a>
+            <a class="section-link" href="/pricing">See the current commercial model</a>
+          </div>
+        </div>
+        <div class="gate-ledger" aria-label="Verified change gate lifecycle">
+          <div class="gate-ledger-head"><span class="mono">MERGE DECISION</span><strong>REVIEW</strong></div>
+          <ol>
+            <li><span>01</span><div><strong>Claim</strong><small>Security-sensitive change identified</small></div><b>OPEN</b></li>
+            <li><span>02</span><div><strong>Evidence</strong><small>Deterministic + model provenance attached</small></div><b>BOUND</b></li>
+            <li><span>03</span><div><strong>Remediation</strong><small>Reviewed patch requires authorization</small></div><b>SEPARATE</b></li>
+            <li><span>04</span><div><strong>Verification</strong><small>Independent post-change checks</small></div><b>REQUIRED</b></li>
+            <li><span>05</span><div><strong>Policy</strong><small>Decision follows evidence, not optimism</small></div><b class="gate-review">REVIEW</b></li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="section current-release" id="current-release">
+      <div class="shell release-grid">
+        <div class="release-copy">
+          <p class="eyebrow">Available now</p>
+          <h2>This is already a <span class="accent-underline">working public product.</span></h2>
+          <p>Aegis {SITE.release} is the first end-to-end public preview of the trust model applied to software security across VS Code, GitHub Action, CLI, and the local orchestration backend.</p>
+          <div class="release-actions">
+            <a class="btn btn--primary" href={SITE.marketplace} target="_blank" rel="noopener noreferrer">Install {SITE.release} <Icon name="arrow" /></a>
+            <a class="btn btn--ghost" href={`${SITE.github}#what-a-real-run-produces`} target="_blank" rel="noopener noreferrer">Inspect the observed run</a>
+          </div>
+        </div>
+        <div class="release-ledger">
+          <div class="ledger-head"><span class="mono">OBSERVED 0.2.0 FIXTURE RUN</span><b>8 complete · 0 failed</b></div>
+          <dl>
+            <div><dt>Deterministic evidence</dt><dd>Semgrep + Bandit</dd></div>
+            <div><dt>Primary review</dt><dd class="mono">openai/gpt-oss-20b</dd></div>
+            <div><dt>Independent verifier</dt><dd class="mono">mistral-medium-3.5-128b</dd></div>
+            <div><dt>Consensus</dt><dd>Confirmed · 99%</dd></div>
+            <div><dt>Policy</dt><dd>REVIEW · risk 75/100</dd></div>
+            <div><dt>Integrity</dt><dd>Source · plan · audit · manifest verified</dd></div>
+            <div><dt>Memory</dt><dd>Confirmed claim stored locally</dd></div>
+          </dl>
+          <p>The fixture contains an active high-severity SQL injection claim, so REVIEW is the correct observed result. Aegis preserves the evidence instead of presenting vulnerable code as clean.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section surfaces-section" id="surfaces">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Product surfaces</p>
+            <h2>One trust model.<br/><span class="accent-underline">Where developers already work.</span></h2>
+          </div>
+          <p class="section-lede">VS Code, pull requests, and the local CLI converge on the same evidence, policy, verification, audit, and memory model.</p>
+        </div>
+        <ProductSurfaces />
+        <div class="surface-followup"><a class="section-link" href="/developers">Developer quickstart and product surfaces <Icon name="arrow" /></a></div>
+      </div>
+    </section>
+
+    <section class="section section--dark architecture-section" id="architecture">
+      <div class="shell architecture-layout">
+        <div class="architecture-copy">
+          <p class="eyebrow">Architecture</p>
+          <h2>Trust is a system property,<br/><span class="accent-underline accent-underline--dark">not a model response.</span></h2>
+          <p class="section-lede">The current system separates plan, deterministic evidence, model-backed review, authorization, controlled validation, policy, audit, and persistent memory.</p>
+          <ul class="arch-points">
+            <li><span>01</span>Deterministic workflows can run without a model provider.</li>
+            <li><span>02</span>When model-backed review is enabled, primary and verifier routes remain explicit.</li>
+            <li><span>03</span>Controlled dynamic validation is separately authorized and constrained.</li>
+            <li><span>04</span>Partial, failed, blocked, cancelled, or timed-out evidence cannot silently become proof.</li>
+          </ul>
+        </div>
+        <Architecture />
+      </div>
+    </section>
+
+    <section class="section direction-section" id="direction">
+      <div class="shell direction-grid direction-grid--quiet">
+        <div class="direction-now">
+          <span class="direction-cap mono">AVAILABLE TODAY</span>
+          <h3>Trust for security-sensitive software changes.</h3>
+          <p>Evidence-backed findings, controlled validation, secure remediation, independent verification, explicit policy decisions, auditability, and project security memory.</p>
+          <div class="direction-tags"><span>VS Code</span><span>GitHub Action</span><span>CLI</span><span>Local API</span></div>
+        </div>
+        <div class="direction-arrow" aria-hidden="true"><i></i><span>→</span><i></i></div>
+        <div class="direction-future">
+          <span class="direction-cap mono">COMPANY DIRECTION</span>
+          <h3>From trustworthy changes to trustworthy software-agent actions.</h3>
+          <p>The same primitives—identity, permission, evidence, independent verification, policy, recoverability, and memory—can govern a broader class of software-agent behavior.</p>
+          <a class="section-link" href="/company">Read the company thesis <Icon name="arrow" /></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section security-section" id="security">
+      <div class="shell">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Security &amp; privacy</p>
+            <h2>The boundaries are part of the <span class="accent-underline">product.</span></h2>
+          </div>
+          <p class="section-lede">A security company should be precise about what stays local, when model providers are involved, what can execute, and what a result does—and does not—prove.</p>
+        </div>
+        <SecurityBoundaryExplorer />
+        <div class="security-followup"><a class="section-link" href="/security">Read Security at Aegis <Icon name="arrow" /></a></div>
+      </div>
+    </section>
+
+    <section class="section why-section" id="why-aegis">
+      <div class="shell why-grid">
+        <div class="why-lead">
+          <p class="eyebrow">Why Aegis</p>
+          <h2>Trust should survive the model that produced the answer.</h2>
+        </div>
+        <div class="why-principles">
+          <article><span>01</span><div><h3>Finding ≠ proof.</h3><p>A security claim should remain attached to the evidence that supports it.</p></div></article>
+          <article><span>02</span><div><h3>Patch ≠ verification.</h3><p>A generated change is not a verified fix until the required post-change evidence exists.</p></div></article>
+          <article><span>03</span><div><h3>Agreement ≠ evidence.</h3><p>Multiple model opinions can be useful, but deterministic checks and controlled reproduction carry a different kind of weight.</p></div></article>
+          <article><span>04</span><div><h3>Capability ≠ permission.</h3><p>The ability to read, execute, modify, or connect does not imply authorization for the current task.</p></div></article>
+          <article><span>05</span><div><h3>History ≠ memory unless provenance survives.</h3><p>Security memory should preserve claim transitions, evidence, and the scope in which a decision was valid.</p></div></article>
+        </div>
+      </div>
+    </section>
+
+    <ResearchTeaser />
+
+    <PricingTeaser />
+
+    <section class="section open-source-home open-source-home--v6" id="open-source">
+      <div class="shell">
+        <div class="section-head open-source-head-v6">
+          <div>
+            <p class="eyebrow">Open source · synchronized source</p>
+            <h2>Stay on the site.<br/><span class="accent-underline">Still inspect the real project.</span></h2>
+          </div>
+          <div class="open-source-copy-v6">
+            <p class="section-lede">This is not a screenshot. At production build time Aegis fetches the public README from GitHub, keeps a checked-in fallback, and renders the repository snapshot locally inside a large scrollable source explorer.</p>
+            <div class="open-source-actions">
+              <a class="btn btn--primary" href={SITE.github} target="_blank" rel="noopener noreferrer"><Icon name="github" /> Open the repository</a>
+              <a class="btn btn--ghost" href="/open-source">Open-source strategy</a>
+            </div>
+          </div>
+        </div>
+        <RepositoryWindow />
+      </div>
+    </section>
+
+    <ContactHome />
+  </main>
+  <Footer />
+</BaseLayout>

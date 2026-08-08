@@ -1,0 +1,66 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import { SITE } from '../config/site';
+const requestedInterest = Astro.url.searchParams.get('interest') || '';
+---
+<BaseLayout title="Contact — Aegis" description="Contact Aegis about design partnerships, team evaluations, enterprise conversations, research, or security reporting.">
+  <Nav />
+  <main id="main">
+    <section class="page-hero">
+      <div class="shell page-hero-inner">
+        <div><p class="eyebrow">Contact</p><h1>Talk about a real <span class="accent-underline">trust problem.</span></h1></div>
+        <p class="page-hero-copy">Aegis is currently working with a limited number of teams evaluating evidence-backed security verification for AI-heavy software development.</p>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell contact-layout">
+        <div class="contact-options">
+          <article class="contact-option">
+            <span>PRODUCT</span>
+            <h3>Use Aegis or join Founding Pro.</h3>
+            <p>Questions about the current release, installation, pricing, or the first professional cohort.</p>
+            <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>
+          </article>
+          <article class="contact-option">
+            <span>FOUNDER / INVESTOR</span>
+            <h3>Company and investment conversations.</h3>
+            <p>Direct founder channel for investors and company-level conversations.</p>
+            <a href={`mailto:${SITE.founderEmail}`}>{SITE.founderEmail}</a>
+          </article>
+          <article class="contact-option">
+            <span>PARTNERSHIPS</span>
+            <h3>Design partners, research, and strategic work.</h3>
+            <p>For engineering teams, universities, research groups, and collaboration proposals.</p>
+            <a href={`mailto:${SITE.partnershipsEmail}`}>{SITE.partnershipsEmail}</a>
+          </article>
+          <article class="contact-option">
+            <span>SECURITY REPORTING</span>
+            <h3>Do not disclose sensitive vulnerabilities publicly.</h3>
+            <p>Use the dedicated channel and repository security policy for product security issues.</p>
+            <a href={`mailto:${SITE.securityEmail}`}>{SITE.securityEmail}</a><a class="contact-policy-link" href={`${SITE.github}/security/policy`} target="_blank" rel="noopener noreferrer">Open the security policy</a>
+          </article>
+        </div>
+
+        <div class="contact-form-shell">
+          <p class="eyebrow">Start an enquiry</p>
+          <h2>Tell us what you are trying to verify.</h2>
+          <form class="contact-form" data-contact-form data-contact-email={SITE.contactEmail}>
+            <div class="form-field"><label for="name">Name</label><input id="name" name="name" autocomplete="name" required /></div>
+            <div class="form-field"><label for="email">Work email</label><input id="email" name="email" type="email" autocomplete="email" required /></div>
+            <div class="form-field"><label for="company">Company / project</label><input id="company" name="company" autocomplete="organization" required /></div>
+            <div class="form-field"><label for="team">Engineering team size</label><select id="team" name="team"><option value="1-5">1–5</option><option value="6-15">6–15</option><option value="16-50">16–50</option><option value="51-200">51–200</option><option value="200+">200+</option></select></div>
+            <div class="form-field form-field--full"><label for="interest">What are you interested in?</label><select id="interest" name="interest"><option value="founding-pro" selected={requestedInterest === 'founding-pro'}>Founding Pro</option><option value="design-partner" selected={requestedInterest === 'design-partner'}>Design partnership</option><option value="team" selected={requestedInterest === 'team'}>Team evaluation</option><option value="enterprise" selected={requestedInterest === 'enterprise'}>Enterprise conversation</option><option value="research" selected={requestedInterest === 'research'}>Research / academic collaboration</option><option value="investor" selected={requestedInterest === 'investor'}>Company / investor enquiry</option><option value="general" selected={!requestedInterest}>General enquiry</option></select></div>
+            <div class="form-field form-field--full"><label for="message">What security-sensitive workflow are you trying to improve?</label><textarea id="message" name="message" required placeholder="Example: AI-generated pull requests touch authorization and tenant-boundary code, and we need stronger evidence before merge."></textarea></div>
+            <p class="form-note">Privacy by design: this static website does not submit, store, or transmit the form. The button opens your own email client with the information pre-filled.</p>
+            <p class="form-status" aria-live="polite" data-contact-status></p>
+            <button class="btn btn--primary" type="submit">Open email enquiry</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>

@@ -1,0 +1,15 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+---
+<BaseLayout title="Not found — Aegis" description="The requested Aegis page was not found." noindex={true}>
+  <Nav />
+  <main id="main">
+    <section class="page-hero">
+      <div class="shell page-hero-inner"><div><p class="eyebrow">404</p><h1>No evidence for<br/><span class="display-gold">this path.</span></h1></div><p class="page-hero-copy">The requested page does not exist. Return to the public Aegis trust workflow.</p></div>
+    </section>
+    <section class="page-section"><div class="shell"><a class="btn btn--primary" href="/">Return home</a></div></section>
+  </main>
+  <Footer />
+</BaseLayout>

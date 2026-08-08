@@ -1,0 +1,120 @@
+---
+import Icon from './Icon.astro';
+import { SITE } from '../config/site';
+---
+<div class="surface-studio" data-surface-explorer>
+  <div class="surface-selector" role="tablist" aria-label="Aegis product surfaces">
+    <button type="button" class="surface-selector__item active" role="tab" aria-selected="true" tabindex="0" data-surface-choice="vscode">
+      <span class="mono">01</span><div><small>Interactive workspace</small><strong>VS Code</strong><em>Inspect claims, authorize actions, review proof.</em></div><b>↗</b>
+    </button>
+    <button type="button" class="surface-selector__item" role="tab" aria-selected="false" tabindex="-1" data-surface-choice="github">
+      <span class="mono">02</span><div><small>Pull-request gate</small><strong>GitHub Action</strong><em>Carry evidence and policy into merge decisions.</em></div><b>↗</b>
+    </button>
+    <button type="button" class="surface-selector__item" role="tab" aria-selected="false" tabindex="-1" data-surface-choice="cli">
+      <span class="mono">03</span><div><small>Local deterministic path</small><strong>CLI + API</strong><em>Run the same trust model from the terminal.</em></div><b>↗</b>
+    </button>
+  </div>
+
+  <div class="surface-canvas">
+    <section class="surface-scene active" data-surface-scene="vscode" role="tabpanel">
+      <header class="surface-scene__header">
+        <div><span class="tag">Shipping in 0.2.0</span><h3>Evidence lives next to the code that created the question.</h3><p>Choose a layer in the inspector. The visual is a representative product view built from capabilities documented in the public 0.2.0 release.</p></div>
+        <a href={SITE.marketplace} target="_blank" rel="noopener noreferrer">Open Marketplace <Icon name="external" /></a>
+      </header>
+      <div class="surface-stage-grid">
+        <div class="product-window vscode-window">
+          <div class="product-window__bar"><span class="window-dots"><i></i><i></i><i></i></span><strong>Visual Studio Code · Aegis Trusted Analysis</strong><em>local</em></div>
+          <div class="vscode-shell">
+            <aside class="vscode-activity" aria-hidden="true"><b></b><b class="on"></b><b></b><b></b><b></b></aside>
+            <nav class="vscode-tree" aria-label="Representative Aegis navigation"><small>AEGIS</small><button class="selected" type="button">Trusted Analysis</button><button type="button">Findings</button><button type="button">Evidence</button><button type="button">Fix &amp; Prove</button><button type="button">Memory</button></nav>
+            <main class="vscode-editor">
+              <div class="editor-breadcrumb"><span>fixture</span><i>›</i><span>vulnerable_sql.py</span><b>REVIEW</b></div>
+              <div class="editor-code" aria-hidden="true"><span><em>31</em> user_id = request.args[<b>"id"</b>]</span><span class="danger"><em>32</em> query = <b>f"SELECT * FROM users WHERE id = {'{'}user_id{'}'}"</b></span><span><em>33</em> result = db.execute(query)</span></div>
+              <div class="analysis-card">
+                <div class="analysis-card__head"><span>SQL injection</span><strong>HIGH</strong></div>
+                <p>Untrusted request data reaches a SQL execution sink through string interpolation.</p>
+                <div class="analysis-flow"><button type="button" class="active" data-surface-note="The claim remains attached to the exact source location and evidence provenance."><small>CLAIM</small><b>src · line 32</b></button><i>→</i><button type="button" data-surface-note="Deterministic scanners contribute evidence without becoming the final authority."><small>EVIDENCE</small><b>Semgrep + Bandit</b></button><i>→</i><button type="button" data-surface-note="The verifier is a separate role and its route remains visible in the evidence record."><small>VERIFY</small><b>independent route</b></button></div>
+              </div>
+              <div class="analysis-footer"><span><i></i> source integrity bound</span><span>risk <b>75 / 100</b></span><strong>REVIEW</strong></div>
+            </main>
+          </div>
+        </div>
+        <aside class="surface-inspector">
+          <div class="surface-inspector__head"><span class="mono">INSPECT THE TRUST RECORD</span><i></i></div>
+          <button type="button" class="active" data-surface-note="The claim remains attached to the exact source location and evidence provenance."><b>Canonical claim</b><small>Source · sink · severity</small></button>
+          <button type="button" data-surface-note="Dynamic validation is separately authorized; analysis permission is not execution permission."><b>Authorization boundary</b><small>Explicit before controlled execution</small></button>
+          <button type="button" data-surface-note="Secure fixes remain bound to the reviewed patch digest and source selection before Aegis writes anything."><b>Patch identity</b><small>Reviewed digest · atomic write</small></button>
+          <button type="button" data-surface-note="A verified outcome requires project checks, static rescan, and—when authorized—baseline replay to support the conclusion."><b>Post-fix proof</b><small>VERIFY · PARTIAL · FAILED</small></button>
+          <p data-surface-note-output>The claim remains attached to the exact source location and evidence provenance.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="surface-scene" data-surface-scene="github" role="tabpanel" hidden>
+      <header class="surface-scene__header">
+        <div><span class="tag">Shipping in 0.2.0</span><h3>Make the merge decision carry its evidence.</h3><p>The current GitHub Action evaluates changed files without executing repository code and returns ALLOW, REVIEW, or BLOCK with machine-readable artifacts.</p></div>
+        <a href={`${SITE.github}#github-action`} target="_blank" rel="noopener noreferrer">Inspect Action docs <Icon name="external" /></a>
+      </header>
+      <div class="surface-stage-grid">
+        <div class="product-window github-window">
+          <div class="product-window__bar"><span class="window-dots"><i></i><i></i><i></i></span><strong>Pull request #128 · Aegis change gate</strong><em>checks</em></div>
+          <div class="github-pr">
+            <div class="github-pr__nav"><span>Conversation</span><span>Commits</span><span>Files changed</span><b>Checks</b></div>
+            <div class="github-check"><i></i><div><strong>Aegis / security-change-gate</strong><span>Completed with policy decision · REVIEW</span></div><em>42s</em></div>
+            <div class="github-summary">
+              <div class="github-summary__hero"><small>MERGE POLICY</small><strong>REVIEW</strong><p>1 active high-severity claim requires a human security decision.</p></div>
+              <div class="github-artifacts">
+                <button type="button" class="active" data-surface-note="Machine-readable change-gate output preserves the merge-policy decision and supporting records."><span>JSON</span><strong>aegis-change-gate.json</strong></button>
+                <button type="button" data-surface-note="Repository policy evidence keeps the decision traceable outside the UI."><span>POLICY</span><strong>aegis-policy-check.json</strong></button>
+                <button type="button" data-surface-note="SARIF gives the repository a standard security-results surface without replacing Aegis evidence semantics."><span>SARIF</span><strong>aegis-results.sarif</strong></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <aside class="surface-inspector">
+          <div class="surface-inspector__head"><span class="mono">PR GATE</span><i class="review"></i></div>
+          <button type="button" class="active" data-surface-note="Changed files are evaluated without executing repository code in the current pull-request gate."><b>Changed-file scope</b><small>No repository-code execution</small></button>
+          <button type="button" data-surface-note="The gate emits JSON, policy evidence, and SARIF so evidence is available to humans and automation."><b>Artifacts</b><small>JSON · policy · SARIF</small></button>
+          <button type="button" data-surface-note="The policy outcome remains explicit: ALLOW, REVIEW, or BLOCK."><b>Decision</b><small>Fail closed when required evidence is missing</small></button>
+          <p data-surface-note-output>Changed files are evaluated without executing repository code in the current pull-request gate.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="surface-scene" data-surface-scene="cli" role="tabpanel" hidden>
+      <header class="surface-scene__header">
+        <div><span class="tag">Shipping in 0.2.0</span><h3>The same policy path, without leaving the terminal.</h3><p>The FastAPI local backend coordinates task execution, model routes, threat models, validation, fixes, policy, memory, and audit records.</p></div>
+        <a href={`${SITE.github}#local-setup`} target="_blank" rel="noopener noreferrer">Local setup <Icon name="external" /></a>
+      </header>
+      <div class="surface-stage-grid">
+        <div class="product-window terminal-window">
+          <div class="product-window__bar"><span class="window-dots"><i></i><i></i><i></i></span><strong>Terminal · ~/aegis</strong><em>127.0.0.1</em></div>
+          <pre class="terminal-output"><code><span class="prompt">$</span> aegis trusted-analysis ./fixture/vulnerable_sql.py
+
+<span class="label">plan</span>          <b>bound to source revision</b>
+<span class="label">evidence</span>      semgrep + bandit
+<span class="label">primary</span>       openai/gpt-oss-20b
+<span class="label">verifier</span>      mistral-medium-3.5-128b
+<span class="label">consensus</span>     confirmed · 99%
+<span class="label">policy</span>        <strong>REVIEW</strong> · risk 75/100
+<span class="label">memory</span>        confirmed claim stored
+
+<span class="ok">✓ source · plan · audit · artifact manifest verified</span></code></pre>
+        </div>
+        <aside class="surface-inspector">
+          <div class="surface-inspector__head"><span class="mono">LOCAL PATH</span><i></i></div>
+          <button type="button" class="active" data-surface-note="Deterministic workflows do not require a model provider."><b>Deterministic first</b><small>Model provider optional</small></button>
+          <button type="button" data-surface-note="The current local extension workflow connects to the backend on loopback by default."><b>Loopback backend</b><small>127.0.0.1:8000</small></button>
+          <button type="button" data-surface-note="The current release does not include product telemetry in the developer workflow."><b>No product telemetry</b><small>0.2.0 boundary</small></button>
+          <p data-surface-note-output>Deterministic workflows do not require a model provider.</p>
+        </aside>
+      </div>
+    </section>
+  </div>
+</div>
+
+<style>
+.surface-studio{border:1px solid var(--line-strong);border-radius:28px;overflow:hidden;background:#f0eadf;box-shadow:0 34px 100px rgba(16,18,22,.09)}.surface-selector{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line)}.surface-selector__item{appearance:none;border:0;background:#f1ebe0;color:var(--ink);min-height:152px;padding:25px 24px;display:grid;grid-template-columns:28px 1fr auto;gap:13px;text-align:left;cursor:pointer;position:relative;transition:.25s ease}.surface-selector__item::after{content:"";position:absolute;left:0;right:100%;bottom:0;height:2px;background:var(--gold);transition:right .35s cubic-bezier(.2,.7,.2,1)}.surface-selector__item:hover,.surface-selector__item:focus-visible{background:#f8f4ec}.surface-selector__item.active,.surface-selector__item[aria-selected="true"]{background:#fffdf8}.surface-selector__item.active::after,.surface-selector__item[aria-selected="true"]::after{right:0}.surface-selector__item>span{color:var(--gold-deep);font-size:8px;padding-top:5px}.surface-selector__item>div{display:grid;align-content:start;gap:5px}.surface-selector__item small{color:#68645c;font-size:9px;text-transform:uppercase;letter-spacing:.06em}.surface-selector__item strong{font-size:20px}.surface-selector__item em{margin-top:8px;max-width:250px;color:#5c5952;font-size:11px;line-height:1.45;font-style:normal}.surface-selector__item>b{color:#a47728;font-size:16px;font-weight:500;transition:transform .2s ease}.surface-selector__item:hover>b{transform:translate(2px,-2px)}.surface-canvas{background:#fffdf8}.surface-scene{padding:38px;animation:surface-reveal .32s cubic-bezier(.2,.75,.25,1)}.surface-scene__header{display:flex;justify-content:space-between;gap:40px;align-items:flex-start;margin-bottom:30px}.surface-scene__header>div{max-width:860px}.surface-scene__header h3{font-size:clamp(2.4rem,4.2vw,4.7rem);max-width:860px;margin:15px 0 12px}.surface-scene__header p{max-width:760px;color:#4f4c46;font-size:13.5px;line-height:1.7}.surface-scene__header>a{flex:0 0 auto;margin-top:4px;display:inline-flex;align-items:center;gap:7px;padding-bottom:4px;border-bottom:1px solid var(--line-strong);font-size:11px;font-weight:850}.surface-scene__header>a svg{width:12px;height:12px}.surface-stage-grid{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:15px}.product-window{border:1px solid rgba(255,255,255,.08);border-radius:17px;overflow:hidden;background:#0d1117;color:#e8e3da;box-shadow:0 25px 70px rgba(12,14,18,.18)}.product-window__bar{height:43px;padding:0 14px;display:flex;align-items:center;gap:12px;background:#10141a;border-bottom:1px solid rgba(255,255,255,.07);color:#818894;font:650 8px/1 var(--font-mono)}.product-window__bar strong{margin:auto;color:#b9bec6}.product-window__bar em{font-style:normal;color:#6e7680}.window-dots{display:flex;gap:5px}.window-dots i{width:6px;height:6px;border-radius:50%;background:#3b424c}.window-dots i:first-child{background:#8b5a51}.window-dots i:nth-child(2){background:#8a7547}.window-dots i:last-child{background:#4d765e}.vscode-shell{min-height:485px;display:grid;grid-template-columns:44px 166px 1fr}.vscode-activity{border-right:1px solid rgba(255,255,255,.06);padding:16px 0;display:grid;align-content:start;justify-content:center;gap:17px}.vscode-activity b{width:18px;height:18px;border:1px solid #4f5660;border-radius:4px}.vscode-activity b.on{border-color:#d4aa5f;box-shadow:inset 0 0 0 4px rgba(212,170,95,.1)}.vscode-tree{border-right:1px solid rgba(255,255,255,.06);padding:18px 11px;display:grid;align-content:start;gap:4px}.vscode-tree small{color:#c59c52;font:800 8px/1 var(--font-mono);letter-spacing:.12em;margin:0 7px 8px}.vscode-tree button{border:0;background:transparent;color:#858b94;border-radius:6px;text-align:left;padding:8px;font-size:9px}.vscode-tree button.selected{background:rgba(209,162,75,.08);color:#ddc38f}.vscode-editor{padding:22px 24px 20px;min-width:0}.editor-breadcrumb{display:flex;align-items:center;gap:7px;color:#79818b;font:650 8px/1 var(--font-mono)}.editor-breadcrumb b{margin-left:auto;color:#e1b65c;border:1px solid rgba(225,182,92,.28);border-radius:5px;padding:5px 7px}.editor-code{margin:29px 0 16px;padding:15px 0;border-top:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05);display:grid;gap:3px;font:600 9px/1.8 var(--font-mono);color:#9aa1aa}.editor-code span{display:block;padding:0 8px;border-left:2px solid transparent}.editor-code em{display:inline-block;width:27px;color:#555d67;font-style:normal}.editor-code b{color:#cdd1d7;font-weight:600}.editor-code span.danger{background:rgba(180,73,64,.08);border-left-color:#b94e45;color:#cfd2d7}.editor-code span.danger b{color:#e1928b}.analysis-card{padding:18px;border:1px solid rgba(255,255,255,.08);border-radius:11px;background:#11161d}.analysis-card__head{display:flex;justify-content:space-between;gap:20px}.analysis-card__head span{font-size:13px;font-weight:800}.analysis-card__head strong{color:#ec968e;font:850 8px/1 var(--font-mono)}.analysis-card>p{color:#9097a1;font-size:10.5px;line-height:1.6}.analysis-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:7px;align-items:center;margin-top:20px}.analysis-flow button{min-height:54px;border:1px solid rgba(255,255,255,.07);border-radius:8px;background:#0c1016;color:#aeb4bd;text-align:left;padding:9px;cursor:pointer}.analysis-flow button.active,.analysis-flow button:hover{border-color:rgba(209,162,75,.28);background:#141921}.analysis-flow small{display:block;color:#727a84;font:700 7px/1 var(--font-mono);margin-bottom:6px}.analysis-flow b{font-size:8.5px}.analysis-flow i{color:#665a43;font-style:normal}.analysis-footer{display:flex;align-items:center;gap:14px;margin-top:14px;color:#7f8791;font:650 8px/1 var(--font-mono)}.analysis-footer span:first-child{display:flex;align-items:center;gap:6px}.analysis-footer i{width:6px;height:6px;border-radius:50%;background:#4f9a76}.analysis-footer span:nth-child(2){margin-left:auto}.analysis-footer span b{color:#d0d4da}.analysis-footer>strong{color:#e5b75e}.surface-inspector{border:1px solid var(--line);border-radius:15px;background:#f1ebe1;padding:14px;display:flex;flex-direction:column;gap:7px}.surface-inspector__head{display:flex;justify-content:space-between;align-items:center;padding:5px 5px 12px}.surface-inspector__head span{font-size:8px;letter-spacing:.11em;color:#7b7468}.surface-inspector__head i{width:7px;height:7px;border-radius:50%;background:#4f9a76}.surface-inspector__head i.review{background:#d0a351}.surface-inspector button{appearance:none;border:1px solid transparent;border-radius:10px;background:rgba(255,255,255,.58);color:var(--ink);padding:13px 12px;display:grid;gap:4px;text-align:left;cursor:pointer;transition:.18s ease}.surface-inspector button:hover,.surface-inspector button:focus-visible,.surface-inspector button.active{border-color:rgba(169,120,37,.34);background:#fffdf8;transform:translateY(-1px)}.surface-inspector button b{font-size:11px}.surface-inspector button small{color:#656159;font-size:8.5px}.surface-inspector>p{margin:auto 3px 3px;padding:14px 2px 3px;border-top:1px solid var(--line);color:#4d4a44;font-size:10.5px;line-height:1.6}.github-pr{min-height:485px;padding:0 24px 25px}.github-pr__nav{height:50px;display:flex;gap:24px;align-items:center;border-bottom:1px solid rgba(255,255,255,.07);color:#818894;font-size:9px}.github-pr__nav b{height:50px;display:flex;align-items:center;color:#e5e7eb;border-bottom:2px solid #d5a85b}.github-check{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:24px 4px;border-bottom:1px solid rgba(255,255,255,.07)}.github-check>i{width:12px;height:12px;border:2px solid #d7a858;border-radius:50%}.github-check div{display:grid;gap:5px}.github-check strong{font-size:12px}.github-check span,.github-check em{color:#868e98;font-size:9px;font-style:normal}.github-summary{display:grid;grid-template-columns:.9fr 1.1fr;gap:12px;margin-top:20px}.github-summary__hero,.github-artifacts{border:1px solid rgba(255,255,255,.08);border-radius:11px;background:#11161d;padding:20px}.github-summary__hero small{color:#7c848e;font:700 7px/1 var(--font-mono)}.github-summary__hero strong{display:block;color:#e3b45b;font-size:3rem;letter-spacing:-.06em;margin:36px 0 8px}.github-summary__hero p{color:#939aa3;font-size:10px;line-height:1.6}.github-artifacts{display:grid;gap:7px}.github-artifacts button{border:1px solid rgba(255,255,255,.07);border-radius:8px;background:#0d1117;color:#c3c8cf;padding:12px;display:grid;grid-template-columns:50px 1fr;gap:10px;text-align:left;cursor:pointer}.github-artifacts button.active,.github-artifacts button:hover{border-color:rgba(209,162,75,.28);background:#141921}.github-artifacts span{color:#d6ae65;font:800 7px/1 var(--font-mono)}.github-artifacts strong{font-size:8.5px}.terminal-output{margin:0;min-height:485px;padding:40px;overflow:auto;font:650 12px/1.95 var(--font-mono);color:#cbd0d7}.terminal-output .prompt{color:#e1b960}.terminal-output .label{display:inline-block;min-width:125px;color:#7e8690}.terminal-output b{color:#d8dbe0}.terminal-output strong{color:#e3b65c}.terminal-output .ok{color:#72ba91}
+@keyframes surface-reveal{from{opacity:.3;transform:translateY(9px)}to{opacity:1;transform:none}}@media(max-width:1050px){.surface-selector{grid-template-columns:1fr}.surface-selector__item{min-height:110px}.surface-stage-grid{grid-template-columns:1fr}.surface-inspector{min-height:280px}.surface-scene{padding:28px}.surface-scene__header{display:grid}.github-summary{grid-template-columns:1fr}}@media(max-width:720px){.surface-scene{padding:18px}.surface-scene__header h3{font-size:clamp(2.5rem,12vw,4rem)}.vscode-shell{grid-template-columns:40px 1fr}.vscode-tree{display:none}.vscode-editor{padding:18px 14px}.analysis-flow{grid-template-columns:1fr}.analysis-flow>i{display:none}.github-pr{padding:0 14px 18px}.github-pr__nav{gap:14px;overflow-x:auto}.terminal-output{padding:28px 18px;font-size:10px}.terminal-output .label{min-width:102px}}
+@media(prefers-reduced-motion:reduce){.surface-selector__item,.surface-selector__item::after,.surface-selector__item>b,.surface-inspector button{transition:none}.surface-scene{animation:none}.surface-selector__item:hover>b,.surface-inspector button:hover{transform:none}}
+</style>

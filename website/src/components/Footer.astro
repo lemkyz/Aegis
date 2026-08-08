@@ -1,0 +1,53 @@
+---
+import Icon from './Icon.astro';
+import { SITE } from '../config/site';
+---
+<footer class="footer">
+  <div class="shell footer-top">
+    <div class="footer-brand">
+      <div class="footer-logo"><img src="/brand/aegis-mark-reversed.svg" alt="" width="48" height="48" /></div>
+      <div>
+        <strong>AEGIS</strong>
+        <p>Trust infrastructure for software agents.</p>
+        <span class="footer-thesis">Security claims need proof.</span>
+      </div>
+    </div>
+
+    <div class="footer-cols">
+      <div>
+        <small>Product</small>
+        <a href="/#evidence">Evidence</a>
+        <a href="/#workflow">Fix &amp; Prove</a>
+        <a href="/#verified-change">Verified Change Gate</a>
+        <a href="/pricing">Pricing</a>
+      </div>
+      <div>
+        <small>Developers</small>
+        <a href="/developers">Developer surfaces</a>
+        <a href="/open-source">Open source</a>
+        <a href="/releases">Releases</a>
+        <a href={SITE.github} target="_blank" rel="noopener noreferrer">GitHub <Icon name="external" /></a>
+      </div>
+      <div>
+        <small>Company</small>
+        <a href="/company">Company</a>
+        <a href="/research">Research</a>
+        <a href="/contact">Contact</a>
+        <a href={`mailto:${SITE.contactEmail}`}>General</a>
+        <a href={`mailto:${SITE.founderEmail}`}>Founder</a>
+        <a href={`mailto:${SITE.partnershipsEmail}`}>Partnerships</a>
+      </div>
+      <div>
+        <small>Trust</small>
+        <a href="/security">Security</a>
+        <a href={`${SITE.github}/blob/main/SECURITY.md`} target="_blank" rel="noopener noreferrer">Disclosure policy <Icon name="external" /></a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+      </div>
+    </div>
+  </div>
+  <div class="shell footer-bottom">
+    <span>© 2026 Aegis. Open-source core under Apache License 2.0.</span>
+    <span>A finding is not proof. A patch is not verification.</span>
+  </div>
+</footer>

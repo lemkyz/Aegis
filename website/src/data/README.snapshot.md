@@ -5,9 +5,7 @@
 <h1 align="center">Aegis</h1>
 
 <p align="center">
-  <strong>Trust infrastructure for software agents
-
-[Website](https://aegistrustlayer.com) · [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=aegis-security.aegis-security) · [Security](https://aegistrustlayer.com/security) · [Research](https://aegistrustlayer.com/research).</strong>
+  <strong>Trust infrastructure for software agents.</strong>
 </p>
 
 <p align="center">

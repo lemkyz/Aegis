@@ -1,0 +1,80 @@
+---
+import Icon from './Icon.astro';
+import { SITE } from '../config/site';
+---
+<section class="section pricing-teaser pricing-teaser--v7" id="pricing">
+  <div class="shell">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Pricing</p>
+        <h2>Start open.<br/><span class="accent-underline">Pay when Aegis becomes operational.</span></h2>
+      </div>
+      <p class="section-lede">The local trust primitives remain open. Paid plans are built around managed verification, shared evidence, policy, history, and organization-level workflows.</p>
+    </div>
+
+    <div class="pricing-framework pricing-framework--clickable" aria-label="Aegis pricing plans">
+      <a class="pricing-plan-link" data-pricing-plan="Community" data-pricing-copy="Local trust primitives stay open and run without a hosted Aegis account." href={SITE.marketplace} target="_blank" rel="noopener noreferrer" aria-label="Install Aegis Community">
+        <article>
+          <div class="pricing-card-top"><span>COMMUNITY</span><em>AVAILABLE NOW</em></div>
+          <div class="price-line"><strong>$0</strong><small>open source</small></div>
+          <p>Local Aegis for developers who want inspectable evidence and verification without a hosted account.</p>
+          <ul><li>VS Code</li><li>CLI + local backend</li><li>Local evidence workflow</li><li>Apache-2.0</li></ul>
+          <span class="pricing-card-cta">Install Aegis <Icon name="arrow" /></span>
+        </article>
+      </a>
+
+      <a class="pricing-plan-link" data-pricing-plan="Founding Pro" data-pricing-copy="The first professional cohort gets paid Pro capabilities as they are enabled, with the founding price protected for 24 months." href="/contact?interest=founding-pro" aria-label="Request Founding Pro access">
+        <article class="featured">
+          <div class="pricing-card-top"><span>FOUNDING PRO</span><em>EARLY ACCESS</em></div>
+          <div class="price-line"><strong>$19</strong><small>/ month</small></div>
+          <div class="price-note">Standard Pro: <b>$29/month</b> · founding price protected for 24 months</div>
+          <p>For professional developers joining the first paid Aegis cohort as managed Pro capabilities become available.</p>
+          <ul><li>Everything in Community</li><li>Founding paid feature access</li><li>Managed verification allowance as enabled</li><li>Direct feedback channel</li></ul>
+          <span class="pricing-card-cta">Request founding access <Icon name="arrow" /></span>
+        </article>
+      </a>
+
+      <a class="pricing-plan-link" data-pricing-plan="Team" data-pricing-copy="Shared evidence, pull-request verification, and team-scoped policy become the operating layer above the open local core." href="/contact?interest=team" aria-label="Talk to Aegis about Team pricing">
+        <article>
+          <div class="pricing-card-top"><span>TEAM</span><em>EARLY ACCESS</em></div>
+          <div class="price-line"><strong>$39</strong><small>/ active contributor / month</small></div>
+          <div class="price-note">Planned 5-seat minimum</div>
+          <p>For engineering teams that need shared evidence, pull-request policy, and a repeatable verification workflow.</p>
+          <ul><li>Everything in Pro</li><li>PR verification</li><li>Shared evidence + policy</li><li>Team history as shipped</li></ul>
+          <span class="pricing-card-cta">Talk to us about Team <Icon name="arrow" /></span>
+        </article>
+      </a>
+
+      <a class="pricing-plan-link" data-pricing-plan="Enterprise" data-pricing-copy="Deployment, organization policy, security boundaries, integrations, and support are scoped in writing for each environment." href="/contact?interest=enterprise" aria-label="Contact Aegis about Enterprise">
+        <article class="enterprise">
+          <div class="pricing-card-top"><span>ENTERPRISE</span><em>SELECTIVE</em></div>
+          <div class="price-line"><strong>Custom</strong><small>annual</small></div>
+          <div class="price-note">Private / hybrid / organization scope</div>
+          <p>For organizations evaluating private deployment, central policy, and deeper security integrations.</p>
+          <ul><li>Deployment architecture review</li><li>Organization policy scope</li><li>Security boundary review</li><li>Contracted support</li></ul>
+          <span class="pricing-card-cta">Contact Aegis <Icon name="arrow" /></span>
+        </article>
+      </a>
+    </div>
+
+    <div class="pricing-selection" data-pricing-selection aria-live="polite">
+      <span class="mono">PLAN FOCUS</span>
+      <strong data-pricing-selection-name>Founding Pro</strong>
+      <p data-pricing-selection-copy>The first professional cohort gets paid Pro capabilities as they are enabled, with the founding price protected for 24 months.</p>
+      <i aria-hidden="true"></i>
+    </div>
+
+    <div class="pricing-bottom pricing-bottom--v7">
+      <div><strong>Commercial boundary.</strong><p>Aegis does not charge an account for a paid capability before that capability is enabled. Pricing is public; shipping state remains explicit.</p></div>
+      <div class="pricing-bottom-actions"><a class="section-link" href="/pricing">See plan details <Icon name="arrow" /></a><a class="section-link" href="/#contact">Ask a pricing question <Icon name="arrow" /></a></div>
+    </div>
+  </div>
+</section>
+
+<style>
+.pricing-teaser--v7{background:#eee8dd}.pricing-framework--clickable{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.pricing-plan-link{display:block;border-radius:22px}.pricing-framework--clickable article{height:100%;min-height:540px;padding:32px;border:1px solid var(--line-strong);border-radius:22px;background:#fffdf8;display:flex;flex-direction:column;transition:transform .24s ease,border-color .24s ease,box-shadow .24s ease,background .24s ease;position:relative;overflow:hidden}.pricing-framework--clickable article::after{content:"";position:absolute;inset:auto -75px -95px auto;width:190px;height:190px;border:1px solid rgba(169,120,37,.16);border-radius:50%;transition:transform .3s ease,opacity .3s ease;opacity:.6}.pricing-plan-link:hover article,.pricing-plan-link:focus-visible article{transform:translateY(-6px);border-color:rgba(169,120,37,.48);box-shadow:0 24px 65px rgba(16,18,22,.1)}.pricing-plan-link:hover article::after,.pricing-plan-link:focus-visible article::after{transform:scale(1.15);opacity:1}.pricing-framework--clickable article.featured{background:#0b0e13;color:#f7f5ef;border-color:#0b0e13;box-shadow:0 28px 80px rgba(10,12,16,.15)}.pricing-framework--clickable article.enterprise{border-color:rgba(128,87,15,.35)}.pricing-card-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.pricing-card-top span{color:var(--gold-deep);font:850 11px/1 var(--font-mono);letter-spacing:.11em}.featured .pricing-card-top span{color:#efc979}.pricing-card-top em{font:800 9px/1 var(--font-mono);font-style:normal;letter-spacing:.08em;color:#5f5d57;text-align:right}.featured .pricing-card-top em{color:#b7bcc4}.price-line{display:flex;align-items:flex-end;gap:11px;min-height:92px;margin-top:46px}.price-line strong{font-size:clamp(3rem,4.1vw,4.45rem);line-height:.94;letter-spacing:-.06em}.price-line small{max-width:140px;padding-bottom:7px;color:#4e4c47;font:750 12px/1.35 var(--font-mono)}.featured .price-line small{color:#c4c8ce}.price-note{min-height:39px;margin-top:12px;color:#55524c;font:720 11px/1.5 var(--font-mono)}.featured .price-note{color:#c0c4cb}.featured .price-note b{color:#f0c978}.pricing-framework--clickable p{color:#353631;font-size:15.5px;line-height:1.67;margin:26px 0 20px}.featured p{color:#d0d3d8}.pricing-framework--clickable ul{list-style:none;padding:21px 0 0;margin:0 0 28px;border-top:1px solid rgba(11,14,18,.12);display:grid;gap:12px}.featured ul{border-top-color:rgba(255,255,255,.11)}.pricing-framework--clickable li{position:relative;padding-left:19px;color:#363833;font-size:13.5px;line-height:1.5}.featured li{color:#d0d3d8}.pricing-framework--clickable li::before{content:"";position:absolute;left:0;top:.55em;width:6px;height:6px;border-radius:50%;background:var(--gold)}.pricing-card-cta{margin-top:auto;display:inline-flex;align-items:center;gap:8px;width:max-content;font-size:13px;font-weight:850;border-bottom:1px solid rgba(17,19,24,.28);padding-bottom:5px;position:relative;z-index:1}.featured .pricing-card-cta{color:#f1ca79;border-bottom-color:rgba(241,202,121,.35)}.pricing-card-cta svg{width:15px;height:15px}.pricing-bottom--v7{margin-top:28px;display:flex;justify-content:space-between;gap:30px;align-items:flex-start;padding:24px 0 0;border-top:1px solid var(--line)}.pricing-bottom--v7>div:first-child{max-width:720px}.pricing-bottom--v7 strong{font-size:14px}.pricing-bottom--v7 p{margin:5px 0 0;color:#4f4c46;font-size:14px}.pricing-bottom-actions{display:flex;gap:24px;flex-wrap:wrap}.pricing-bottom-actions .section-link{margin-top:0}
+@media(max-width:1100px){.pricing-framework--clickable{grid-template-columns:repeat(2,1fr)}.pricing-framework--clickable article{min-height:500px}}
+@media(max-width:670px){.pricing-framework--clickable{grid-template-columns:1fr}.pricing-framework--clickable article{min-height:auto}.pricing-bottom--v7{display:grid}.price-line{margin-top:38px}}
+@media(prefers-reduced-motion:reduce){.pricing-plan-link:hover article,.pricing-plan-link:focus-visible article{transform:none}.pricing-framework--clickable article::after{transition:none}}
+.pricing-selection{margin-top:18px;min-height:88px;border:1px solid var(--line-strong);border-radius:15px;background:#f8f4ec;padding:18px 20px;display:grid;grid-template-columns:105px 160px 1fr 28px;gap:16px;align-items:center}.pricing-selection>span{color:var(--gold-deep);font-size:8px;letter-spacing:.11em}.pricing-selection>strong{font-size:15px}.pricing-selection>p{margin:0;color:#4d4a44;font-size:12.5px;line-height:1.6}.pricing-selection>i{width:10px;height:10px;border:2px solid var(--gold);border-radius:50%;justify-self:end;box-shadow:0 0 0 5px rgba(169,120,37,.08)}@media(max-width:760px){.pricing-selection{grid-template-columns:1fr}.pricing-selection>i{display:none}}
+</style>

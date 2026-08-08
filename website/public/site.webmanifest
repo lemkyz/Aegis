@@ -1,0 +1,12 @@
+{
+  "name": "Aegis",
+  "short_name": "Aegis",
+  "description": "Trust infrastructure for software agents. Security claims need proof.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f2e8",
+  "theme_color": "#f7f2e8",
+  "icons": [
+    {"src":"/brand/aegis-mark.png","sizes":"300x300","type":"image/png","purpose":"any maskable"}
+  ]
+}

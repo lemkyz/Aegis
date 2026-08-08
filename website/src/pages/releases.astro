@@ -1,0 +1,41 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import Icon from '../components/Icon.astro';
+import { SITE } from '../config/site';
+---
+<BaseLayout title="Releases — Aegis" description="Current public Aegis release status and observed product surfaces.">
+  <Nav />
+  <main id="main">
+    <section class="page-hero">
+      <div class="shell page-hero-inner">
+        <div><p class="eyebrow">Releases</p><h1>Ship what can be <span class="accent-underline">inspected.</span></h1></div>
+        <p class="page-hero-copy">Release notes should make a simple distinction: what is public and working now, what has been observed in a real run, and what remains company direction rather than a shipped capability.</p>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell release-timeline">
+        <article class="release-entry release-entry--current">
+          <div class="release-marker"><span></span></div>
+          <div class="release-entry-main">
+            <div class="release-entry-top"><div><span class="mono">CURRENT PUBLIC PREVIEW</span><h2>Aegis {SITE.release}</h2></div><b>2026</b></div>
+            <p>First end-to-end public preview of the Aegis trust model applied to software security through VS Code, GitHub Action, CLI, and the local orchestration backend.</p>
+            <div class="release-columns">
+              <div><h3>Public surfaces</h3><ul><li>VS Code extension</li><li>GitHub Action</li><li>CLI + local API</li></ul></div>
+              <div><h3>Trust workflow</h3><ul><li>Deterministic evidence</li><li>Model-backed review with explicit routes</li><li>Independent verification</li><li>Policy, audit, controlled validation, and memory</li></ul></div>
+              <div><h3>Observed fixture run</h3><ul><li>Semgrep + Bandit</li><li>Confirmed consensus at 99%</li><li>REVIEW · risk 75/100</li><li>8 task-graph stages complete</li></ul></div>
+            </div>
+            <div class="release-actions"><a class="btn btn--primary" href={SITE.marketplace} target="_blank" rel="noopener noreferrer">Install {SITE.release} <Icon name="arrow" /></a><a class="btn btn--ghost" href={SITE.github} target="_blank" rel="noopener noreferrer">Inspect source</a></div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>
+
+<style>
+.release-timeline{max-width:1000px}.release-entry{display:grid;grid-template-columns:42px 1fr;gap:24px}.release-marker{position:relative}.release-marker::after{content:"";position:absolute;left:10px;top:18px;bottom:-80px;width:1px;background:var(--line)}.release-marker span{display:block;width:21px;height:21px;border-radius:50%;border:1px solid var(--gold);background:var(--ivory);box-shadow:inset 0 0 0 6px var(--ivory),inset 0 0 0 10px var(--gold)}.release-entry-main{padding-bottom:70px}.release-entry-top{display:flex;justify-content:space-between;gap:30px;align-items:flex-start}.release-entry-top span{color:var(--gold-deep);font-size:10px;letter-spacing:.1em}.release-entry-top h2{font-size:clamp(3.2rem,5vw,5.4rem);margin:8px 0 18px}.release-entry-top>b{font:800 12px/1 var(--font-mono);color:#66625c}.release-entry-main>p{font-size:17px;max-width:820px}.release-columns{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:40px 0}.release-columns>div{padding:24px;border:1px solid var(--line);border-radius:16px;background:#fffdf8}.release-columns h3{font-size:1.15rem;margin:0 0 14px}.release-columns ul{padding-left:18px;margin:0}.release-columns li{color:#49463f;font-size:13.5px;margin:8px 0}@media(max-width:780px){.release-columns{grid-template-columns:1fr}.release-entry{grid-template-columns:28px 1fr}.release-entry-top{display:grid}.release-marker::after{left:8px}.release-marker span{width:17px;height:17px}}
+</style>

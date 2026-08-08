@@ -1,0 +1,6 @@
+Contact: mailto:security@aegistrustlayer.com
+Contact: https://github.com/lemkyz/Aegis/security/advisories/new
+Policy: https://github.com/lemkyz/Aegis/security/policy
+Preferred-Languages: en
+Canonical: https://aegistrustlayer.com/.well-known/security.txt
+Expires: 2027-08-07T23:59:59Z

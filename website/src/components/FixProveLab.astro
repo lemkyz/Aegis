@@ -1,0 +1,82 @@
+<div class="fix-lab" data-fix-lab>
+  <div class="fix-lab-toolbar">
+    <div>
+      <span class="mono">FIX &amp; PROVE</span>
+      <strong>One claim. Four separate stages.</strong>
+    </div>
+    <div class="fix-lab-switch" role="tablist" aria-label="Fix and prove stages">
+      <button role="tab" data-fix-view="vulnerable" aria-selected="true" tabindex="0">01 Vulnerable</button>
+      <button role="tab" data-fix-view="reproduce" aria-selected="false" tabindex="-1">02 Reproduce</button>
+      <button role="tab" data-fix-view="patch" aria-selected="false" tabindex="-1">03 Patch</button>
+      <button role="tab" data-fix-view="verify" aria-selected="false" tabindex="-1">04 Re-verify</button>
+    </div>
+  </div>
+
+  <div class="fix-pane" role="tabpanel" data-fix-pane="vulnerable">
+    <div class="code-card">
+      <div class="code-head"><span>vulnerable_sql.py</span><em class="danger">active path</em></div>
+      <pre><code>query = <span class="code-risk">f&quot;SELECT * FROM users WHERE id = &#123;user_id&#125;&quot;</span>
+cursor.execute(<span class="code-risk">query</span>)</code></pre>
+      <div class="path-chips"><span>HTTP query</span><i></i><span>Interpolation</span><i></i><span>SQL execute</span></div>
+    </div>
+    <div class="verify-card verify-card--risk">
+      <small>Finding</small>
+      <strong>The path is security-sensitive.</strong>
+      <p>The claim exists, but a finding alone is not enough to close or certify anything.</p>
+      <div class="verify-status"><b>REVIEW</b><span>Evidence required</span></div>
+    </div>
+  </div>
+
+  <div class="fix-pane" role="tabpanel" data-fix-pane="reproduce" hidden>
+    <div class="repro-card">
+      <div class="repro-head"><span>Controlled reproduction</span><b>AUTHORIZED</b></div>
+      <div class="repro-flow"><span>synthetic input</span><i></i><span>query boundary</span><i></i><span class="risk-node">database execution</span></div>
+      <div class="repro-log mono"><span>baseline.condition</span><b>reproduced</b><span>network</span><b>disabled</b><span>target</span><b>local fixture</b></div>
+    </div>
+    <div class="verify-card verify-card--risk">
+      <small>Evidence</small>
+      <strong>The original condition reproduces.</strong>
+      <p>Controlled evidence strengthens the claim without turning analysis into permission to probe arbitrary systems.</p>
+      <div class="verify-status"><b>CONFIRMED</b><span>Baseline captured</span></div>
+    </div>
+  </div>
+
+  <div class="fix-pane" role="tabpanel" data-fix-pane="patch" hidden>
+    <div class="code-card">
+      <div class="code-head"><span>reviewed patch</span><em class="safe">authorization required</em></div>
+      <pre><code>query = <span class="code-safe">&quot;SELECT * FROM users WHERE id = ?&quot;</span>
+cursor.execute(query, <span class="code-safe">(user_id,)</span>)</code></pre>
+      <div class="patch-meta"><span>source digest bound</span><span>patch digest bound</span><span>rollback record prepared</span></div>
+    </div>
+    <div class="verify-card">
+      <small>Remediation</small>
+      <strong>A patch is a proposal, not a verdict.</strong>
+      <p>Applying a reviewed change and proving that it worked remain different lifecycle states.</p>
+      <div class="verify-status"><b>APPLIED</b><span>Verification pending</span></div>
+    </div>
+  </div>
+
+  <div class="fix-pane" role="tabpanel" data-fix-pane="verify" hidden>
+    <div class="verify-matrix">
+      <article><span>01</span><strong>Required checks</strong><em>passed</em></article>
+      <article><span>02</span><strong>Original condition</strong><em>no longer reproduces</em></article>
+      <article><span>03</span><strong>Static regression</strong><em>not observed</em></article>
+      <article><span>04</span><strong>Evidence package</strong><em>complete</em></article>
+    </div>
+    <div class="verify-card verify-card--safe">
+      <small>Independent verification</small>
+      <strong>The evidence now supports a verified fix.</strong>
+      <p>Only after the required post-change checks succeed can the workflow make the stronger claim.</p>
+      <div class="verify-status"><b>VERIFIED</b><span>Evidence complete</span></div>
+    </div>
+  </div>
+</div>
+
+<style>
+.fix-lab{border:1px solid rgba(255,255,255,.13);border-radius:24px;background:#0d1015;overflow:hidden;box-shadow:0 34px 90px rgba(0,0,0,.2)}
+.fix-lab-toolbar{display:flex;justify-content:space-between;gap:28px;align-items:center;padding:24px 26px;border-bottom:1px solid rgba(255,255,255,.1);background:#11151b}.fix-lab-toolbar>div:first-child{display:grid;gap:7px}.fix-lab-toolbar span{color:#d6ad5f;font-size:11px;letter-spacing:.1em}.fix-lab-toolbar strong{font-size:16px;color:#f5f1e9}.fix-lab-switch{display:flex;flex-wrap:wrap;gap:7px}.fix-lab-switch button{border:1px solid rgba(255,255,255,.14);background:#151a21;color:#aeb4bd;border-radius:999px;padding:10px 13px;font:750 11px/1 var(--font-ui);cursor:pointer}.fix-lab-switch button[aria-selected="true"]{background:#efe7d8;color:#111318;border-color:#efe7d8}.fix-lab-switch button:focus-visible{outline:2px solid #e7bc67;outline-offset:2px}
+.fix-pane{display:grid;grid-template-columns:1.35fr .65fr;min-height:390px}.code-card,.repro-card,.verify-matrix{padding:34px;border-right:1px solid rgba(255,255,255,.09)}.code-head,.repro-head{display:flex;justify-content:space-between;gap:20px;align-items:center;color:#d7dbe1;font:700 11px/1 var(--font-mono)}.code-head em,.repro-head b{font-style:normal;font-size:9px;letter-spacing:.08em;text-transform:uppercase}.danger{color:#f18d7f}.safe{color:#80c79e}.code-card pre{margin:62px 0 38px;padding:0;overflow:auto;color:#cfd4db;font:650 14px/1.9 var(--font-mono)}.code-risk{color:#ff9e8f;background:rgba(224,92,74,.1)}.code-safe{color:#90d4ad;background:rgba(79,154,118,.1)}.path-chips,.patch-meta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;color:#8f96a0;font:700 10px/1.4 var(--font-mono)}.path-chips i{height:1px;width:24px;background:#5b626c}.patch-meta span{border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:8px 10px}.verify-card{padding:34px;display:flex;flex-direction:column;background:#11151b}.verify-card small{color:#8e959f;font:750 10px/1 var(--font-mono);letter-spacing:.1em;text-transform:uppercase}.verify-card strong{font-size:25px;line-height:1.15;letter-spacing:-.04em;color:#f5f1e9;margin:76px 0 16px}.verify-card p{color:#adb3bc;font-size:14px;line-height:1.65;margin:0}.verify-status{margin-top:auto;padding-top:30px;display:flex;justify-content:space-between;gap:20px;align-items:end;border-top:1px solid rgba(255,255,255,.1)}.verify-status b{color:#e6bb69;letter-spacing:.08em}.verify-status span{color:#858c96;font:700 10px/1 var(--font-mono)}.verify-card--safe .verify-status b{color:#88cea5}.verify-card--risk .verify-status b{color:#e4b261}
+.repro-card{background:radial-gradient(circle at 25% 20%,rgba(189,139,50,.08),transparent 28%)}.repro-head b{color:#e0b564}.repro-flow{display:flex;align-items:center;justify-content:center;gap:12px;min-height:215px;color:#cfd4db;font:700 11px/1.3 var(--font-mono)}.repro-flow span{padding:12px 14px;border:1px solid rgba(255,255,255,.14);border-radius:10px;background:#12171d}.repro-flow .risk-node{border-color:rgba(225,122,101,.5);color:#f2a395}.repro-flow i{width:34px;height:1px;background:#646b75}.repro-log{display:grid;grid-template-columns:1fr auto;gap:9px 20px;padding-top:20px;border-top:1px solid rgba(255,255,255,.09);color:#838a94;font-size:10px}.repro-log b{color:#d4d8de}.verify-matrix{display:grid;grid-template-columns:1fr 1fr;gap:10px;background:radial-gradient(circle at 35% 15%,rgba(75,150,108,.08),transparent 28%)}.verify-matrix article{min-height:145px;padding:22px;border:1px solid rgba(255,255,255,.11);border-radius:14px;background:#11161c;display:flex;flex-direction:column}.verify-matrix article span{color:#7e8791;font:700 9px/1 var(--font-mono)}.verify-matrix article strong{margin:auto 0 12px;color:#e6e9ed;font-size:14px}.verify-matrix article em{font-style:normal;color:#8dcea6;font:700 10px/1.2 var(--font-mono)}
+@media(max-width:880px){.fix-lab-toolbar{align-items:flex-start;flex-direction:column}.fix-pane{grid-template-columns:1fr}.code-card,.repro-card,.verify-matrix{border-right:0;border-bottom:1px solid rgba(255,255,255,.09)}.verify-card strong{margin-top:36px}.verify-card{min-height:280px}.fix-lab-switch{display:grid;grid-template-columns:1fr 1fr;width:100%}.fix-lab-switch button{width:100%}.repro-flow{justify-content:flex-start;overflow:auto}.verify-matrix{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.fix-lab-toolbar{padding:20px}.fix-lab-switch{grid-template-columns:1fr}.code-card,.repro-card,.verify-matrix,.verify-card{padding:24px}.verify-matrix{grid-template-columns:1fr}.code-card pre{font-size:12px;margin:42px 0 28px}.verify-status{align-items:flex-start;flex-direction:column}.repro-log{grid-template-columns:1fr}}
+</style>

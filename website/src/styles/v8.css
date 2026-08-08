@@ -1,0 +1,42 @@
+/* V8 institutional polish: high-contrast, restrained motion, denser product surfaces. */
+:root{
+  --ivory-0:#fffdf8;
+  --ivory-1:#f7f2e8;
+  --ivory-2:#eee7dc;
+  --ink-0:#0c0f13;
+  --ink-1:#16191e;
+  --body-strong:#2f302d;
+  --body-muted:#55524c;
+  --gold-strong:#a66f18;
+}
+html{scroll-behavior:smooth;scroll-padding-top:86px}
+body{background:var(--ivory-1)}
+::selection{background:#d9b66c;color:#111318}
+.hero-foot--final{align-items:center;flex-wrap:wrap}
+.hero-release-pill{appearance:none;border:0;background:transparent;padding:0;color:inherit;font:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.hero-release-pill span{color:var(--gold-deep);font-weight:900;transition:transform .18s ease}.hero-release-pill:hover span{transform:translate(2px,-2px)}
+.site-nav{backdrop-filter:saturate(115%) blur(18px);background:rgba(247,242,232,.86)}
+.nav-inner{min-height:74px}
+.nav-links a{font-size:12px}
+.nav-command{width:38px;height:38px;border:1px solid var(--line-strong);border-radius:11px;background:rgba(255,255,255,.36);display:grid;place-items:center;color:var(--ink);cursor:pointer;transition:.18s ease}.nav-command:hover,.nav-command:focus-visible{background:#fffdf8;border-color:rgba(166,111,24,.4);transform:translateY(-1px)}.nav-command svg{width:15px;height:15px}
+.section-head h2{max-width:900px}
+.section-lede{font-size:16px;line-height:1.75;color:#46443f}
+.open-source-home--v6{background:#ece5da}
+.open-source-head-v6{align-items:end}
+.open-source-copy-v6 .section-lede{max-width:660px}
+.security-section .security-followup{margin-top:28px}
+.pricing-teaser--v7 .section-head{margin-bottom:42px}
+.pricing-framework--clickable article{min-height:570px;padding:36px 34px}
+.pricing-card-top span{font-size:12px}.pricing-card-top em{font-size:10px}.price-line strong{font-size:clamp(3.8rem,5vw,5.5rem)}.price-line small{font-size:13px}.price-note{font-size:12px}.pricing-framework--clickable p{font-size:16px;line-height:1.72}.pricing-framework--clickable li{font-size:14.5px;line-height:1.55}.pricing-card-cta{font-size:14px}
+.pricing-plan-link{outline:none}.pricing-plan-link:focus-visible article{box-shadow:0 0 0 3px rgba(166,111,24,.18),0 24px 65px rgba(16,18,22,.1)}
+.research-grid article{min-height:360px}.research-grid h3{font-size:1.7rem}.research-grid p{font-size:14px;line-height:1.68}
+.footer{background:#0c0f13}.footer-top{padding-top:72px}.footer-cols a{font-size:12px}.footer-brand p{font-size:13px}
+[data-reveal]{opacity:1;transform:none}
+@media(min-width:1150px){
+  .hero-inner--final{grid-template-columns:minmax(0,.92fr) minmax(560px,1.08fr);gap:78px}
+  .hero-wordmark{font-size:clamp(4.6rem,7vw,7.4rem)}
+  .hero h1{font-size:clamp(4rem,5.8vw,6.7rem)}
+}
+@media(max-width:900px){.nav-command{display:none}.pricing-framework--clickable article{min-height:520px}}
+@media(max-width:620px){.pricing-framework--clickable article{min-height:auto;padding:30px 24px}.price-line strong{font-size:4rem}.section-lede{font-size:15px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hero-release-pill span,.nav-command{transition:none}.hero-release-pill:hover span,.nav-command:hover{transform:none}}

@@ -1,0 +1,106 @@
+---
+import Icon from './Icon.astro';
+---
+<div class="result-shell" data-result-ui>
+  <div class="result-topbar">
+    <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="result-path mono">aegis / trusted-analysis / sql-fixture</div>
+    <span class="run-state"><span></span> Run complete</span>
+  </div>
+
+  <div class="result-layout">
+    <aside class="result-rail" aria-label="Aegis analysis stages">
+      <div class="rail-title">Security run</div>
+      <ol>
+        <li class="done"><Icon name="check" /><span>Plan</span></li>
+        <li class="done"><Icon name="check" /><span>Evidence</span></li>
+        <li class="done"><Icon name="check" /><span>Review</span></li>
+        <li class="done"><Icon name="check" /><span>Verify</span></li>
+        <li class="done"><Icon name="check" /><span>Threat context</span></li>
+        <li class="active"><span class="rail-dot"></span><span>Decision</span></li>
+        <li class="done"><Icon name="check" /><span>Memory</span></li>
+      </ol>
+    </aside>
+
+    <section class="result-main" aria-label="Observed Aegis result">
+      <div class="result-heading-row">
+        <div>
+          <div class="result-kicker">Confirmed security claim</div>
+          <h3>SQL injection reaches database execution</h3>
+        </div>
+        <div class="risk-badge"><small>Risk</small><strong>75</strong><span>/100</span></div>
+      </div>
+
+      <div class="result-meta">
+        <span class="severity">HIGH</span>
+        <span class="mono">CWE-89</span>
+        <span class="mono">fixture/vulnerable_sql.py</span>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Security result detail">
+        <button id="tab-claim" role="tab" aria-selected="true" aria-controls="panel-claim" tabindex="0" data-result-tab="claim">Claim</button>
+        <button id="tab-evidence" role="tab" aria-selected="false" aria-controls="panel-evidence" tabindex="-1" data-result-tab="evidence">Evidence</button>
+        <button id="tab-verification" role="tab" aria-selected="false" aria-controls="panel-verification" tabindex="-1" data-result-tab="verification">Verification</button>
+      </div>
+
+      <div id="panel-claim" class="tab-panel" role="tabpanel" aria-labelledby="tab-claim" data-result-panel="claim">
+        <div class="flow-row">
+          <span>HTTP query</span><i></i><span>String interpolation</span><i></i><span>SQL execute</span>
+        </div>
+        <p>Untrusted input is interpolated into a database query without a parameterization boundary. Deterministic evidence and independent review agree on the active claim.</p>
+        <div class="decision-row">
+          <div><small>Consensus</small><strong>Confirmed · 99%</strong></div>
+          <div><small>Policy</small><strong class="review">REVIEW</strong></div>
+          <div><small>Task graph</small><strong>8 complete · 0 failed</strong></div>
+        </div>
+      </div>
+
+      <div id="panel-evidence" class="tab-panel" role="tabpanel" aria-labelledby="tab-evidence" data-result-panel="evidence" hidden>
+        <div class="evidence-list">
+          <article><span class="evidence-icon">D</span><div><small>Deterministic scanners</small><strong>Semgrep + Bandit</strong></div><span class="evidence-state">captured</span></article>
+          <article><span class="evidence-icon">P</span><div><small>Primary review</small><strong class="mono">openai/gpt-oss-20b</strong></div><span class="evidence-state">recorded</span></article>
+          <article><span class="evidence-icon gold">V</span><div><small>Independent verifier</small><strong class="mono">mistralai/mistral-medium-3.5-128b</strong></div><span class="evidence-state">agreed</span></article>
+        </div>
+      </div>
+
+      <div id="panel-verification" class="tab-panel" role="tabpanel" aria-labelledby="tab-verification" data-result-panel="verification" hidden>
+        <div class="verification-grid">
+          <article><Icon name="check" /><span><small>Source integrity</small><strong>Digest verified</strong></span></article>
+          <article><Icon name="check" /><span><small>Plan integrity</small><strong>Digest verified</strong></span></article>
+          <article><Icon name="check" /><span><small>Audit stream</small><strong>Append-only</strong></span></article>
+          <article><Icon name="check" /><span><small>Project memory</small><strong>Claim stored</strong></span></article>
+        </div>
+        <p class="verification-note">A review verdict is intentionally not presented as “safe.” The active high-severity claim remains visible for a human decision.</p>
+      </div>
+    </section>
+  </div>
+
+  <footer class="result-footer">
+    <span>Observed fixture run · Aegis 0.2.0</span>
+    <span class="mono">source · plan · audit · artifacts SHA-256 bound</span>
+  </footer>
+</div>
+
+
+
+<style>
+.result-shell { overflow:hidden; border:1px solid rgba(18,19,24,.16); border-radius:20px; background:#15181f; color:#ece8df; box-shadow:0 38px 90px rgba(18,19,24,.18); text-align:left; }
+.result-topbar { min-height:46px; display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:16px; padding:0 16px; border-bottom:1px solid rgba(255,255,255,.08); background:#11141a; }
+.window-dots { display:flex; gap:6px; }.window-dots i { width:7px; height:7px; border-radius:99px; background:#4c5058; }.window-dots i:nth-child(2){background:#6a604c}.window-dots i:nth-child(3){background:#4b6257}
+.result-path { color:#8d929b; font-size:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.run-state { display:inline-flex; align-items:center; gap:7px; color:#aeb4bc; font-size:10px; font-weight:700; white-space:nowrap; }.run-state span{width:7px;height:7px;border-radius:99px;background:#54a57e;box-shadow:0 0 0 4px rgba(84,165,126,.1)}
+.result-layout { display:grid; grid-template-columns:160px 1fr; min-height:435px; }
+.result-rail { padding:22px 16px; border-right:1px solid rgba(255,255,255,.08); background:#12151b; }
+.rail-title { color:#858b94; font-size:10px; text-transform:uppercase; letter-spacing:.12em; font-weight:800; margin-bottom:16px; }
+.result-rail ol { list-style:none; padding:0; margin:0; display:grid; gap:3px; }.result-rail li{display:flex;align-items:center;gap:9px;min-height:34px;padding:0 7px;color:#858b94;font-size:11px;border-radius:7px}.result-rail li svg{width:13px;height:13px;color:#658c78}.result-rail li.active{background:rgba(201,151,59,.1);color:#e7c57d}.rail-dot{width:8px;height:8px;border-radius:99px;background:#c9973b;box-shadow:0 0 0 4px rgba(201,151,59,.1)}
+.result-main { padding:28px 30px 26px; min-width:0; }
+.result-heading-row { display:flex; justify-content:space-between; gap:26px; align-items:flex-start; }.result-kicker{color:#c0a369;font:700 10px/1 var(--font-mono);text-transform:uppercase;letter-spacing:.12em;margin-bottom:9px}.result-main h3{font-size:22px;color:#f5f1e8;max-width:520px;margin-bottom:0;letter-spacing:-.03em}.risk-badge{display:flex;align-items:baseline;gap:2px;padding:8px 10px;border:1px solid rgba(201,151,59,.25);border-radius:10px;background:rgba(201,151,59,.08);color:#e5c47e}.risk-badge small{font-size:8px;text-transform:uppercase;letter-spacing:.1em;margin-right:5px}.risk-badge strong{font-size:18px}.risk-badge span{font-size:9px;color:#8f8267}
+.result-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:15px;color:#8f949d;font-size:10px}.severity{padding:4px 6px;border-radius:4px;background:rgba(182,76,64,.16);color:#e28b81;font:800 9px/1 var(--font-mono)}
+.tabs { display:flex; gap:21px; margin:27px 0 20px; border-bottom:1px solid rgba(255,255,255,.08); }.tabs button{position:relative;padding:0 0 10px;border:0;background:transparent;color:#858b94;font-size:11px;font-weight:700;cursor:pointer}.tabs button[aria-selected="true"]{color:#eee9df}.tabs button[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:#d2a34c}
+.tab-panel p{color:#a0a5ad;font-size:12px;line-height:1.7;margin:18px 0 0;max-width:650px}.flow-row{display:grid;grid-template-columns:auto minmax(24px,1fr) auto minmax(24px,1fr) auto;align-items:center;gap:10px}.flow-row span{padding:8px 9px;border:1px solid rgba(255,255,255,.09);border-radius:7px;background:#181c24;color:#c7cbd1;font:600 9px/1 var(--font-mono);white-space:nowrap}.flow-row i{height:1px;background:linear-gradient(90deg,#424750,#b28b44);position:relative}.flow-row i::after{content:"";position:absolute;right:-1px;top:-2px;width:5px;height:5px;border-top:1px solid #c9973b;border-right:1px solid #c9973b;transform:rotate(45deg)}
+.decision-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px}.decision-row>div{padding:12px;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:#11151b}.decision-row small,.evidence-list small,.verification-grid small{display:block;color:#888e97;font-size:8px;text-transform:uppercase;letter-spacing:.09em;margin-bottom:6px}.decision-row strong{display:block;font-size:10px;color:#d6d8dc}.decision-row strong.review{color:#ddb464}
+.evidence-list{display:grid;gap:8px}.evidence-list article{display:grid;grid-template-columns:auto 1fr auto;gap:11px;align-items:center;padding:10px;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:#11151b}.evidence-icon{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;background:#222832;color:#b7bec8;font:800 10px/1 var(--font-mono)}.evidence-icon.gold{background:rgba(201,151,59,.14);color:#e0bd74}.evidence-list strong{font-size:10px;color:#d3d6db;font-weight:650}.evidence-state{font:700 8px/1 var(--font-mono);color:#779b88;text-transform:uppercase}
+.verification-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.verification-grid article{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:#11151b}.verification-grid svg{width:15px;height:15px;color:#67a180}.verification-grid strong{color:#d4d7dc;font-size:10px}.verification-note{border-left:1px solid #c9973b;padding-left:12px!important}
+.result-footer { min-height:42px; display:flex; justify-content:space-between; align-items:center; gap:16px; padding:0 16px; border-top:1px solid rgba(255,255,255,.08); color:#8a9099; background:#11141a; font-size:9px; }
+@media(max-width:760px){.result-layout{grid-template-columns:1fr}.result-rail{display:none}.result-main{padding:22px 18px 20px}.result-heading-row{display:block}.risk-badge{width:max-content;margin-top:15px}.decision-row{grid-template-columns:1fr}.flow-row{grid-template-columns:1fr;gap:6px}.flow-row i{width:1px;height:12px;justify-self:center;background:#8f723d}.flow-row i::after{display:none}.verification-grid{grid-template-columns:1fr}.result-footer{display:none}}
+</style>

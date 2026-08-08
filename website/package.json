@@ -1,0 +1,26 @@
+{
+  "name": "aegis-public-site",
+  "private": true,
+  "version": "0.8.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "security:gate": "node scripts/security-gate.mjs",
+    "a11y:gate": "node scripts/accessibility-gate.mjs",
+    "validate": "npm run security:gate && npm run a11y:gate && npm run check && npm run build",
+    "prebuild": "node scripts/sync-github.mjs"
+  },
+  "dependencies": {
+    "astro": "7.1.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "typescript": "5.9.3"
+  }
+}

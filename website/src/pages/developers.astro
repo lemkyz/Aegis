@@ -1,0 +1,76 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import ProductSurfaces from '../components/ProductSurfaces.astro';
+import Icon from '../components/Icon.astro';
+import { SITE } from '../config/site';
+const installCommand = 'code --install-extension aegis-security.aegis-security';
+---
+<BaseLayout title="Developers — Aegis" description="Install Aegis in VS Code, inspect the GitHub Action and CLI/local backend, and understand the current developer trust workflow.">
+  <Nav />
+  <main id="main">
+    <section class="page-hero">
+      <div class="shell page-hero-inner">
+        <div><p class="eyebrow">Developers</p><h1>Put evidence in the <span class="accent-underline">development loop.</span></h1></div>
+        <p class="page-hero-copy">Aegis currently meets developers in VS Code, GitHub workflows, and the local CLI/API. The user interface changes by surface; the underlying trust model does not.</p>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell info-grid">
+        <article class="info-card"><span>VS CODE</span><h3>Interactive trust workspace.</h3><p>Inspect claims, evidence, model provenance, verification, policy, memory, and fix state where code changes happen.</p></article>
+        <article class="info-card"><span>GITHUB ACTION</span><h3>Pull-request policy gate.</h3><p>Carry the same security decision model into CI and preserve machine-readable artifacts for review.</p></article>
+        <article class="info-card"><span>CLI + LOCAL API</span><h3>Automation without a UI dependency.</h3><p>Use the same local orchestration backend from terminal-driven and integration workflows.</p></article>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell">
+        <div class="section-head">
+          <div><p class="eyebrow">Current surfaces</p><h2>One trust model.<br/><span class="accent-underline">Three entry points.</span></h2></div>
+          <p class="section-lede">These surfaces reflect the public 0.2.0 product. Hosted collaboration and broader software-agent runtime controls are not presented here as shipped capabilities.</p>
+        </div>
+        <ProductSurfaces />
+      </div>
+    </section>
+
+    <section class="page-section section--soft">
+      <div class="shell prose-grid">
+        <aside><p class="eyebrow">Quick start</p><h2>Install the extension, then inspect the source.</h2></aside>
+        <div class="prose-body">
+          <div class="command-card">
+            <div><span class="mono">VS CODE CLI</span><strong>{installCommand}</strong></div>
+            <button class="btn btn--ghost" type="button" data-copy={installCommand}>Copy command</button>
+          </div>
+          <p>You can also install Aegis directly from the VS Code Marketplace. Local setup, contribution instructions, the security policy, and the current architecture remain visible in the public repository.</p>
+          <div class="release-actions">
+            <a class="btn btn--primary" href={SITE.marketplace} target="_blank" rel="noopener noreferrer">Open Marketplace <Icon name="arrow" /></a>
+            <a class="btn btn--ghost" href={SITE.github} target="_blank" rel="noopener noreferrer"><Icon name="github" /> Open GitHub</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell prose-grid">
+        <aside><p class="eyebrow">Developer contract</p><h2>What the product should never hide.</h2></aside>
+        <div class="prose-body">
+          <h3>Which checks ran?</h3>
+          <p>A security decision should carry the checks and evidence that contributed to it, including missing or incomplete steps.</p>
+          <h3>Was execution authorized?</h3>
+          <p>Analysis does not imply permission to execute. Controlled validation remains separately authorized and constrained.</p>
+          <h3>Did the patch actually verify?</h3>
+          <p>A patch proposal and a post-change verification result are distinct lifecycle states.</p>
+          <h3>Can the decision be inspected later?</h3>
+          <p>Evidence, policy, integrity records, and project security memory are designed to make the reasoning traceable after the immediate run is over.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>
+
+<style>
+.section--soft{background:#efe9de}.command-card{display:flex;justify-content:space-between;gap:24px;align-items:center;padding:22px;border:1px solid var(--line);border-radius:16px;background:#fffdf8;margin-bottom:24px}.command-card>div{display:grid;gap:9px;min-width:0}.command-card span{color:var(--gold-deep);font-size:10px;letter-spacing:.1em}.command-card strong{font:700 13px/1.5 var(--font-mono);overflow-wrap:anywhere}.command-card .btn{flex:0 0 auto}@media(max-width:650px){.command-card{align-items:stretch;flex-direction:column}.command-card .btn{width:100%}}
+</style>

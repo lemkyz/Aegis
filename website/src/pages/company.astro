@@ -1,0 +1,65 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import Icon from '../components/Icon.astro';
+import { SITE } from '../config/site';
+---
+<BaseLayout title="Company — Aegis" description="Aegis is building trust infrastructure for software agents, starting with evidence-backed security verification for AI-generated software changes.">
+  <Nav />
+  <main id="main">
+    <section class="page-hero">
+      <div class="shell page-hero-inner">
+        <div><p class="eyebrow">Company</p><h1>Build systems that can <span class="accent-underline">show their work.</span></h1></div>
+        <p class="page-hero-copy">Aegis starts with a concrete software-security problem today and is building toward a broader trust layer for software agents. The company thesis is simple: security-sensitive autonomy needs evidence, permission, independent verification, policy, recovery, and memory.</p>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell info-grid">
+        <article class="info-card"><span>CURRENT PRODUCT</span><h3>Working public preview.</h3><p>Version {SITE.release} is public across VS Code, GitHub Action, CLI, and the local backend. Current claims are tied to the implementation and observed release behavior.</p></article>
+        <article class="info-card"><span>MARKET ENTRY</span><h3>One painful workflow first.</h3><p>Aegis is entering through verified security-sensitive software changes rather than asking customers to buy the entire long-term agent-trust vision on day one.</p></article>
+        <article class="info-card"><span>OPERATING MODEL</span><h3>Open core, selective commercial layer.</h3><p>The local trust primitives are open source. Paid value is built around team leverage, managed operation, organization-level control, and bounded design partnerships.</p></article>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell prose-grid">
+        <aside><p class="eyebrow">Why now</p><h2>Software production is changing its actor model.</h2></aside>
+        <div class="prose-body">
+          <p>AI coding systems are moving from suggestion toward execution: reading repositories, changing files, invoking tools, running commands, opening pull requests, and participating in longer development tasks. That shift creates a new trust question around software changes and, eventually, around software-agent actions themselves.</p>
+          <h3>The first company-level thesis</h3>
+          <p>The security stack cannot stop at “a scanner found something” or “a model says the patch looks good.” Security-sensitive automation needs a chain that keeps evidence, authorization, remediation, verification, policy, and memory distinct.</p>
+          <h3>The long-term thesis</h3>
+          <p>If software agents become a normal production actor, organizations will need infrastructure that can establish which actions were permitted, what evidence supported them, whether the result was independently verified, and what should be remembered or recovered afterward.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-section section--soft-company">
+      <div class="shell prose-grid">
+        <aside><p class="eyebrow">Operating principles</p><h2>What Aegis refuses to blur.</h2></aside>
+        <div class="prose-body">
+          <h3>A model is an input, not an authority.</h3>
+          <p>No single model should be able to propose a security-sensitive action and serve as the sole proof that the action was correct.</p>
+          <h3>Capability is not permission.</h3>
+          <p>The fact that software can inspect, execute, modify, or connect does not mean the current task authorizes it.</p>
+          <h3>Recovery belongs in the trust model.</h3>
+          <p>Autonomous systems will fail. Useful infrastructure preserves enough state and evidence to understand what happened and support a safe recovery path.</p>
+          <h3>Public claims should age well.</h3>
+          <p>Aegis does not publish invented customers, adoption metrics, performance claims, compliance badges, or unshipped product capabilities as if they already exist.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell contact-band">
+        <div><h3>Working on the same trust problem?</h3><p>Talk to Aegis about a design partnership, research collaboration, or company conversation.</p></div>
+        <a class="btn btn--primary" href="/contact">Contact Aegis <Icon name="arrow" /></a>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>
+
+<style>.section--soft-company{background:#efe9de}</style>

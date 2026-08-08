@@ -2,12 +2,10 @@
   <img src="extension/images/icon.png" width="88" alt="Aegis">
 </p>
 
-<h1 align="center">Aegis</h1>
+<h2 class="repo-readme-title" align="center">Aegis</h2>
 
 <p align="center">
-  <strong>Trust infrastructure for software agents
-
-[Website](https://aegistrustlayer.com) · [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=aegis-security.aegis-security) · [Security](https://aegistrustlayer.com/security) · [Research](https://aegistrustlayer.com/research).</strong>
+  <strong>Trust infrastructure for software agents.</strong>
 </p>
 
 <p align="center">
@@ -191,7 +189,7 @@ That makes future policy aware of whether a claim is new, persistent, changed, r
 
 ---
 
-# Product
+## Product
 
 ## Evidence Graph
 
@@ -376,7 +374,7 @@ A blocked, cancelled, failed, or timed-out workflow never becomes proof of safet
 
 ---
 
-# Architecture
+## Architecture
 
 Aegis is organized around orchestration, evidence, controlled execution, and durable security state.
 
@@ -463,7 +461,7 @@ The goal is not simply to know what a tool said now, but to preserve **why that 
 
 ---
 
-# Security model
+## Security model
 
 The architecture is governed by a small set of invariants.
 
@@ -495,7 +493,7 @@ Aegis is designed to stop or downgrade the trust conclusion when it encounters c
 
 ---
 
-# Product surfaces
+## Product surfaces
 
 ## VS Code
 
@@ -577,7 +575,7 @@ It coordinates:
 
 ---
 
-# The Aegis ecosystem
+## The Aegis ecosystem
 
 Aegis starts with software security because security-sensitive code changes are a concrete place to prove the trust architecture.
 
@@ -652,7 +650,7 @@ These later layers are **architectural direction**, not a claim that every ecosy
 
 ---
 
-# Why Aegis is different
+## Why Aegis is different
 
 Aegis is not trying to build defensibility around one rule, one scanner, or one model.
 
@@ -676,7 +674,7 @@ That architecture is intended to remain useful even as models, scanners, agent f
 
 ---
 
-# Quick start
+## Quick start
 
 ## Install the VS Code preview
 
@@ -727,7 +725,7 @@ Deterministic workflows do not require a model provider. Configure primary and v
 
 ---
 
-# Data and permission boundaries
+## Data and permission boundaries
 
 Aegis handles source code and security evidence as sensitive material.
 
@@ -751,7 +749,7 @@ Use dynamic validation only on repositories and systems you own or are explicitl
 
 ---
 
-# Repository structure
+## Repository structure
 
 ```text
 Aegis/
@@ -776,7 +774,7 @@ Aegis/
 
 ---
 
-# Development
+## Development
 
 ## Backend
 
@@ -807,7 +805,7 @@ Security-sensitive changes should prove the trust property being preserved — n
 
 ---
 
-# Status
+## Status
 
 Aegis is a **preview**.
 
@@ -821,19 +819,19 @@ The next major product layer is **Project Brain / Genome**.
 
 ---
 
-# Contributing
+## Contributing
 
 Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before proposing changes.
 
 For security-sensitive changes, tests should demonstrate the trust property being preserved.
 
-# Security
+## Security
 
 Read [`SECURITY.md`](SECURITY.md) for vulnerability reporting and security guidance.
 
 Do not use Aegis dynamic validation against systems you do not own or have explicit permission to test.
 
-# License
+## License
 
 Apache License 2.0.
 

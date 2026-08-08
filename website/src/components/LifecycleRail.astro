@@ -1,0 +1,16 @@
+<nav class="lifecycle-rail" aria-label="Aegis trust lifecycle" data-lifecycle-rail>
+  <span class="lifecycle-rail__cap mono">TRUST LIFECYCLE</span>
+  <div class="lifecycle-rail__track" aria-hidden="true"><i data-lifecycle-progress></i></div>
+  <a href="/#product" data-lifecycle-link="product"><b>01</b><span>Find</span></a>
+  <a href="/#evidence" data-lifecycle-link="evidence"><b>02</b><span>Evidence</span></a>
+  <a href="/#workflow" data-lifecycle-link="workflow"><b>03</b><span>Prove</span></a>
+  <a href="/#verified-change" data-lifecycle-link="verified-change"><b>04</b><span>Verify</span></a>
+  <a href="/#security" data-lifecycle-link="security"><b>05</b><span>Decide</span></a>
+  <a href="/#direction" data-lifecycle-link="direction"><b>06</b><span>Remember</span></a>
+</nav>
+
+<style>
+.lifecycle-rail{position:fixed;z-index:34;right:18px;top:50%;transform:translateY(-44%);width:92px;padding:13px 10px 12px;border:1px solid rgba(17,19,24,.12);border-radius:15px;background:rgba(246,241,232,.88);backdrop-filter:blur(14px);box-shadow:0 16px 45px rgba(11,14,18,.07);opacity:0;pointer-events:none;transition:opacity .25s ease,transform .25s ease}.lifecycle-rail.is-visible{opacity:1;pointer-events:auto;transform:translateY(-50%)}.lifecycle-rail__cap{display:block;margin-bottom:10px;color:#745117;font-size:6.5px;letter-spacing:.11em;white-space:nowrap}.lifecycle-rail__track{position:absolute;left:15px;top:40px;bottom:18px;width:1px;background:rgba(17,19,24,.12);overflow:hidden}.lifecycle-rail__track i{display:block;width:100%;height:0;background:#a97825;transition:height .35s cubic-bezier(.2,.7,.2,1)}.lifecycle-rail a{position:relative;display:grid;grid-template-columns:16px 1fr;gap:7px;align-items:center;min-height:31px;color:#77736b;border-radius:7px;padding:2px 3px;text-decoration:none;transition:color .18s ease,background .18s ease,transform .18s ease}.lifecycle-rail a:hover,.lifecycle-rail a:focus-visible{color:#16181d;background:rgba(255,255,255,.54);transform:translateX(-2px)}.lifecycle-rail a::before{content:"";position:absolute;left:2px;width:6px;height:6px;border:2px solid #b4ada1;border-radius:50%;background:#f6f1e8;transform:translateX(-.5px);transition:.18s ease}.lifecycle-rail a b{padding-left:12px;color:#9b958a;font:700 6.5px/1 var(--font-mono);font-weight:700}.lifecycle-rail a span{font-size:8.5px;font-weight:760;letter-spacing:-.01em}.lifecycle-rail a.active{color:#14171b}.lifecycle-rail a.active::before{border-color:#a97825;background:#a97825;box-shadow:0 0 0 3px rgba(169,120,37,.12)}.lifecycle-rail a.active b{color:#805711}
+@media(max-width:1280px){.lifecycle-rail{display:none}}
+@media(prefers-reduced-motion:reduce){.lifecycle-rail,.lifecycle-rail a,.lifecycle-rail__track i{transition:none}}
+</style>

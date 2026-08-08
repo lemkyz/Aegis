@@ -1,0 +1,26 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import { SITE } from '../config/site';
+---
+<BaseLayout title="Privacy — Aegis" description="Privacy information for the Aegis public website.">
+  <Nav />
+  <main id="main">
+    <section class="page-hero"><div class="shell page-hero-inner"><div><p class="eyebrow">Privacy</p><h1>A deliberately small <span class="accent-underline">data footprint.</span></h1></div><p class="page-hero-copy">The public Aegis website is designed to avoid collecting data it does not need.</p></div></section>
+    <section class="page-section"><div class="shell legal-body">
+      <div class="legal-meta">Last updated: 7 August 2026</div>
+      <h2>Website analytics and cookies</h2>
+      <p>The current public website does not include third-party analytics, advertising pixels, behavioral tracking scripts, or a user account system. It does not intentionally set analytics or advertising cookies.</p>
+      <h2>Contact form</h2>
+      <p>The contact form on this website is static. The site does not submit, store, or transmit the content to an Aegis server. When you choose to send an enquiry, the page opens your email client with the information pre-filled. Your email provider then handles the message under its own terms and privacy practices.</p>
+      <h2>External services</h2>
+      <p>Links to GitHub, the VS Code Marketplace, and other external services take you to those providers. Their privacy practices apply after you leave this website.</p>
+      <h2>Product data</h2>
+      <p>This page describes the public website, not every possible Aegis product deployment. Product data handling is documented separately on the Security page and in the public repository. If future hosted services begin processing customer data, this notice must be updated before those services are offered.</p>
+      <h2>Contact</h2>
+      <p>Questions about this notice can be sent to <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.</p>
+    </div></section>
+  </main>
+  <Footer />
+</BaseLayout>

@@ -34,7 +34,7 @@ test(
 
     assert.equal(
       manifest.homepage,
-      "https://github.com/lemkyz/Aegis",
+      "https://aegistrustlayer.com",
     );
 
     assert.equal(
@@ -44,7 +44,7 @@ test(
 
     assert.equal(
       manifest.version,
-      "0.2.0",
+      "0.2.1",
     );
 
     assert.equal(

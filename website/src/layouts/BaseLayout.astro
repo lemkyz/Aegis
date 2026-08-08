@@ -1,0 +1,65 @@
+---
+import '../styles/global.css';
+import '../styles/v8.css';
+import CommandPalette from '../components/CommandPalette.astro';
+import ReleaseDrawer from '../components/ReleaseDrawer.astro';
+import { SITE } from '../config/site';
+
+interface Props {
+  title?: string;
+  description?: string;
+  pageType?: 'website' | 'article';
+  noindex?: boolean;
+}
+
+const {
+  title = 'Aegis — Security claims need proof',
+  description = 'Aegis is trust infrastructure for software agents, starting with evidence-backed security verification for AI-generated software changes.',
+  pageType = 'website',
+  noindex = false,
+} = Astro.props;
+
+const canonical = `${SITE.siteUrl}${Astro.url.pathname}`;
+const socialImage = `${SITE.siteUrl}/og/aegis-og.png`;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f2e8" />
+    <meta name="color-scheme" content="light" />
+    <meta name="description" content={description} />
+    <meta name="robots" content={noindex ? 'noindex,nofollow' : 'index,follow,max-image-preview:large'} />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/brand/aegis-mark.svg" type="image/svg+xml" />
+    <link rel="alternate icon" href="/brand/aegis-mark.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/brand/aegis-mark.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <meta property="og:type" content={pageType} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={socialImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Aegis — Security claims need proof" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content="Aegis" />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={socialImage} />
+
+    <script is:inline src="/scripts/site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <slot />
+    <CommandPalette />
+    <ReleaseDrawer />
+  </body>
+</html>

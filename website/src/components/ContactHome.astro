@@ -1,0 +1,39 @@
+---
+import Icon from './Icon.astro';
+import { SITE } from '../config/site';
+---
+<section class="section contact-hq" id="contact">
+  <div class="shell">
+    <div class="contact-hq__head">
+      <div>
+        <p class="eyebrow">Contact</p>
+        <h2>Choose the conversation.<br/><span class="accent-underline">We’ll route the rest.</span></h2>
+      </div>
+      <p>Product access, team evaluation, investment, research, partnerships, or a security disclosure should not all disappear into the same generic form.</p>
+    </div>
+
+    <div class="contact-router" data-contact-router>
+      <div class="contact-router__choices" role="tablist" aria-label="Contact routes">
+        <button type="button" class="active" role="tab" aria-selected="true" data-contact-route="product" data-email={SITE.contactEmail} data-subject="Aegis product enquiry"><span>01</span><div><strong>Use Aegis</strong><small>Founding Pro · product questions</small></div><b>↗</b></button>
+        <button type="button" role="tab" aria-selected="false" data-contact-route="team" data-email={SITE.partnershipsEmail} data-subject="Aegis team evaluation"><span>02</span><div><strong>Team / enterprise</strong><small>Evaluation · private workflow</small></div><b>↗</b></button>
+        <button type="button" role="tab" aria-selected="false" data-contact-route="investor" data-email={SITE.founderEmail} data-subject="Aegis investor enquiry"><span>03</span><div><strong>Investor / founder</strong><small>Company and investment</small></div><b>↗</b></button>
+        <button type="button" role="tab" aria-selected="false" data-contact-route="partner" data-email={SITE.partnershipsEmail} data-subject="Aegis partnership enquiry"><span>04</span><div><strong>Research / partnership</strong><small>Labs · universities · design partners</small></div><b>↗</b></button>
+        <button type="button" role="tab" aria-selected="false" data-contact-route="security" data-email={SITE.securityEmail} data-subject="Aegis security disclosure"><span>05</span><div><strong>Security disclosure</strong><small>Private vulnerability reporting</small></div><b>↗</b></button>
+      </div>
+
+      <div class="contact-router__stage">
+        <div class="contact-router__status"><span class="mono">DIRECT CHANNEL</span><i></i><b data-contact-label>GENERAL / PRODUCT</b></div>
+        <h3 data-contact-title>Start with Aegis.</h3>
+        <p data-contact-copy>Questions about the current product, Founding Pro, installation, or whether Aegis fits your development workflow.</p>
+        <a class="contact-router__email" href={`mailto:${SITE.contactEmail}`} data-contact-email-link><small>Email</small><strong data-contact-email>{SITE.contactEmail}</strong><span>Compose message <Icon name="arrow" /></span></a>
+        <div class="contact-router__meta"><span>No chat widget.</span><span>No form backend.</span><span>No message stored by this site.</span></div>
+        <a class="btn btn--primary" href="/contact" data-contact-workspace>Open contact workspace <Icon name="arrow" /></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+.contact-hq{background:#e9e2d6;border-top:1px solid var(--line)}.contact-hq__head{display:grid;grid-template-columns:1.05fr .95fr;gap:70px;align-items:end;margin-bottom:44px}.contact-hq__head h2{font-size:clamp(3.8rem,6vw,6.8rem)}.contact-hq__head>p{max-width:620px;margin:0 0 10px;color:#42413c;font-size:16px;line-height:1.75}.contact-router{display:grid;grid-template-columns:.9fr 1.1fr;border:1px solid var(--line-strong);border-radius:26px;overflow:hidden;background:#f5efe5;box-shadow:0 30px 90px rgba(16,18,22,.08)}.contact-router__choices{padding:10px;background:#eee7dc;border-right:1px solid var(--line);display:grid;gap:6px}.contact-router__choices button{appearance:none;border:1px solid transparent;border-radius:14px;background:transparent;color:var(--ink);min-height:82px;padding:14px 15px;display:grid;grid-template-columns:27px 1fr auto;gap:10px;align-items:center;text-align:left;cursor:pointer;transition:.2s ease}.contact-router__choices button:hover,.contact-router__choices button:focus-visible{background:rgba(255,255,255,.58);transform:translateX(2px)}.contact-router__choices button.active,.contact-router__choices button[aria-selected="true"]{background:#fffdf8;border-color:rgba(17,19,24,.14);box-shadow:0 12px 32px rgba(16,18,22,.05)}.contact-router__choices button>span{color:var(--gold-deep);font:800 8px/1 var(--font-mono)}.contact-router__choices div{display:grid;gap:4px}.contact-router__choices strong{font-size:13px}.contact-router__choices small{color:#666159;font-size:9.5px}.contact-router__choices b{color:#a87726;font-size:15px;font-weight:500}.contact-router__stage{padding:42px;background:#101318;color:#eee9df;display:flex;flex-direction:column;min-height:510px}.contact-router__status{display:flex;align-items:center;gap:9px;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,.08)}.contact-router__status span{color:#8f969f;font-size:8px;letter-spacing:.11em}.contact-router__status i{width:6px;height:6px;border-radius:50%;background:#4e9b74}.contact-router__status b{margin-left:auto;color:#d7b56f;font:800 8px/1 var(--font-mono);letter-spacing:.08em}.contact-router__stage h3{font-size:clamp(2.8rem,4.6vw,5.3rem);margin:48px 0 16px;max-width:720px;color:#f3efe6}.contact-router__stage>p{max-width:650px;color:#aeb4bd;font-size:14px;line-height:1.72}.contact-router__email{margin:32px 0 20px;padding:20px 0;border-top:1px solid rgba(255,255,255,.09);border-bottom:1px solid rgba(255,255,255,.09);display:grid;grid-template-columns:80px 1fr auto;gap:16px;align-items:center}.contact-router__email small{color:#7f8791;font:700 8px/1 var(--font-mono);text-transform:uppercase}.contact-router__email strong{font-size:clamp(1rem,2vw,1.45rem)}.contact-router__email span{display:flex;align-items:center;gap:7px;color:#e5c37d;font-size:10px;font-weight:800}.contact-router__email svg{width:13px;height:13px}.contact-router__meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:25px}.contact-router__meta span{border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:7px 9px;color:#848c96;font:650 8px/1 var(--font-mono)}.contact-router__stage .btn{margin-top:auto;width:max-content;background:#efc978;color:#15120d}.contact-router__stage .btn:hover{background:#f5d58e}
+@media(max-width:900px){.contact-hq__head{grid-template-columns:1fr;gap:20px}.contact-router{grid-template-columns:1fr}.contact-router__choices{border-right:0;border-bottom:1px solid var(--line);grid-template-columns:repeat(2,1fr)}.contact-router__stage{min-height:460px}}@media(max-width:620px){.contact-router__choices{grid-template-columns:1fr}.contact-router__stage{padding:28px 20px}.contact-router__email{grid-template-columns:1fr}.contact-router__email span{justify-self:start}.contact-router__stage h3{font-size:clamp(3rem,15vw,5rem)}}@media(prefers-reduced-motion:reduce){.contact-router__choices button{transition:none}.contact-router__choices button:hover{transform:none}}
+</style>

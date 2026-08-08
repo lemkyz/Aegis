@@ -1,0 +1,73 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import Icon from '../components/Icon.astro';
+import { SITE } from '../config/site';
+import { COMMERCIAL } from '../config/commercial';
+const plans = [
+  { ...COMMERCIAL.community, href: SITE.marketplace, external: true },
+  { ...COMMERCIAL.pro, href: '/contact?interest=founding-pro' },
+  { ...COMMERCIAL.teams, href: '/contact?interest=team' },
+  { ...COMMERCIAL.enterprise, href: '/contact?interest=enterprise' },
+];
+---
+<BaseLayout title="Pricing — Aegis" description="Aegis pricing: free open-source Community, $19/month Founding Pro, $39/active contributor Team, and custom Enterprise." >
+  <Nav />
+  <main id="main">
+    <section class="page-hero pricing-page-hero">
+      <div class="shell page-hero-inner">
+        <div><p class="eyebrow">Pricing</p><h1>Open core.<br/><span class="accent-underline">Clear commercial path.</span></h1></div>
+        <p class="page-hero-copy">Aegis keeps local trust primitives open and prices the commercial layer around managed verification, shared evidence, policy, retention, and organization controls. Click any plan to start the right conversation.</p>
+      </div>
+    </section>
+
+    <section class="page-section pricing-page-section">
+      <div class="shell pricing-grid-v7">
+        {plans.map((plan, index) => (
+          <a class="plan-link-v7" href={plan.href} target={'external' in plan && plan.external ? '_blank' : undefined} rel={'external' in plan && plan.external ? 'noopener noreferrer' : undefined} aria-label={`${plan.name}: ${plan.cta}`}>
+            <article class:list={['plan-card-v7', {'plan-card-v7--featured': index === 1}] }>
+              <div class="plan-top"><span>{plan.name.toUpperCase()}</span><em>{plan.eyebrow}</em></div>
+              <div class="plan-price-v7"><strong>{plan.price}</strong><small>{plan.cadence}</small></div>
+              {'standardPrice' in plan && <div class="plan-standard">{plan.standardPrice}</div>}
+              <p>{plan.summary}</p>
+              <ul>{plan.features.map((feature) => <li>{feature}</li>)}</ul>
+              <span class:list={['plan-action-v7', {'plan-action-v7--gold': index === 1}]}>{plan.cta} <Icon name="arrow" /></span>
+            </article>
+          </a>
+        ))}
+      </div>
+
+      <div class="shell pricing-contact-strip">
+        <div><span class="mono">NOT SURE WHICH PLAN?</span><strong>Talk to Aegis before you buy the wrong thing.</strong><p>We can route a developer, team, enterprise, investor, or security enquiry without pretending every customer needs the same workflow.</p></div>
+        <a class="btn btn--primary" href="/contact">Open contact workspace <Icon name="arrow" /></a>
+      </div>
+
+      <div class="shell pricing-clarity">
+        <div><span class="mono">FOUNDING PRICE</span><h2>$19/month is the early-access price—not the long-term price ceiling.</h2><p>The current business model protects the Founding Pro price for 24 months. Standard self-serve Pro is planned at $29/month once the corresponding managed capabilities are publicly available.</p></div>
+        <div><span class="mono">TEAM VALUE METRIC</span><h2>$39 per active contributor keeps the bill tied to the team using the workflow.</h2><p>The planned Team minimum is five seats. Early teams can talk to us before the full commercial team layer is activated; they are not billed for future features.</p></div>
+      </div>
+    </section>
+
+    <section class="page-section page-section--soft">
+      <div class="shell prose-grid">
+        <aside><p class="eyebrow">Why this model</p><h2>The scanner is not the thing we are trying to hide behind a paywall.</h2></aside>
+        <div class="prose-body">
+          <h3>Community drives trust and distribution</h3>
+          <p>Local scanning, core evidence, the CLI, the extension, and inspectable trust schemas remain part of the open product. A security tool is easier to trust when the primitives that produce a decision can be inspected.</p>
+          <h3>Paid value appears when the workflow becomes operational</h3>
+          <p>Managed verification, cross-project history, collaboration, pull-request enforcement, retention, organization policy, private deployment, and support are the commercial layer. Those capabilities are only sold as they actually ship.</p>
+          <h3>Design partnerships remain separate</h3>
+          <p>Teams that want a bounded founder-led evaluation can still apply for a design partnership. That is a scoped pilot, not the monthly product price and not a substitute for self-serve pricing.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>
+
+<style>
+.pricing-page-section{background:#f6f1e8}.pricing-grid-v7{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.plan-link-v7{display:block;border-radius:22px}.plan-card-v7{height:100%;min-height:590px;padding:34px;border:1px solid rgba(11,14,18,.18);border-radius:22px;background:#fffdf9;display:flex;flex-direction:column;transition:transform .23s ease,border-color .23s ease,box-shadow .23s ease}.plan-link-v7:hover .plan-card-v7,.plan-link-v7:focus-visible .plan-card-v7{transform:translateY(-6px);border-color:rgba(169,120,37,.48);box-shadow:0 25px 70px rgba(11,14,18,.1)}.plan-card-v7--featured{background:#0b0e13;color:#f7f4ec;border-color:#0b0e13;box-shadow:0 26px 80px rgba(11,14,18,.14)}.plan-top{display:flex;justify-content:space-between;gap:16px}.plan-top span{color:#6f4b0d;font:850 11px/1 var(--font-mono);letter-spacing:.11em}.plan-card-v7--featured .plan-top span{color:#edc87f}.plan-top em{color:#62666c;font:800 9px/1 var(--font-mono);font-style:normal;letter-spacing:.08em}.plan-card-v7--featured .plan-top em{color:#b6bbc3}.plan-price-v7{min-height:110px;margin-top:52px;display:flex;align-items:flex-end;gap:12px}.plan-price-v7 strong{font-size:clamp(3.2rem,4.8vw,5rem);line-height:.93;letter-spacing:-.065em}.plan-price-v7 small{max-width:150px;padding-bottom:8px;color:#4f5359;font:740 12px/1.45 var(--font-mono)}.plan-card-v7--featured .plan-price-v7 small{color:#c3c7cd}.plan-standard{margin-top:9px;color:#565a60;font:760 11px/1.45 var(--font-mono)}.plan-card-v7--featured .plan-standard{color:#e4bd73}.plan-card-v7>p{color:#333840;font-size:15.5px;line-height:1.68;margin:28px 0 22px}.plan-card-v7--featured>p{color:#d0d4da}.plan-card-v7 ul{list-style:none;padding:22px 0 0;margin:0 0 30px;border-top:1px solid rgba(11,14,18,.11);display:grid;gap:12px}.plan-card-v7--featured ul{border-top-color:rgba(255,255,255,.1)}.plan-card-v7 li{position:relative;padding-left:19px;color:#353a41;font-size:13.5px;line-height:1.5}.plan-card-v7--featured li{color:#d0d4da}.plan-card-v7 li::before{content:"";position:absolute;left:0;top:.55em;width:6px;height:6px;border-radius:50%;background:var(--gold)}.plan-action-v7{margin-top:auto;display:inline-flex;align-items:center;gap:7px;width:max-content;padding-bottom:5px;border-bottom:1px solid rgba(11,14,18,.28);font-size:13px;font-weight:850}.plan-action-v7 svg{width:14px;height:14px}.plan-action-v7--gold,.plan-card-v7--featured .plan-action-v7{color:#f0c979;border-color:rgba(240,201,121,.35)}.pricing-contact-strip{margin-top:18px;padding:28px 30px;border:1px solid rgba(11,14,18,.15);border-radius:18px;background:#ece6db;display:flex;justify-content:space-between;gap:30px;align-items:center}.pricing-contact-strip>div{max-width:760px}.pricing-contact-strip span{color:#795313;font-size:9px;letter-spacing:.12em}.pricing-contact-strip strong{display:block;margin:9px 0 6px;font-size:19px}.pricing-contact-strip p{margin:0;color:#44484e;font-size:14px}.pricing-clarity{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}.pricing-clarity>div{padding:32px;border:1px solid rgba(11,14,18,.12);border-radius:18px;background:#ece6db}.pricing-clarity span{color:#795313;font-size:9px;letter-spacing:.12em}.pricing-clarity h2{font-size:clamp(1.8rem,3vw,2.8rem);margin:22px 0 12px}.pricing-clarity p{margin:0;color:#454a51;font-size:14px;line-height:1.65}.page-section--soft{background:#fffdf8}
+@media(max-width:1080px){.pricing-grid-v7{grid-template-columns:repeat(2,1fr)}.plan-card-v7{min-height:520px}}@media(max-width:700px){.pricing-grid-v7,.pricing-clarity{grid-template-columns:1fr}.plan-card-v7{min-height:auto}.plan-price-v7{margin-top:38px}.pricing-contact-strip{align-items:flex-start;flex-direction:column}}
+@media(prefers-reduced-motion:reduce){.plan-card-v7{transition:none}.plan-link-v7:hover .plan-card-v7,.plan-link-v7:focus-visible .plan-card-v7{transform:none}}
+</style>

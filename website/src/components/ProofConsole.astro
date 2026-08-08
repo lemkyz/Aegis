@@ -1,0 +1,34 @@
+---
+import SecurityResult from './SecurityResult.astro';
+---
+<div class="proof-console" data-proof-sequence>
+  <div class="proof-console-head">
+    <div>
+      <span class="proof-live"><i></i> Current release · observed fixture</span>
+      <strong>Aegis 0.2.0 trusted analysis</strong>
+    </div>
+    <button class="proof-run" type="button" data-run-proof>Run verification</button>
+  </div>
+
+  <div class="proof-rail" aria-label="Verification stages">
+    <span data-proof-step><i></i>Plan</span>
+    <span data-proof-step><i></i>Evidence</span>
+    <span data-proof-step><i></i>Primary review</span>
+    <span data-proof-step><i></i>Verifier</span>
+    <span data-proof-step><i></i>Policy</span>
+    <span data-proof-step><i></i>Memory</span>
+  </div>
+  <progress class="proof-progress" data-proof-progress max="100" value="0" aria-label="Verification progress">0%</progress>
+  <div class="proof-state"><span data-proof-state>Ready to verify</span><em>No clean verdict from missing proof.</em></div>
+
+  <SecurityResult />
+</div>
+
+<style>
+.proof-console{position:relative;isolation:isolate}.proof-console::before{content:"";position:absolute;inset:-28px -24px -34px;border-radius:34px;background:radial-gradient(circle at 55% 12%,rgba(201,154,66,.16),transparent 34%),linear-gradient(135deg,rgba(255,255,255,.45),rgba(255,255,255,.05));border:1px solid rgba(18,19,24,.07);z-index:-1;box-shadow:0 32px 90px rgba(18,19,24,.08)}
+.proof-console-head{display:flex;justify-content:space-between;gap:18px;align-items:end;margin-bottom:14px}.proof-console-head>div{display:grid;gap:5px}.proof-console-head strong{font-size:12px;letter-spacing:-.01em}.proof-live{display:inline-flex;align-items:center;gap:7px;color:var(--muted);font:650 9px/1 var(--font-mono);text-transform:uppercase;letter-spacing:.08em}.proof-live i{width:6px;height:6px;border-radius:50%;background:#4f9a76;box-shadow:0 0 0 4px rgba(79,154,118,.11)}
+.proof-run{min-height:34px;padding:0 12px;border:1px solid var(--line-strong);border-radius:999px;background:rgba(255,255,255,.54);color:var(--ink);font:700 10px/1 var(--font-ui);cursor:pointer}.proof-run:hover{border-color:rgba(201,154,66,.6)}.proof-run:disabled{opacity:.62;cursor:wait}
+.proof-rail{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:0 0 7px}.proof-rail span{display:flex;align-items:center;gap:6px;min-width:0;color:#77746d;font:650 8px/1.2 var(--font-mono);white-space:nowrap}.proof-rail i{flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:#cbc5b8;border:1px solid rgba(18,19,24,.13);transition:.22s ease}.proof-rail span.is-active{color:var(--ink)}.proof-rail span.is-active i{background:var(--gold);box-shadow:0 0 0 5px rgba(201,154,66,.12)}.proof-rail span.is-done i{background:#4f9a76;border-color:#4f9a76}
+.proof-progress{display:block;width:100%;height:2px;margin:0 0 8px;border:0;background:rgba(18,19,24,.12);overflow:hidden;color:var(--gold);appearance:none;-webkit-appearance:none}.proof-progress::-webkit-progress-bar{background:rgba(18,19,24,.12)}.proof-progress::-webkit-progress-value{background:var(--gold);transition:width .2s ease}.proof-progress::-moz-progress-bar{background:var(--gold);transition:width .2s ease}.proof-state{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px;color:#605e59;font:600 9px/1.4 var(--font-mono)}.proof-state em{font-style:normal;color:#8a867e}
+@media(max-width:700px){.proof-console::before{inset:-14px -8px -20px;border-radius:24px}.proof-rail{grid-template-columns:repeat(3,1fr);row-gap:9px}.proof-console-head{align-items:center}.proof-state{display:grid}.proof-state em{display:none}}
+</style>

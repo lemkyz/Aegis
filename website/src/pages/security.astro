@@ -1,0 +1,98 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import Icon from '../components/Icon.astro';
+import { SITE } from '../config/site';
+---
+<BaseLayout title="Security — Aegis" description="How Aegis handles local data, model providers, dynamic validation, secure fixes, integrity, disclosure, and the public-preview trust boundary.">
+  <Nav />
+  <main id="main">
+    <section class="page-hero">
+      <div class="shell page-hero-inner">
+        <div>
+          <p class="eyebrow">Security</p>
+          <h1>Trust starts with <span class="accent-underline">clear boundaries.</span></h1>
+        </div>
+        <p class="page-hero-copy">Aegis is a security product. Its own public website and product documentation should state what is local, what may leave the machine, what can execute, and what a result does—and does not—prove.</p>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell info-grid">
+        <article class="info-card"><span>TELEMETRY</span><h3>No product telemetry in 0.2.0.</h3><p>The current VS Code workflow does not include Aegis product telemetry. Deterministic scans, policy evaluation, audit records, and project security memory remain local.</p></article>
+        <article class="info-card"><span>MODEL PROVIDERS</span><h3>Model-backed review is optional.</h3><p>Deterministic workflows can run without a model provider. When enabled, Aegis records the provider and model used for each role.</p></article>
+        <article class="info-card"><span>EXECUTION</span><h3>Dynamic validation is never implicit.</h3><p>Controlled validation is separately authorized and intended only for repositories and systems the operator owns or is explicitly permitted to test.</p></article>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell prose-grid">
+        <aside><p class="eyebrow">Local boundary</p><h2>Keep the default service local.</h2></aside>
+        <div class="prose-body">
+          <p>The VS Code extension connects to the local Aegis backend at <code>http://127.0.0.1:8000</code> by default. It does not silently start a hidden service. Repository-reading and validation commands are disabled in untrusted and virtual workspaces.</p>
+          <h3>Source and evidence handling</h3>
+          <p>Deterministic analysis remains local. If model-backed review is deliberately configured, Aegis sends the configured provider only the source context and evidence required for that request after applying its secret-redaction boundary. The resulting report records which route handled primary review and which route handled verification.</p>
+          <div class="callout"><p><strong>Boundary:</strong> “local-first” does not mean “nothing can ever leave the machine.” Model-backed review is an explicit operator choice and should be evaluated against the provider’s own data terms.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell prose-grid">
+        <aside><p class="eyebrow">Controlled validation</p><h2>Analysis is not permission to execute.</h2></aside>
+        <div class="prose-body">
+          <p>The current dynamic-validation boundary is designed around explicit authorization and containment. The repository and container root are read-only; networking is disabled by default; Linux capabilities are dropped; <code>no-new-privileges</code> is set; execution uses an unprivileged user; and CPU, memory, process, runtime, and output limits are applied.</p>
+          <h3>No shell-built container command</h3>
+          <p>Aegis does not construct its container invocation through a shell string. This keeps the execution boundary narrower and avoids turning repository-controlled text into shell syntax.</p>
+          <h3>Authorization remains separate</h3>
+          <p>Controlled reproduction is evidence gathering. It is not a blanket right to probe external targets or production systems.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell prose-grid">
+        <aside><p class="eyebrow">Secure fixes</p><h2>Patch integrity is part of verification.</h2></aside>
+        <div class="prose-body">
+          <p>Secure fixes are bound to the reviewed patch digest and source selection. Aegis revalidates both before writing, replaces the source atomically, and is designed not to overwrite newer user work during rollback.</p>
+          <h3>Verification outcomes</h3>
+          <ul>
+            <li><strong>VERIFIED</strong> means the configured required checks passed, the target finding disappeared, no static regression appeared, and an authorized baseline no longer reproduces.</li>
+            <li><strong>PARTIAL</strong> means available checks passed but the evidence is not sufficient for a verified claim.</li>
+            <li><strong>FAILED</strong> means the issue remains, a check failed, a regression appeared, or execution could not support a trustworthy conclusion.</li>
+          </ul>
+          <p>A blocked, cancelled, failed, or timed-out run never becomes proof of safety.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell prose-grid">
+        <aside><p class="eyebrow">Integrity & memory</p><h2>Evidence should survive the run.</h2></aside>
+        <div class="prose-body">
+          <p>Production runs have a task graph and append-only audit trail. Trusted Analysis binds the source, plan, audit stream, and artifact manifest with SHA-256 digests. Revision drift, source changes, missing evidence, and incomplete verification remain visible.</p>
+          <p>Project security memory stores immutable snapshots and claim transitions including new, persistent, changed, resolved, and reopened risk. Partial or failed analysis is not written as a clean baseline.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell prose-grid">
+        <aside><p class="eyebrow">Website hardening</p><h2>A deliberately small public attack surface.</h2></aside>
+        <div class="prose-body">
+          <p>The public Aegis website is designed as a static Astro build with no login, database, server-side contact form, advertising script, or third-party analytics dependency. Production headers deny framing, restrict scripts and connections to the same origin, disable unused browser capabilities, and require HTTPS.</p>
+          <p>This is not a guarantee that any website is vulnerability-free. It is an architectural choice to remove unnecessary runtime surface and make the remaining behavior easier to inspect.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell contact-band">
+        <div><h3>Report a vulnerability privately.</h3><p>Please follow the repository security policy rather than opening a public issue for a sensitive report.</p></div>
+        <a class="btn btn--primary" href={`${SITE.github}/security/policy`} target="_blank" rel="noopener noreferrer">Security policy <Icon name="arrow" /></a>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>

@@ -1,0 +1,59 @@
+---
+const nodes: Array<[string, string, string]> = [
+  ['01', 'Finding', 'A security claim starts as a hypothesis—not a verdict. Aegis keeps the claim separate from the evidence that supports it.'],
+  ['02', 'Evidence', 'Deterministic scanners, source locations, model provenance, and integrity data are attached to the claim as inspectable records.'],
+  ['03', 'Attack path', 'Threat context describes how untrusted input can reach a protected operation or asset. Controlled dynamic evidence remains separately authorized.'],
+  ['04', 'Controlled remediation', 'A patch remains reviewable, authorization-bound, source-bound, and tied to an exact digest before it can be applied.'],
+  ['05', 'Independent verification', 'A patch does not certify itself. Project checks, rescans, verifier evidence, and authorized baseline replay decide what can be claimed.'],
+  ['06', 'Policy decision', 'ALLOW, REVIEW, or BLOCK is computed from the evidence and configured trust boundaries—never from the confidence of one model.'],
+  ['07', 'Persistent security memory', 'Claim transitions and integrity-bound records survive the run, so future analysis can distinguish new, persistent, resolved, and reopened risk.'],
+];
+
+const [firstNumber, firstLabel, firstDetail] = nodes[0]!;
+---
+<div class="graph" data-graph>
+  <div class="graph-line" aria-hidden="true"></div>
+  <div class="graph-nodes" role="list" aria-label="Aegis security trust lifecycle">
+    {nodes.map(([number, label, detail], index) => (
+      <div class="graph-node-item" role="listitem">
+        <button
+          class:list={['graph-node', {active: index === 0}]}
+          type="button"
+          data-graph-node
+          data-title={`${number} / ${label.toUpperCase()}`}
+          data-detail={detail}
+          aria-label={`Inspect ${label}`}
+          aria-pressed={index === 0 ? 'true' : 'false'}
+          aria-controls="evidence-graph-detail"
+        >
+          <span class="node-index mono">{number}</span>
+          <span class="node-orb"><i></i></span>
+          <span class="node-label">{label}</span>
+        </button>
+      </div>
+    ))}
+  </div>
+  <div id="evidence-graph-detail" class="graph-detail" aria-live="polite" aria-atomic="true">
+    <span class="detail-label mono" data-graph-title>{firstNumber} / {firstLabel.toUpperCase()}</span>
+    <p data-graph-detail>{firstDetail}</p>
+  </div>
+</div>
+
+<style>
+.graph { position:relative; padding:26px 0 0; }
+.graph-nodes { position:relative; z-index:2; display:grid; grid-template-columns:repeat(7,1fr); gap:12px; }
+.graph-line { position:absolute; top:73px; left:7%; right:7%; height:1px; background:linear-gradient(90deg,rgba(18,19,24,.12),rgba(201,151,59,.78),rgba(18,19,24,.12)); }
+.graph-node-item { min-width:0; }
+.graph-node { width:100%; display:grid; grid-template-rows:16px 56px auto; justify-items:center; gap:8px; min-width:0; padding:0; border:0; background:transparent; cursor:pointer; color:var(--muted); }
+.node-index { font-size:9px; color:#66645f; }
+.node-orb { width:54px; height:54px; border:1px solid var(--line-strong); background:rgba(250,248,242,.75); border-radius:99px; display:grid; place-items:center; transition:transform .25s ease,border-color .25s ease,background .25s ease; }
+.node-orb i { width:8px; height:8px; border-radius:99px; background:#8e8b85; transition:background .25s ease,box-shadow .25s ease; }
+.node-label { max-width:112px; text-align:center; font-size:11px; line-height:1.35; font-weight:680; color:var(--muted-strong); }
+.graph-node:hover .node-orb, .graph-node:focus-visible .node-orb, .graph-node.active .node-orb { transform:translateY(-3px); border-color:rgba(201,151,59,.62); background:#fffdf8; }
+.graph-node.active .node-orb i { background:var(--gold); box-shadow:0 0 0 8px rgba(201,151,59,.11); }
+.graph-node.active .node-label { color:var(--ink); }
+.graph-detail { display:grid; grid-template-columns:190px 1fr; gap:32px; min-height:112px; margin-top:40px; padding:24px 28px; border:1px solid var(--line); border-radius:14px; background:rgba(255,255,255,.34); }
+.detail-label { color:var(--gold-deep); font-size:10px; letter-spacing:.06em; }
+.graph-detail p { max-width:760px; color:var(--muted-strong); font-size:14px; margin:0; }
+@media(max-width:800px){.graph{overflow-x:auto;padding-bottom:8px}.graph-nodes{min-width:760px}.graph-line{min-width:660px}.graph-detail{position:sticky;left:0;grid-template-columns:1fr;gap:10px;min-width:calc(100vw - 28px)}}
+</style>

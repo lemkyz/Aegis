@@ -1,0 +1,25 @@
+---
+import Icon from './Icon.astro';
+import { SITE } from '../config/site';
+---
+<div class="release-drawer" data-release-drawer hidden>
+  <button class="release-drawer__backdrop" type="button" aria-label="Close release details" data-release-close></button>
+  <aside class="release-drawer__panel" role="dialog" aria-modal="true" aria-labelledby="release-drawer-title">
+    <header><div><span class="mono">CURRENT PUBLIC PREVIEW</span><h2 id="release-drawer-title">Aegis {SITE.release}</h2></div><button type="button" data-release-close aria-label="Close">×</button></header>
+    <div class="release-drawer__body">
+      <p>{SITE.release} applies the Aegis trust model to software security across VS Code, GitHub Action, CLI, and the local orchestration backend.</p>
+      <dl>
+        <div><dt>Surface</dt><dd>VS Code · GitHub Action · CLI + API</dd></div>
+        <div><dt>Deterministic evidence</dt><dd>Semgrep + Bandit in the observed fixture</dd></div>
+        <div><dt>Independent verifier</dt><dd>Separate verifier route in the evidence record</dd></div>
+        <div><dt>Policy</dt><dd><b>ALLOW · REVIEW · BLOCK</b></dd></div>
+        <div><dt>License</dt><dd>Apache-2.0 open-source core</dd></div>
+      </dl>
+      <div class="release-drawer__note"><Icon name="shield" /><p>This is a preview release. Public interfaces may change before 1.0, and the current release should be evaluated on local or non-production repositories first.</p></div>
+    </div>
+    <footer><a class="btn btn--primary" href={SITE.marketplace} target="_blank" rel="noopener noreferrer">Install {SITE.release} <Icon name="arrow" /></a><a class="btn btn--ghost" href={SITE.github} target="_blank" rel="noopener noreferrer">View source</a></footer>
+  </aside>
+</div>
+<style>
+.release-drawer{position:fixed;inset:0;z-index:115}.release-drawer__backdrop{position:absolute;inset:0;border:0;background:rgba(8,10,13,.42);backdrop-filter:blur(5px)}.release-drawer__panel{position:absolute;right:0;top:0;bottom:0;width:min(520px,100vw);background:#f7f2e8;color:var(--ink);box-shadow:-30px 0 90px rgba(8,10,13,.24);display:flex;flex-direction:column;animation:drawer-in .26s cubic-bezier(.2,.75,.25,1)}.release-drawer__panel header{min-height:120px;padding:28px 30px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:20px}.release-drawer__panel header span{color:var(--gold-deep);font-size:8px;letter-spacing:.12em}.release-drawer__panel h2{font-size:3rem;margin:8px 0 0}.release-drawer__panel header button{width:38px;height:38px;border:1px solid var(--line-strong);border-radius:50%;background:transparent;font-size:22px;cursor:pointer}.release-drawer__body{padding:30px;overflow:auto}.release-drawer__body>p{color:#45433d;font-size:15px;line-height:1.72}.release-drawer dl{margin:30px 0;border-top:1px solid var(--line)}.release-drawer dl>div{display:grid;grid-template-columns:150px 1fr;gap:15px;padding:16px 0;border-bottom:1px solid var(--line)}.release-drawer dt{color:#6a665e;font:750 9px/1.4 var(--font-mono);text-transform:uppercase}.release-drawer dd{margin:0;font-size:12px;line-height:1.5}.release-drawer__note{display:grid;grid-template-columns:25px 1fr;gap:12px;padding:16px;border:1px solid rgba(168,118,34,.22);border-radius:12px;background:#eee6d8}.release-drawer__note svg{width:17px;height:17px;color:#9f6c19}.release-drawer__note p{margin:0;color:#514d45;font-size:11px;line-height:1.6}.release-drawer__panel footer{margin-top:auto;padding:22px 30px;border-top:1px solid var(--line);display:flex;gap:9px;flex-wrap:wrap}@keyframes drawer-in{from{transform:translateX(100%)}to{transform:none}}@media(prefers-reduced-motion:reduce){.release-drawer__panel{animation:none}}
+</style>

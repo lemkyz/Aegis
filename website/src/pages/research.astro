@@ -1,0 +1,68 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import Icon from '../components/Icon.astro';
+import { SITE } from '../config/site';
+---
+<BaseLayout title="Research — Aegis" description="Aegis research methodology: evidence quality, independent verification, secure-remediation correctness, controlled reproduction, and trustworthy software-agent actions.">
+  <Nav />
+  <main id="main">
+    <section class="page-hero">
+      <div class="shell page-hero-inner">
+        <div>
+          <p class="eyebrow">Research</p>
+          <h1>Make trust <span class="accent-underline">measurable.</span></h1>
+        </div>
+        <p class="page-hero-copy">Aegis treats “safe,” “fixed,” and “verified” as claims that need observable support. Research is where we define how those claims should be tested, reproduced, and challenged.</p>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell info-grid">
+        <article class="info-card" id="evidence-sufficiency"><span>01 / EVIDENCE</span><h3>What makes a security claim inspectable?</h3><p>Source location, provenance, deterministic signals, threat context, integrity data, and the limits of the observation should remain attached to the claim.</p></article>
+        <article class="info-card" id="independent-verification"><span>02 / VERIFICATION</span><h3>What counts as independent checking?</h3><p>A verifier must remain distinct from the system that proposed the security-sensitive action, and deterministic checks must not be replaced by model agreement.</p></article>
+        <article class="info-card" id="remediation-correctness"><span>03 / REMEDIATION</span><h3>Did the patch close the path?</h3><p>Patch acceptance is not the target metric. The stronger question is whether the original failure stops reproducing without introducing a new failure.</p></article>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell prose-grid">
+        <aside><p class="eyebrow">Methodology</p><h2>Separate observation from conclusion.</h2></aside>
+        <div class="prose-body">
+          <p>Aegis deliberately represents different forms of evidence as different records. Deterministic scanner output is not model review. Model review is not independent verification. Controlled reproduction is not authorization to change code. A successful patch application is not post-fix proof.</p>
+          <h3>Fail-closed interpretation</h3>
+          <p>Research outputs should make uncertainty visible. If a required check cannot run, the correct result is not an optimistic default. This is why Aegis distinguishes VERIFIED, PARTIAL, and FAILED rather than collapsing all non-errors into success.</p>
+          <h3>Reproducibility over leaderboard theater</h3>
+          <p>When Aegis publishes future benchmark or evaluation work, methodology should state versions, environments, prompts where relevant, deterministic fixtures, repetition strategy, and uncertainty. No public benchmark or leaderboard is claimed on this website today.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell prose-grid">
+        <aside><p class="eyebrow">Active questions</p><h2>Research directions, not product claims.</h2></aside>
+        <div class="prose-body">
+          <h3>Secure-remediation correctness</h3>
+          <p>How often does an automatically proposed security patch truly remove the vulnerable behavior rather than move it, hide it, over-restrict the feature, or introduce a regression?</p>
+          <h3>Evidence sufficiency</h3>
+          <p>Which combinations of static evidence, project tests, threat context, controlled reproduction, and independent review are sufficient for different classes of security claim?</p>
+          <h3 id="intent-action">Intent–action alignment</h3>
+          <p>As software agents gain broader tool access, how should a trust layer reason about whether a requested action is necessary for the stated task, within authorized scope, and reversible if it fails?</p>
+          <h3>Persistent security memory</h3>
+          <p>How can a system retain useful project security history without turning uncertain or superseded conclusions into permanent “facts”?</p>
+          <h3>Policy sufficiency</h3>
+          <p>What evidence should be required before a security-sensitive change is allowed, sent to review, or blocked—and how should that requirement vary by risk and context?</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-section">
+      <div class="shell contact-band">
+        <div><h3>Research should be inspectable.</h3><p>The current implementation, fixtures, security model, and release gate are available in the public repository.</p></div>
+        <a class="btn btn--primary" href={SITE.github} target="_blank" rel="noopener noreferrer">Inspect the source <Icon name="arrow" /></a>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>

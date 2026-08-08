@@ -1,0 +1,26 @@
+---
+import Icon from './Icon.astro';
+import { SITE } from '../config/site';
+---
+<div class="command-palette" data-command-palette hidden>
+  <button class="command-palette__backdrop" type="button" aria-label="Close command palette" data-command-close></button>
+  <section class="command-palette__dialog" role="dialog" aria-modal="true" aria-labelledby="command-title">
+    <header><Icon name="search" /><label id="command-title" for="aegis-command">Navigate Aegis</label><kbd>ESC</kbd></header>
+    <input id="aegis-command" type="search" autocomplete="off" placeholder="Search pages, actions, or resources…" data-command-input />
+    <nav aria-label="Command palette results" data-command-results>
+      <a href={SITE.marketplace} target="_blank" rel="noopener noreferrer" data-command-item data-search="install vscode marketplace extension"><span>↳</span><div><strong>Install Aegis</strong><small>VS Code Marketplace</small></div><kbd>I</kbd></a>
+      <a href="/#evidence" data-command-item data-search="evidence graph proof claims"><span>◇</span><div><strong>Evidence lifecycle</strong><small>Claim → verification → policy</small></div><kbd>E</kbd></a>
+      <a href="/#workflow" data-command-item data-search="fix prove remediation verification"><span>✓</span><div><strong>Fix &amp; Prove</strong><small>Controlled remediation workflow</small></div><kbd>F</kbd></a>
+      <a href="/developers" data-command-item data-search="developers vscode github cli api"><span>⌘</span><div><strong>Developer surfaces</strong><small>VS Code · GitHub Action · CLI</small></div><kbd>D</kbd></a>
+      <a href={SITE.github} target="_blank" rel="noopener noreferrer" data-command-item data-search="github source repository open source"><span>⌁</span><div><strong>Open source</strong><small>github.com/lemkyz/Aegis</small></div><kbd>G</kbd></a>
+      <a href="/#pricing" data-command-item data-search="pricing plans community pro team enterprise"><span>$</span><div><strong>Pricing</strong><small>Community · Pro · Team · Enterprise</small></div><kbd>P</kbd></a>
+      <a href="/security" data-command-item data-search="security privacy disclosure boundary"><span>◈</span><div><strong>Security at Aegis</strong><small>Data and execution boundaries</small></div><kbd>S</kbd></a>
+      <a href="/#contact" data-command-item data-search="contact founder investors partnerships email"><span>→</span><div><strong>Contact Aegis</strong><small>Business · founder · partnerships · security</small></div><kbd>C</kbd></a>
+    </nav>
+    <footer><span>↑↓ navigate</span><span>↵ open</span><span><kbd>⌘K</kbd> / <kbd>Ctrl K</kbd></span></footer>
+  </section>
+</div>
+<style>
+.command-palette{position:fixed;inset:0;z-index:120}.command-palette__backdrop{position:absolute;inset:0;border:0;background:rgba(9,11,14,.55);backdrop-filter:blur(7px);cursor:default}.command-palette__dialog{position:relative;width:min(680px,calc(100vw - 30px));margin:12vh auto 0;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:#10141a;color:#e9e5dd;box-shadow:0 42px 120px rgba(0,0,0,.38);overflow:hidden}.command-palette__dialog header{height:48px;padding:0 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.07);color:#949ba5}.command-palette__dialog header svg{width:15px;height:15px}.command-palette__dialog header label{font:740 9px/1 var(--font-mono);text-transform:uppercase;letter-spacing:.1em}.command-palette kbd{margin-left:auto;border:1px solid rgba(255,255,255,.12);border-radius:5px;padding:4px 6px;background:#171c23;color:#959ca6;font:700 8px/1 var(--font-mono)}.command-palette input{width:100%;height:68px;border:0;border-bottom:1px solid rgba(255,255,255,.07);outline:0;background:#0d1117;color:#f1eee7;padding:0 20px;font:600 18px/1 var(--font-ui)}.command-palette input::placeholder{color:#676e77}.command-palette nav{padding:8px;max-height:430px;overflow:auto}.command-palette nav a{min-height:58px;padding:9px 12px;border:1px solid transparent;border-radius:10px;display:grid;grid-template-columns:24px 1fr auto;gap:10px;align-items:center;color:#cbd0d7}.command-palette nav a:hover,.command-palette nav a:focus-visible,.command-palette nav a.is-active{background:#171c23;border-color:rgba(229,190,113,.16);outline:0}.command-palette nav a>span{color:#d6b05f;font:800 13px/1 var(--font-mono)}.command-palette nav a div{display:grid;gap:3px}.command-palette nav strong{font-size:12px}.command-palette nav small{color:#7f8791;font-size:9px}.command-palette__dialog footer{height:42px;padding:0 14px;border-top:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:16px;color:#747c86;font:650 8px/1 var(--font-mono)}.command-palette__dialog footer kbd{margin:0}
+@media(max-width:600px){.command-palette__dialog{margin-top:7vh}.command-palette nav{max-height:52vh}.command-palette__dialog footer{display:none}}
+</style>

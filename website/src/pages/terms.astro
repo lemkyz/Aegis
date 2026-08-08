@@ -1,0 +1,28 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import { SITE } from '../config/site';
+---
+<BaseLayout title="Terms — Aegis" description="Website terms for Aegis.">
+  <Nav />
+  <main id="main">
+    <section class="page-hero"><div class="shell page-hero-inner"><div><p class="eyebrow">Terms</p><h1>Clear boundaries for the <span class="accent-underline">public website.</span></h1></div><p class="page-hero-copy">These website terms are intentionally simple. Product source is governed by its repository license; paid design partnerships require a separate written scope.</p></div></section>
+    <section class="page-section"><div class="shell legal-body">
+      <div class="legal-meta">Last updated: 7 August 2026</div>
+      <h2>Informational website</h2>
+      <p>This website describes Aegis, its current public product surfaces, research direction, and commercial evaluation options. Information may change as the product develops. A roadmap statement is not a warranty that a feature will ship by a particular date.</p>
+      <h2>Open-source software</h2>
+      <p>The Aegis source repository is governed by the license and notices included in that repository. The public website does not replace or modify those license terms.</p>
+      <h2>No security guarantee</h2>
+      <p>Aegis is security software, but neither the website nor the product should be interpreted as a guarantee that software is vulnerability-free, incident-free, compliant with a particular framework, or safe in every environment. Security conclusions depend on scope, configuration, evidence, and the checks actually performed.</p>
+      <h2>Design partnerships and paid work</h2>
+      <p>Any paid pilot, design partnership, enterprise evaluation, or other commercial engagement requires a separate written scope that defines services, responsibilities, data handling, pricing, and applicable legal terms before work begins.</p>
+      <h2>Responsible use</h2>
+      <p>Controlled validation and security testing should only be used on systems the operator owns or is explicitly authorized to test. The public project documentation describes relevant safety boundaries.</p>
+      <h2>Contact</h2>
+      <p>Questions can be sent to <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.</p>
+    </div></section>
+  </main>
+  <Footer />
+</BaseLayout>

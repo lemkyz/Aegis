@@ -1,0 +1,48 @@
+---
+import Icon from './Icon.astro';
+import { SITE } from '../config/site';
+---
+<header class="site-nav" data-nav>
+  <div class="shell nav-inner">
+    <a class="brand" href="/#top" aria-label="Aegis home">
+      <span class="brand-mark"><img src="/brand/aegis-mark.svg" alt="" width="38" height="38" /></span>
+      <span class="brand-name">AEGIS</span>
+    </a>
+
+    <nav class="nav-links" aria-label="Primary navigation">
+      <a href="/#product">Product</a>
+      <a href="/developers">Developers</a>
+      <a href="/#research">Research</a>
+      <a href="/security">Security</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/company">Company</a>
+      <a href="/#contact">Contact</a>
+    </nav>
+
+    <div class="nav-actions">
+      <button class="nav-command" type="button" aria-label="Open command palette" title="Command palette (Ctrl/⌘ K)" data-command-open><Icon name="search" /></button>
+      <a class="github-link" href={SITE.github} target="_blank" rel="noopener noreferrer" aria-label="Aegis on GitHub"><Icon name="github" /><span>GitHub</span></a>
+      <a class="btn btn--primary nav-install" href={SITE.marketplace} target="_blank" rel="noopener noreferrer">Install Aegis <Icon name="arrow" /></a>
+    </div>
+
+    <button class="nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="mobile-navigation" data-nav-toggle><Icon name="menu" /></button>
+  </div>
+
+  <div class="mobile-panel" id="mobile-navigation" data-mobile-panel hidden>
+    <nav aria-label="Mobile navigation">
+      <a href="/#product">Product</a>
+      <a href="/developers">Developers</a>
+      <a href="/#research">Research</a>
+      <a href="/security">Security</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/company">Company</a>
+      <a href="/#contact">Contact</a>
+      <a href="/open-source">Open source</a>
+      <a href="/releases">Releases</a>
+    </nav>
+    <div class="mobile-actions">
+      <a class="btn btn--primary" href={SITE.marketplace} target="_blank" rel="noopener noreferrer">Install Aegis <Icon name="arrow" /></a>
+      <a class="btn btn--ghost" href="/#contact">Talk to Aegis</a>
+    </div>
+  </div>
+</header>

@@ -1,8 +1,8 @@
 {
   "name": "aegis-security",
   "displayName": "Aegis Security",
-  "description": "Run evidence-backed security analysis, fixes, and verification without leaving VS Code.",
-  "version": "0.2.0",
+  "description": "Evidence-backed security for AI-generated software: findings, fixes, independent verification, policy, and audit inside VS Code.",
+  "version": "0.2.1",
   "publisher": "aegis-security",
   "preview": true,
   "pricing": "Free",
@@ -14,7 +14,8 @@
   },
   "categories": [
     "Linters",
-    "Other"
+    "Other",
+    "Testing"
   ],
   "activationEvents": [],
   "extensionKind": [
@@ -239,23 +240,28 @@
     "url": "https://github.com/lemkyz/Aegis.git"
   },
   "license": "Apache-2.0",
-  "homepage": "https://github.com/lemkyz/Aegis",
+  "homepage": "https://aegistrustlayer.com",
   "bugs": {
     "url": "https://github.com/lemkyz/Aegis/issues"
   },
   "keywords": [
     "security",
+    "application-security",
+    "ai-security",
+    "ai-generated-code",
     "ai-agents",
+    "software-agents",
     "trust-layer",
     "security-verification",
-    "ai-security",
     "secure-coding",
     "code-analysis",
     "devsecops",
-    "vulnerability"
+    "vulnerability",
+    "sast",
+    "evidence"
   ],
   "galleryBanner": {
-    "color": "#F7F3EA",
+    "color": "#F3EEE5",
     "theme": "light"
   }
 }

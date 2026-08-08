@@ -1,0 +1,32 @@
+<section class="architecture-card" aria-label="Aegis architecture diagram">
+  <div class="architecture-top">
+    <div class="surface-node"><small>Developer surface</small><strong>VS Code</strong><span>Interactive workspace</span></div>
+    <div class="surface-node"><small>CI surface</small><strong>GitHub Action</strong><span>PR policy gate</span></div>
+    <div class="surface-node"><small>Local surface</small><strong>CLI + API</strong><span>Deterministic path</span></div>
+  </div>
+  <div class="architecture-link"><span></span><i></i><span></span></div>
+  <div class="architecture-core">
+    <div class="core-label">AEGIS TRUST LAYER</div>
+    <div class="core-grid">
+      <div><small>Intent</small><strong>Plan + scope</strong></div>
+      <div><small>Evidence</small><strong>Deterministic + provenance</strong></div>
+      <div><small>Review</small><strong>Primary + verifier</strong></div>
+      <div><small>Control</small><strong>Authorization + limits</strong></div>
+      <div><small>Validation</small><strong>Sandbox + replay</strong></div>
+      <div><small>Decision</small><strong>Policy + memory</strong></div>
+    </div>
+  </div>
+  <div class="architecture-link down"><span></span><i></i><span></span></div>
+  <div class="architecture-bottom">
+    <span>Repository</span><span>Dependencies</span><span>Tests</span><span>Containers</span><span>Model providers*</span>
+  </div>
+  <p class="architecture-footnote">* Model-backed review is optional. When enabled, only the source context and evidence required for that request are sent to the configured provider after the secret-redaction boundary.</p>
+</section>
+<style>
+.architecture-card{padding:18px;border:1px solid rgba(255,255,255,.13);border-radius:22px;background:#15181f;box-shadow:0 28px 70px rgba(0,0,0,.23)}
+.architecture-top{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.surface-node{padding:18px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#11141a}.surface-node small,.core-grid small{display:block;color:#8a9099;font:700 8px/1 var(--font-mono);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px}.surface-node strong{display:block;color:#efebe2;font-size:13px;margin-bottom:4px}.surface-node span{color:#838892;font-size:10px}
+.architecture-link{height:40px;display:grid;grid-template-columns:1fr 1px 1fr;align-items:stretch}.architecture-link span{border-bottom:1px solid rgba(201,151,59,.28)}.architecture-link span:first-child{border-right:1px solid rgba(201,151,59,.28)}.architecture-link span:last-child{border-left:1px solid rgba(201,151,59,.28)}.architecture-link i{background:rgba(201,151,59,.48)}.architecture-link.down{transform:rotate(180deg)}
+.architecture-core{padding:18px;border:1px solid rgba(201,151,59,.28);border-radius:14px;background:linear-gradient(180deg,rgba(201,151,59,.08),rgba(201,151,59,.025))}.core-label{color:#d6b36d;font:800 9px/1 var(--font-mono);letter-spacing:.14em;margin-bottom:14px}.core-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.core-grid>div{padding:12px;border:1px solid rgba(255,255,255,.07);background:rgba(16,18,24,.64);border-radius:8px}.core-grid strong{color:#c8ccd2;font-size:10px;font-weight:650}
+.architecture-bottom{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}.architecture-bottom span{padding:7px 9px;border:1px solid rgba(255,255,255,.08);border-radius:999px;color:#8b919a;background:#101319;font:600 9px/1 var(--font-mono)}.architecture-footnote{margin:14px 4px 0;color:#888e97;font-size:9px;line-height:1.55}
+@media(max-width:620px){.architecture-top,.core-grid{grid-template-columns:1fr}.architecture-link{height:24px}.surface-node{padding:14px}.architecture-bottom{justify-content:flex-start}}
+</style>
