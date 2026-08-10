@@ -1,0 +1,21 @@
+AEGIS PUBLIC DEVELOPER SURFACE LICENSE
+
+Copyright (c) 2026 Aegis. All rights reserved.
+
+This repository is publicly viewable for product evaluation, documentation,
+integration, and release-distribution purposes.
+
+Publication of this repository does not grant an open-source license to the
+Aegis proprietary runtime, security engine, orchestration logic, verification
+internals, model-routing intelligence, private rules, evaluation corpus, or
+other non-published Aegis technology.
+
+Except where a specific file or third-party component states otherwise, no
+license is granted to copy, modify, distribute, sublicense, sell, repackage,
+reverse engineer, or create derivative commercial implementations of Aegis
+proprietary technology.
+
+Third-party components remain subject to their respective licenses.
+
+Commercial licensing:
+https://aegistrustlayer.com/contact

@@ -1,0 +1,54 @@
+name: Aegis Security Change Gate
+description: Evidence-backed security policy gate using the proprietary Aegis Runtime.
+
+branding:
+  icon: shield
+  color: yellow
+
+runs:
+  using: composite
+  steps:
+    - name: Install verified Aegis Runtime
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if [ "${RUNNER_OS:-}" != "Linux" ] || [ "${RUNNER_ARCH:-}" != "X64" ]; then
+          echo "Aegis developer preview currently supports Linux x64 GitHub runners." >&2
+          exit 1
+        fi
+
+        release="v0.2.2-runtime-preview"
+        base="https://github.com/lemkyz/Aegis/releases/download/${release}"
+        archive="${RUNNER_TEMP}/aegis-runtime-linux-x64.tar.gz"
+        sums="${RUNNER_TEMP}/SHA256SUMS"
+        install_dir="${RUNNER_TEMP}/aegis-runtime"
+
+        curl --fail --location --silent --show-error           "${base}/aegis-runtime-linux-x64.tar.gz"           --output "${archive}"
+
+        curl --fail --location --silent --show-error           "${base}/SHA256SUMS"           --output "${sums}"
+
+        (
+          cd "${RUNNER_TEMP}"
+          /usr/bin/sha256sum --check SHA256SUMS
+        )
+
+        mkdir -p "${install_dir}"
+        tar -xzf "${archive}" -C "${install_dir}"
+
+        runtime="${install_dir}/aegis_runtime.dist/aegis-runtime"
+        test -x "${runtime}"
+
+        ln -sf "${runtime}" "${install_dir}/aegis"
+        echo "${install_dir}" >> "${GITHUB_PATH}"
+
+        key="$(
+          python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
+        )"
+        echo "AEGIS_FINGERPRINT_KEY=${key}" >> "${GITHUB_ENV}"
+
+    - name: Run Aegis change gate
+      shell: bash
+      run: |
+        set -euo pipefail
+        "${GITHUB_ACTION_PATH}/scripts/run-pr-gate.sh"
