@@ -2,43 +2,73 @@
 
 The Aegis security engine is distributed as a proprietary local runtime.
 
-The current developer preview supports **Linux x64**.
+The current public runtime preview provides native x64 artifacts for:
 
-## Download
+- Linux
+- macOS
+- Windows
 
-Use the latest runtime release:
+## Managed runtime
 
+For normal VS Code usage, the Aegis extension manages the runtime lifecycle.
+
+The managed runtime flow is designed to:
+
+1. resolve the pinned public runtime release;
+2. download the signed v2 runtime manifest;
+3. verify the Ed25519 manifest signature;
+4. select the artifact for the current supported platform;
+5. verify the artifact SHA-256 before extraction;
+6. install the runtime into VS Code global storage with restrictive local permissions;
+7. start the runtime on loopback;
+8. verify Aegis health before reporting the runtime as ready.
+
+The runtime manager does not spawn a shell.
+
+## Current release authority
+
+Runtime releases are published at:
+
+https://github.com/lemkyz/Aegis/releases
+
+The current Aegis 0.2.5 extension runtime authority is:
+
+`v0.2.5-runtime-preview`
+
+The release contains:
+
+- `runtime-manifest.json`
+- `runtime-manifest.sig`
 - `aegis-runtime-linux-x64.tar.gz`
-- `SHA256SUMS`
+- `aegis-runtime-darwin-x64.tar.gz`
+- `aegis-runtime-win32-x64.tar.gz`
 
-## Verify
+The signed manifest binds each platform artifact to its platform identity, archive name, byte size, SHA-256 digest, and executable path.
 
-```bash
-sha256sum --check SHA256SUMS
-```
+## Verification boundary
 
-Do not run an artifact that fails verification.
+The managed release path is designed around:
 
-## Start
+- a pinned public runtime release;
+- an Ed25519-signed v2 manifest;
+- signature verification before trusting artifact metadata;
+- SHA-256 verification before extraction;
+- bounded runtime downloads;
+- restrictive local installation permissions;
+- runtime health verification before readiness.
 
-```bash
-tar -xzf aegis-runtime-linux-x64.tar.gz
+Missing or invalid release evidence fails closed.
 
-export AEGIS_FINGERPRINT_KEY="$(
-  python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
-)"
+## Local boundary
 
-./aegis_runtime.dist/aegis-runtime   serve   --host 127.0.0.1   --port 8000
-```
+The managed runtime binds to loopback.
 
-Health:
+Model credentials are not required merely to start the runtime or answer `/health`. Model-backed workflows use explicitly configured providers when those workflows require them and preserve provider/model provenance.
 
-```bash
-curl http://127.0.0.1:8000/health
-```
+Controlled dynamic validation requires explicit authorization and should only target systems you own or are explicitly authorized to test.
 
-The runtime refuses non-loopback bind addresses.
+## Source boundary
 
-Model credentials are not required for runtime startup or `/health`. A configured model-backed workflow validates its provider credentials when that workflow actually needs them.
+The public runtime archives contain compiled standalone runtime artifacts.
 
-The public runtime archive contains the compiled standalone runtime, not the private Aegis Python source tree.
+They do not publish the private Aegis engine source tree, private orchestration internals, private security intelligence, private rules, or private research implementation.
