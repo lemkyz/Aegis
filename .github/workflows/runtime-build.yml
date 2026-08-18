@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: lemkyz/aegis-core
-          ref: 5ae234c
+          ref: 5ae234c3d5272b2283b46b067484ff845a9953cf
           token: ${{ secrets.AEGIS_CORE_READ_TOKEN }}
           persist-credentials: false
           path: core
