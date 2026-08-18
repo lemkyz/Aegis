@@ -33,15 +33,26 @@ jobs:
           git -C core init
           git -C core remote add origin https://github.com/lemkyz/aegis-core.git
 
-          AUTH_HEADER="$(printf 'lemkyz:%s' "$CORE_TOKEN" | base64 | tr -d '\r\n')"
+          ASKPASS="$PWD/.aegis-git-askpass.sh"
+          cat > "$ASKPASS" <<'ASKPASS_EOF'
+#!/usr/bin/env bash
+case "$1" in
+  *Username*) printf '%s\n' "lemkyz" ;;
+  *Password*) printf '%s\n' "$CORE_TOKEN" ;;
+  *) exit 1 ;;
+esac
+ASKPASS_EOF
+          chmod 700 "$ASKPASS"
 
-          git             -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH_HEADER"             -C core             fetch --no-tags --depth=1 origin main
+          GIT_ASKPASS="$ASKPASS"           GIT_TERMINAL_PROMPT=0             git -C core fetch --no-tags --depth=1 origin main
+
+          rm -f "$ASKPASS"
 
           git -C core checkout --detach FETCH_HEAD
 
           test "$(git -C core rev-parse HEAD)" =             "5ae234c3d5272b2283b46b067484ff845a9953cf"
 
-          unset AUTH_HEADER CORE_TOKEN
+          unset CORE_TOKEN
           echo "PRIVATE_RELEASE_COMMIT_VERIFIED"
 
       - name: Set up Python 3.14
