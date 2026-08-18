@@ -29,28 +29,36 @@ jobs:
           CORE_TOKEN: ${{ secrets.AEGIS_CORE_READ_TOKEN }}
         run: |
           set -euo pipefail
+
           mkdir core
           git -C core init
           git -C core remote add origin https://github.com/lemkyz/aegis-core.git
 
           ASKPASS="$PWD/.aegis-git-askpass.sh"
-          cat > "$ASKPASS" <<'ASKPASS_EOF'
-#!/usr/bin/env bash
-case "$1" in
-  *Username*) printf '%s\n' "lemkyz" ;;
-  *Password*) printf '%s\n' "$CORE_TOKEN" ;;
-  *) exit 1 ;;
-esac
-ASKPASS_EOF
+
+          printf '%s\n' \
+            '#!/usr/bin/env bash' \
+            'case "$1" in' \
+            '  *Username*) printf "%s\n" "lemkyz" ;;' \
+            '  *Password*) printf "%s\n" "$CORE_TOKEN" ;;' \
+            '  *) exit 1 ;;' \
+            'esac' \
+            > "$ASKPASS"
+
           chmod 700 "$ASKPASS"
 
-          GIT_ASKPASS="$ASKPASS"           GIT_TERMINAL_PROMPT=0             git -C core fetch --no-tags --depth=1 origin main
+          GIT_ASKPASS="$ASKPASS" \
+          GIT_TERMINAL_PROMPT=0 \
+            git -C core fetch --no-tags --depth=1 origin main
 
           rm -f "$ASKPASS"
 
           git -C core checkout --detach FETCH_HEAD
 
-          test "$(git -C core rev-parse HEAD)" =             "5ae234c3d5272b2283b46b067484ff845a9953cf"
+          ACTUAL_SHA="$(git -C core rev-parse HEAD)"
+          EXPECTED_SHA="5ae234c3d5272b2283b46b067484ff845a9953cf"
+
+          test "$ACTUAL_SHA" = "$EXPECTED_SHA"
 
           unset CORE_TOKEN
           echo "PRIVATE_RELEASE_COMMIT_VERIFIED"
