@@ -23,14 +23,26 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout private release candidate
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          repository: lemkyz/aegis-core
-          ref: 5ae234c3d5272b2283b46b067484ff845a9953cf
-          token: ${{ secrets.AEGIS_CORE_READ_TOKEN }}
-          persist-credentials: false
-          path: core
+      - name: Fetch exact private release candidate
+        shell: bash
+        env:
+          CORE_TOKEN: ${{ secrets.AEGIS_CORE_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir core
+          git -C core init
+          git -C core remote add origin https://github.com/lemkyz/aegis-core.git
+
+          AUTH_HEADER="$(printf 'lemkyz:%s' "$CORE_TOKEN" | base64 | tr -d '\r\n')"
+
+          git             -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH_HEADER"             -C core             fetch --no-tags --depth=1 origin main
+
+          git -C core checkout --detach FETCH_HEAD
+
+          test "$(git -C core rev-parse HEAD)" =             "5ae234c3d5272b2283b46b067484ff845a9953cf"
+
+          unset AUTH_HEADER CORE_TOKEN
+          echo "PRIVATE_RELEASE_COMMIT_VERIFIED"
 
       - name: Set up Python 3.14
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
