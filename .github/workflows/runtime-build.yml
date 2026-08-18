@@ -9,14 +9,17 @@ permissions:
 jobs:
   build:
     name: ${{ matrix.platform_key }}
+
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-24.04
             platform_key: linux-x64
+
           - os: macos-15-intel
             platform_key: darwin-x64
+
           - os: windows-2022
             platform_key: win32-x64
 
@@ -26,42 +29,53 @@ jobs:
       - name: Fetch exact private release candidate
         shell: bash
         env:
-          CORE_TOKEN: ${{ secrets.AEGIS_CORE_READ_TOKEN }}
+          CORE_DEPLOY_KEY: ${{ secrets.AEGIS_CORE_DEPLOY_KEY }}
         run: |
           set -euo pipefail
 
-          mkdir core
-          git -C core init
-          git -C core remote add origin https://github.com/lemkyz/aegis-core.git
+          EXPECTED_SHA="5ae234c3d5272b2283b46b067484ff845a9953cf"
 
-          ASKPASS="$PWD/.aegis-git-askpass.sh"
+          KEY_FILE="$RUNNER_TEMP/aegis-core-deploy-key"
+          KNOWN_HOSTS="$RUNNER_TEMP/aegis-github-known-hosts"
+
+          if command -v cygpath >/dev/null 2>&1; then
+            KEY_FILE="$(cygpath -u "$KEY_FILE")"
+            KNOWN_HOSTS="$(cygpath -u "$KNOWN_HOSTS")"
+          fi
+
+          printf '%s\n' "$CORE_DEPLOY_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
 
           printf '%s\n' \
-            '#!/usr/bin/env bash' \
-            'case "$1" in' \
-            '  *Username*) printf "%s\n" "lemkyz" ;;' \
-            '  *Password*) printf "%s\n" "$CORE_TOKEN" ;;' \
-            '  *) exit 1 ;;' \
-            'esac' \
-            > "$ASKPASS"
+            'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' \
+            > "$KNOWN_HOSTS"
 
-          chmod 700 "$ASKPASS"
+          mkdir core
+          git -C core init
+          git -C core remote add origin \
+            git@github.com:lemkyz/aegis-core.git
 
-          GIT_ASKPASS="$ASKPASS" \
-          GIT_TERMINAL_PROMPT=0 \
-            git -C core fetch --no-tags --depth=1 origin main
+          export GIT_SSH_COMMAND="ssh -i $KEY_FILE -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$KNOWN_HOSTS"
 
-          rm -f "$ASKPASS"
+          git -C core fetch \
+            --no-tags \
+            --depth=1 \
+            origin \
+            main
 
           git -C core checkout --detach FETCH_HEAD
 
           ACTUAL_SHA="$(git -C core rev-parse HEAD)"
-          EXPECTED_SHA="5ae234c3d5272b2283b46b067484ff845a9953cf"
 
-          test "$ACTUAL_SHA" = "$EXPECTED_SHA"
+          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+            echo "Expected $EXPECTED_SHA but fetched $ACTUAL_SHA"
+            exit 1
+          fi
 
-          unset CORE_TOKEN
-          echo "PRIVATE_RELEASE_COMMIT_VERIFIED"
+          rm -f "$KEY_FILE" "$KNOWN_HOSTS"
+          unset CORE_DEPLOY_KEY GIT_SSH_COMMAND
+
+          echo "PRIVATE_RELEASE_COMMIT_VERIFIED=$ACTUAL_SHA"
 
       - name: Set up Python 3.14
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -73,6 +87,7 @@ jobs:
       - name: Install runtime build dependencies
         shell: bash
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -e ./core/backend
           python -m pip install "Nuitka==4.1.3" ordered-set zstandard
@@ -82,10 +97,11 @@ jobs:
         env:
           AEGIS_FINGERPRINT_KEY: public-builder-${{ github.run_id }}-${{ matrix.platform_key }}-not-production-secret
         run: |
+          set -euo pipefail
           cd core
           python scripts/ci_build_runtime.py
 
-      - name: Upload runtime artifact
+      - name: Upload native runtime and metadata
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: runtime-${{ matrix.platform_key }}
